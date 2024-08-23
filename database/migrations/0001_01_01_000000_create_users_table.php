@@ -18,6 +18,8 @@ return new class extends Migration
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
             $table->boolean('is_seller')->default(false);
+            $table->boolean('is_owner')->default(false);
+            $table->foreignId('organization_id')->nullable()->index();
             $table->rememberToken();
             $table->timestamps();
         });

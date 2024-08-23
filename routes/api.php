@@ -7,9 +7,17 @@ use App\Http\Controllers\Api\V1\MemberController;
 use App\Http\Controllers\Api\V1\ModuleController;
 use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\RoleController;
+use App\Http\Controllers\Api\V1\LoginController;
 
 
 
 Route::prefix('v1')->group(function () {
+    Route::post('/login', [LoginController::class, 'login']);
+
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('/logout', [LoginController::class, 'logout']);
+
+        Route::get('/organizations', [OrganizationController::class, 'index']);
+    });
     Route::get('/clients', [ClientController::class, 'index']);
 });

@@ -13,7 +13,7 @@ class OrganizationController extends Controller
      */
     public function index()
     {
-        //
+        return Organization::all();
     }
 
     /**
