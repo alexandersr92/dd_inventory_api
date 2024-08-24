@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('organization_modules', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('organization_id')->constrained()->onDelete('cascade');
-            $table->foreignId('module_id')->constrained()->onDelete('cascade');
+            $table->uuid('id')->primary();
+            $table->foreignUuid('organization_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('module_id')->constrained()->onDelete('cascade');
             $table->boolean('is_active')->default(true);
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();

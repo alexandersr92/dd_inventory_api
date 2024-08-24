@@ -12,10 +12,9 @@ use Symfony\Component\HttpFoundation\Response;
 
 class LoginController extends Controller
 {
+
     public function login(Request $request)
     {
-
-
         $request->validate([
             'email' => 'required|email',
             'password' => 'required',
@@ -40,8 +39,7 @@ class LoginController extends Controller
                     'name' => $user->name,
                     'organization_id' => $user->organization_id,
                     'device_name' => $request->device_name,
-                    'is_seller' => $user->is_seller,
-                    'is_owner' => $user->is_owner,
+
                 ],
                 'token' => $user->createToken($request->device_name)->plainTextToken,
             ]
@@ -61,4 +59,57 @@ class LoginController extends Controller
 
     //login seller
     public function loginSeller(Request $request) {}
+
+    public function registerOwner(Request $request)
+    {
+
+        $request->validate([
+            'name' => 'required',
+            'email' => 'required|email',
+            'password' => 'required',
+            'password_confirm' => 'required',
+            'device_name' => 'required'
+
+        ]);
+
+
+        if (User::where('email', $request->email)->first()) {
+            return response([
+                'message' => 'User already registered'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY); //422
+
+        }
+
+        if ($request->password !== $request->password_confirm) {
+            return response([
+                'message' => 'Diferent password'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY); //422
+
+        }
+
+
+        $user = User::create([
+            'email' => $request->email,
+            'name' => $request->name,
+            'password' => Hash::make($request->password),
+            'organization_id' => null
+        ]);
+
+        //dd($user);
+        if ($user) {
+            return response()->json([
+                'data' => [
+                    'attributes' => [
+                        'id' => $user->id,
+                        'name' => $user->name,
+                        'organization_id' => $user->organization_id,
+                    ],
+                    'token' => $user->createToken($request->device_name)->plainTextToken,
+                ]
+            ], Response::HTTP_CREATED); //201
+        }
+    }
+
+
+    public function registerMember(Request $request) {}
 }

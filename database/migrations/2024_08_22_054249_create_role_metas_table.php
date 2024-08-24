@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('role_metas', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('role_id')->constrained()->onDelete('cascade');
-            $table->foreignId('module_id')->constrained()->onDelete('cascade');
+            $table->uuid('id')->primary();
+            $table->foreignUuid('role_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('module_id')->constrained()->onDelete('cascade');
             $table->boolean('read')->default(false);
             $table->boolean('create')->default(false);
             $table->boolean('update')->default(false);

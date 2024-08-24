@@ -13,11 +13,12 @@ use App\Http\Controllers\Api\V1\LoginController;
 
 Route::prefix('v1')->group(function () {
     Route::post('/login', [LoginController::class, 'login']);
-
+    Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout']);
 
         Route::get('/organizations', [OrganizationController::class, 'index']);
+        Route::post('/organizations', [OrganizationController::class, 'store']);
     });
     Route::get('/clients', [ClientController::class, 'index']);
 });

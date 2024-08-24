@@ -4,19 +4,30 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Uuids;
 
 class Organization extends Model
 {
+    use Uuids;
     use HasFactory;
 
     protected $fillable = [
         'name',
-        'description',
         'email',
         'phone',
+        'address',
+        'city',
+        'state',
+        'country',
+        'postal_code',
+        'website',
+        'logo',
+        'description',
+        'is_active',
+
     ];
 
-    public function owner()
+    public function user()
     {
         return $this->belongsTo(User::class, 'owner_id');
     }

@@ -17,7 +17,7 @@ class RoleMetaFactory extends Factory
     public function definition(): array
     {
         return [
-            'role_id' => 1,
+            'role_id' => $this->faker->uuid,
             'module_id' => 1,
             'read' => $this->faker->boolean,
             'create' => $this->faker->boolean,

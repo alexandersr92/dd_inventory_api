@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('organizations', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('name');
             $table->string('email')->unique();
             $table->string('phone')->unique();
@@ -25,8 +25,9 @@ return new class extends Migration
             $table->string('logo')->nullable();
             $table->string('description')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->foreignId('owner_id')->constrained('users')->onDelete('cascade');
-            // $table->foreign('owner_id')->references('id')->on('users');
+            $table->uuid('owner_id');
+            $table->foreign('owner_id')->references('id')->on('users')->onDelete('cascade');
+
 
             $table->timestamps();
         });

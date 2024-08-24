@@ -17,13 +17,13 @@ class DatabaseSeeder extends Seeder
         \App\Models\User::factory(1)->create([
             'name' => 'Admin',
             'email' => 'user@dipledev.net',
-            'is_seller' => false,
+
         ]);
 
         \App\Models\User::factory(1)->create([
             'name' => 'Seller',
             'email' => 'seller@dipledev.net',
-            'is_seller' => true,
+
         ]);
 
         \App\Models\Organization::factory(1)->create([

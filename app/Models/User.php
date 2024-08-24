@@ -6,11 +6,15 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
+use App\Traits\Uuids;
 
 class User extends Authenticatable
 {
+    use Uuids;
+
     use HasFactory, Notifiable, HasApiTokens;
 
     /**
@@ -47,6 +51,8 @@ class User extends Authenticatable
         ];
     }
 
+
+
     public function roles()
     {
         return $this->belongsToMany(Role::class);
@@ -54,7 +60,7 @@ class User extends Authenticatable
 
     public function organization()
     {
-        return $this->belongsTo(Organization::class);
+        return $this->hasOne(Organization::class, 'owner_id');
     }
 
     public function hasRole(string $role): bool

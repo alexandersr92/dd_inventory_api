@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('clients', function (Blueprint $table) {
-            $table->id();
+            $table->uuid('id')->primary();
             $table->string('name');
             $table->string('email')->unique();
             $table->string('phone')->unique();
@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('country');
             $table->boolean('is_active')->default(true);
             $table->boolean('wholeasaler')->default(false);
-            $table->foreignId('organization_id')->constrained();
+            $table->foreignUuid('organization_id')->constrained();
             $table->text('notes')->nullable();
             $table->timestamps();
         });
