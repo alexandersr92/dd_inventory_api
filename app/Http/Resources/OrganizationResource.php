@@ -4,6 +4,7 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use App\Models\User;
 
 class OrganizationResource extends JsonResource
 {
@@ -28,7 +29,7 @@ class OrganizationResource extends JsonResource
             'logo' => $this->logo,
             'description' => $this->description,
             'is_active' => $this->is_active,
-            'owner_id' => $this->owner_id,
+            'owner' => new UserResource(User::find($this->owner_id)),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

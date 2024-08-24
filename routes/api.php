@@ -18,7 +18,10 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout']);
 
         Route::get('/organizations', [OrganizationController::class, 'index']);
+        Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
         Route::post('/organizations', [OrganizationController::class, 'store']);
+        Route::put('/organizations/{organization}', [OrganizationController::class, 'update']);
+        Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
     });
     Route::get('/clients', [ClientController::class, 'index']);
 });
