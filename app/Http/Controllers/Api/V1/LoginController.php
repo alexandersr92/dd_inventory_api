@@ -16,7 +16,7 @@ class LoginController extends Controller
 {
     /**
      * @OA\Post(
-     *     path="/api/login",
+     *     path="/api/v1/login",
      *     summary="Login user",
      *     tags={"Authentication"},
      *     @OA\RequestBody(
@@ -86,7 +86,7 @@ class LoginController extends Controller
     }
     /**
      * @OA\Post(
-     *     path="/api/logout",
+     *     path="/api/v1/logout",
      *     summary="Logout user",
      *     tags={"Authentication"},
      *     @OA\Response(
@@ -114,7 +114,7 @@ class LoginController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/api/register-owner",
+     *     path="/api/v1/register",
      *     summary="Register new owner",
      *     tags={"User Management"},
      *     @OA\RequestBody(

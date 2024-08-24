@@ -5,13 +5,13 @@
         "version": "0.0.1"
     },
     "paths": {
-        "/api/login": {
+        "/api/v1/login": {
             "post": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Login user",
-                "operationId": "c766a47c669b602ac711177fac50d30b",
+                "operationId": "bb4831f9057e08ec9937e75b14314fd4",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -102,13 +102,13 @@
                 }
             }
         },
-        "/api/logout": {
+        "/api/v1/logout": {
             "post": {
                 "tags": [
                     "Authentication"
                 ],
                 "summary": "Logout user",
-                "operationId": "8a144d491e267588e9efc47c2f747133",
+                "operationId": "b020be50e34b05500ffd81729fbc10fa",
                 "responses": {
                     "200": {
                         "description": "Successful logout",
@@ -129,13 +129,13 @@
                 }
             }
         },
-        "/api/register-owner": {
+        "/api/v1/register": {
             "post": {
                 "tags": [
                     "User Management"
                 ],
                 "summary": "Register new owner",
-                "operationId": "91c67c6a72f81fe8d049a5cea4fe9444",
+                "operationId": "9a5adae626ca5392c24f3a416bc1ac3a",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -233,13 +233,13 @@
                 }
             }
         },
-        "/api/organizations": {
+        "/api/v1/organizations": {
             "get": {
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "List all organizations",
-                "operationId": "4cb0c5e74576cc4933ae9dc2b926936f",
+                "operationId": "54ffd98fe34a49c738c616139213bf8a",
                 "responses": {
                     "200": {
                         "description": "List of organizations",
@@ -261,7 +261,7 @@
                     "Organizations"
                 ],
                 "summary": "Create a new organization",
-                "operationId": "e6bccd2e2ab291f593e2feffe4cacdf4",
+                "operationId": "ee29c17f41fb24d47174ed58c4868c9a",
                 "requestBody": {
                     "required": true,
                     "content": {
@@ -348,13 +348,13 @@
                 }
             }
         },
-        "/api/organizations/{organization}": {
+        "/api/v1/organizations/{organization}": {
             "put": {
                 "tags": [
                     "Organizations"
                 ],
                 "summary": "Update an organization",
-                "operationId": "20ca246ef8cecc21dd32d22d51d2d72f",
+                "operationId": "14d81421241bff49d37db5c3695f0327",
                 "parameters": [
                     {
                         "name": "organization",
@@ -457,7 +457,7 @@
                     "Organizations"
                 ],
                 "summary": "Delete an organization",
-                "operationId": "82cfbb1dc64bea20ce11f9299749b767",
+                "operationId": "cc815b35eea6b673aabbd41b0a71adc5",
                 "parameters": [
                     {
                         "name": "organization",

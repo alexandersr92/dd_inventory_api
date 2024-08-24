@@ -35,7 +35,7 @@ class OrganizationController extends Controller
 {
     /**
      * @OA\Get(
-     *     path="/api/organizations",
+     *     path="/api/v1/organizations",
      *     summary="List all organizations",
      *     tags={"Organizations"},
      *   @OA\Response(
@@ -55,7 +55,7 @@ class OrganizationController extends Controller
 
     /**
      * @OA\Post(
-     *     path="/api/organizations",
+     *     path="/api/v1/organizations",
      *     summary="Create a new organization",
      *     tags={"Organizations"},
      *     @OA\RequestBody(
@@ -121,7 +121,7 @@ class OrganizationController extends Controller
 
     /**
      * @OA\Put(
-     *     path="/api/organizations/{organization}",
+     *     path="/api/v1/organizations/{organization}",
      *     summary="Update an organization",
      *     tags={"Organizations"},
      *     @OA\Parameter(
@@ -186,7 +186,7 @@ class OrganizationController extends Controller
 
     /**
      * @OA\Delete(
-     *    path="/api/organizations/{organization}",
+     *    path="/api/v1/organizations/{organization}",
      *   summary="Delete an organization",
      *  tags={"Organizations"},
      * @OA\Parameter(
