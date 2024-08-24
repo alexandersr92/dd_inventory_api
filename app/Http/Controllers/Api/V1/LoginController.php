@@ -10,7 +10,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 
 /**
- * @OA\Info(title="API Documentation", version="1.0.0")
+ * @OA\Info(title="Inventory API Documentation", version="0.0.1")
  */
 class LoginController extends Controller
 {

@@ -1,8 +1,8 @@
 {
     "openapi": "3.0.0",
     "info": {
-        "title": "API Documentation",
-        "version": "1.0.0"
+        "title": "Inventory API Documentation",
+        "version": "0.0.1"
     },
     "paths": {
         "/api/login": {
@@ -232,6 +232,175 @@
                     }
                 }
             }
+        },
+        "/api/organizations": {
+            "get": {
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "List all organizations",
+                "operationId": "4cb0c5e74576cc4933ae9dc2b926936f",
+                "responses": {
+                    "200": {
+                        "description": "List of organizations",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/Organization"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Create a new organization",
+                "operationId": "e6bccd2e2ab291f593e2feffe4cacdf4",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "name",
+                                    "address"
+                                ],
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "example": "Acme Corp"
+                                    },
+                                    "address": {
+                                        "type": "string",
+                                        "example": "123 Main St"
+                                    },
+                                    "city": {
+                                        "type": "string",
+                                        "example": "Anytown"
+                                    },
+                                    "state": {
+                                        "type": "string",
+                                        "example": "CA"
+                                    },
+                                    "country": {
+                                        "type": "string",
+                                        "example": "USA"
+                                    },
+                                    "postal_code": {
+                                        "type": "string",
+                                        "example": "12345"
+                                    },
+                                    "website": {
+                                        "type": "string",
+                                        "example": "https://acme.com"
+                                    },
+                                    "logo": {
+                                        "type": "string",
+                                        "example": "https://acme.com/logo.png"
+                                    },
+                                    "description": {
+                                        "type": "string",
+                                        "example": "A description of the organization"
+                                    },
+                                    "is_active": {
+                                        "type": "boolean",
+                                        "example": true
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Organization created successfully",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Organization"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "description": "Validation error",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "message": {
+                                            "type": "string",
+                                            "example": "Validation error"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "Organization": {
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "example": "c5a72d2d-5c27-4d0b-9a6b-e0063c4f6e87"
+                    },
+                    "name": {
+                        "type": "string",
+                        "example": "Acme Corp"
+                    },
+                    "address": {
+                        "type": "string",
+                        "example": "123 Main St"
+                    },
+                    "city": {
+                        "type": "string",
+                        "example": "Anytown"
+                    },
+                    "state": {
+                        "type": "string",
+                        "example": "CA"
+                    },
+                    "country": {
+                        "type": "string",
+                        "example": "USA"
+                    },
+                    "postal_code": {
+                        "type": "string",
+                        "example": "12345"
+                    },
+                    "website": {
+                        "type": "string",
+                        "example": "https://acme.com"
+                    },
+                    "logo": {
+                        "type": "string",
+                        "example": "https://acme.com/logo.png"
+                    },
+                    "description": {
+                        "type": "string",
+                        "example": "A description of the organization"
+                    },
+                    "is_active": {
+                        "type": "boolean",
+                        "example": true
+                    }
+                },
+                "type": "object"
+            }
         }
     },
     "tags": [
@@ -242,6 +411,10 @@
         {
             "name": "User Management",
             "description": "User Management"
+        },
+        {
+            "name": "Organizations",
+            "description": "Organizations"
         }
     ]
 }
