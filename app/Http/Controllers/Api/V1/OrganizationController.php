@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
-use Illuminate\Http\Request;
+
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
-use Symfony\Component\HttpFoundation\Response;
 use App\Http\Resources\OrganizationResource;
 use App\Http\Resources\OrganizationCollection;
-use App\Models\User;
+use Symfony\Component\HttpFoundation\Response;
+
 
 /**
  * @OA\Schema(

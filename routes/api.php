@@ -22,6 +22,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/organizations', [OrganizationController::class, 'store']);
         Route::put('/organizations/{organization}', [OrganizationController::class, 'update']);
         Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
+
+        Route::apiResource('clients', ClientController::class);
     });
     Route::get('/clients', [ClientController::class, 'index']);
 });
