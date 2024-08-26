@@ -8,8 +8,11 @@ use App\Http\Requests\StoreClientRequest;
 use App\Http\Requests\UpdateClientRequest;
 use App\Http\Resources\ClientCollection;
 use App\Http\Resources\ClientResource;
+
 use Symfony\Component\HttpFoundation\Response;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * @OA\Schema(
@@ -36,23 +39,92 @@ class ClientController extends Controller
      *     path="/api/v1/clients",
      *     summary="Get a list of clients",
      *     tags={"Clients"},
-     *     @OA\Response(
-     *         response=200,
-     *         description="A list of clients",
-     *        @OA\JsonContent(
-     *            type="array",
-     *           @OA\Items(ref="#/components/schemas/Client")
-     *      )
-     *   )
+     *     @OA\Parameter(
+     *        name="per_page",
+     *      in="query",
+     *    description="Number of clients to return",
+     *  required=false,
+     * @OA\Schema(
+     *  type="integer"
+     * )
+     * ),
+     * @OA\Parameter(
+     *       name="search",
+     *     in="query",
+     *  description="Search for a client",
+     * required=false,
+     * @OA\Schema(
+     *  type="string"
+     * )
+     * ),
+     * @OA\Parameter(
+     *      name="sort",
+     *    in="query",
+     * description="Sort clients by column",
+     * required=false,
+     * @OA\Schema(
+     * type="string"
+     * )
+     * ),
+     * @OA\Parameter(
+     *     name="asc",
+     *   in="query",
+     * description="Sort in ascending order",
+     * required=false,
+     * @OA\Schema(
+     * type="string"
+     * )
+     * ),
+     * @OA\Response(
+     *    response=200,
+     * description="A list of clients",
+     * @OA\JsonContent(
+     *   type="array",
+     *  @OA\Items(ref="#/components/schemas/Client")
+     * )
+     * )
+     * )
+     * 
+     * 
      * )
      */
 
-    public function index()
+    public function index(Request $request)
     {
-        return response(
-            new ClientCollection(Client::all()),
-            Response::HTTP_OK
-        );
+        $perPage = $request->query('per_page', 10);
+        //get organization id from the authenticated user and get all clients for that organization
+        $userLoggedIn = Auth::user()->organization_id;
+
+        $clients = Client::where('organization_id', $userLoggedIn)->get();
+
+        //paginate the clients
+        $clients = Client::paginate($perPage);
+
+
+
+        if ($request->has('search')) {
+            $asc = $request->query('asc', 'true');
+
+            $clients = Client::where('name', 'like', '%' . $request->search . '%')
+                ->orWhere('email', 'like', '%' . $request->search . '%')
+                ->orWhere('phone', 'like', '%' . $request->search . '%')
+                ->orWhere('address', 'like', '%' . $request->search . '%')
+                ->orWhere('city', 'like', '%' . $request->search . '%')
+                ->orWhere('state', 'like', '%' . $request->search . '%')
+                ->orWhere('country', 'like', '%' . $request->search . '%')
+                ->orWhere('is_active', 'like', '%' . $request->search . '%')
+                ->orderBy('name', $asc === 'true' ? 'asc' : 'desc')
+                ->paginate($perPage);
+        }
+
+        if ($request->has('sort')) {
+            $asc = $request->query('asc', 'true');
+
+            $clients = Client::orderBy($request->sort, $asc === 'true' ? 'asc' : 'desc')
+                ->paginate($perPage);
+        }
+
+        return new ClientCollection($clients);
     }
 
     /**
@@ -93,15 +165,6 @@ class ClientController extends Controller
      */
     public function store(StoreClientRequest $request)
     {
-        //validate email is unique
-        if (Client::where('email', $request->email)->exists()) {
-            return response(['message' => 'Email already exists'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        //validate phone is unique
-        if (Client::where('phone', $request->phone)->exists()) {
-            return response(['message' => 'Phone already exists'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
 
         $client = Client::create($request->all());
         return response(
@@ -186,15 +249,7 @@ class ClientController extends Controller
      */
     public function update(UpdateClientRequest $request, Client $client)
     {
-        //validate email is unique but can be the same as the current client
-        if (Client::where('email', $request->email)->where('id', '!=', $client->id)->exists()) {
-            return response(['message' => 'Email already exists'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
 
-        //validate phone is unique but can be the same as the current client
-        if (Client::where('phone', $request->phone)->where('id', '!=', $client->id)->exists()) {
-            return response(['message' => 'Phone already exists'], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
 
         $client->update($request->all());
         return response(

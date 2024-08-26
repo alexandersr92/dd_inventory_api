@@ -22,7 +22,7 @@ class ModuleFactory extends Factory
             'route' => $this->faker->word(),
             'description' => $this->faker->sentence(),
             'is_active' => true,
-            'organization_id' => \App\Models\Organization::factory(),
+
         ];
     }
 }

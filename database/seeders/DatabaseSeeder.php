@@ -14,23 +14,28 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        \App\Models\User::factory(1)->create([
-            'name' => 'Admin',
-            'email' => 'user@dipledev.net',
+        $ownerNike = \App\Models\User::factory(1)->create([
+            'name' => 'Admin Nike',
+            'email' => 'admin@nike.com',
+        ])->first(); // Access the first item in the collection
 
-        ]);
+        $ownerAdidas = \App\Models\User::factory(1)->create([
+            'name' => 'Admin Adidas',
+            'email' => 'admin@adidas.com',
+        ])->first(); // Access the first item in the collection
 
-        \App\Models\User::factory(1)->create([
-            'name' => 'Seller',
-            'email' => 'seller@dipledev.net',
+        $adidas = \App\Models\Organization::factory(1)->create([
+            'name' => 'Adidas',
+            'email' => 'info@adidas.com',
+            'owner_id' => $ownerAdidas->id,
+        ])->first(); // Access the first item in the collection
 
-        ]);
+        $nike = \App\Models\Organization::factory(1)->create([
+            'name' => 'Nike',
+            'email' => 'info@nike.com',
+            'owner_id' => $ownerNike->id,
+        ])->first(); // Access the first item in the collection
 
-        \App\Models\Organization::factory(1)->create([
-            'name' => 'Diple Dev',
-            'email' => 'info@dipledev.net',
-            'owner_id' => 1,
-        ]);
 
 
 
@@ -39,42 +44,53 @@ class DatabaseSeeder extends Seeder
             'name' => 'Admin',
             'description' => 'Admin role',
             'is_active' => true,
-            'organization_id' => 1,
+            'organization_id' => $adidas->id,
         ]);
 
         \App\Models\Role::factory(1)->create([
             'name' => 'Seller',
             'description' => 'Seller role',
             'is_active' => true,
-            'organization_id' => 1,
+            'organization_id' => $adidas->id,
+        ]);
+
+        \App\Models\Role::factory(1)->create([
+            'name' => 'Admin',
+            'description' => 'Admin role',
+            'is_active' => true,
+            'organization_id' => $nike->id,
+        ]);
+
+        \App\Models\Role::factory(1)->create([
+            'name' => 'Seller',
+            'description' => 'Seller role',
+            'is_active' => true,
+            'organization_id' => $nike->id,
         ]);
 
         \App\Models\Module::factory(1)->create([
             'name' => 'Clientes',
             'description' => 'Modulo de Clientes',
             'is_active' => true,
-            'organization_id' => 1,
         ]);
-
-        \App\Models\RoleMeta::factory(1)->create([
-            'role_id' => 1,
-            'module_id' => 1,
-        ]);
-
-        \App\Models\Member::factory(1)->create([
-            'user_id' => 2,
-            'organization_id' => 1,
-            'role_id' => 2,
-        ]);
-
-        \App\Models\Client::factory(10)->create([
-            'organization_id' => 1,
-        ]);
-
-        \App\Models\OrganizationModule::factory(1)->create([
-            'organization_id' => 1,
-            'module_id' => 1,
+        \App\Models\Module::factory(1)->create([
+            'name' => 'Proveedores',
+            'description' => 'Modulo de Clientes',
             'is_active' => true,
+        ]);
+        \App\Models\Module::factory(1)->create([
+            'name' => 'Venta',
+            'description' => 'Modulo de Clientes',
+            'is_active' => true,
+        ]);
+
+
+
+        \App\Models\Client::factory(125)->create([
+            'organization_id' => $adidas->id,
+        ]);
+        \App\Models\Client::factory(121)->create([
+            'organization_id' => $nike->id,
         ]);
     }
 }

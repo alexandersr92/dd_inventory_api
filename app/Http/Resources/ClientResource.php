@@ -14,6 +14,7 @@ class ClientResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        //has creditos
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -25,7 +26,7 @@ class ClientResource extends JsonResource
             'country' => $this->country,
             'is_active' => $this->is_active,
             'wholeasaler' => $this->wholeasaler,
-            'organization_id' => $this->organization_id,
+            'has_credit' => true,
             'notes' => $this->notes,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

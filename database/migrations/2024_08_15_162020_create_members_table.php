@@ -17,8 +17,8 @@ return new class extends Migration
 
             $table->foreignUuid('user_id')->constrained()->onDelete('cascade');
             $table->string('name');
-            $table->string('email')->unique();
-            $table->string('phone')->unique();
+            $table->string('email');
+            $table->string('phone');
             $table->timestamps();
         });
     }

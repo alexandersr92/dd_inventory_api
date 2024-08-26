@@ -25,5 +25,4 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('clients', ClientController::class);
     });
-    Route::get('/clients', [ClientController::class, 'index']);
 });

@@ -14,6 +14,7 @@ class ClientCollection extends ResourceCollection
      */
     public function toArray(Request $request): array
     {
+        //has creditos
         return $this->collection->map(function ($client) {
             return [
                 'id' => $client->id,
@@ -22,6 +23,7 @@ class ClientCollection extends ResourceCollection
                 'city' => $client->city,
                 'state' => $client->state,
                 'is_active' => $client->is_active,
+                'has_credit' => true,
                 'wholeasaler' => $client->wholeasaler,
                 'created_at' => $client->created_at,
                 'updated_at' => $client->updated_at,
