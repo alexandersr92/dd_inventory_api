@@ -12,83 +12,16 @@ use App\Http\Resources\OrganizationCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 
-/**
- * @OA\Schema(
- *     schema="Organization",
- *     type="object",
- *     @OA\Property(property="id", type="string", format="uuid", example="c5a72d2d-5c27-4d0b-9a6b-e0063c4f6e87"),
- *            @OA\Property(property="name", type="string", example="Acme Corp"),
- *             @OA\Property(property="address", type="string", example="123 Main St"),
- *             @OA\Property(property="city", type="string", example="Anytown"),
- *             @OA\Property(property="state", type="string", example="CA"),
- *             @OA\Property(property="country", type="string", example="USA"),
- *             @OA\Property(property="postal_code", type="string", example="12345"),
- *             @OA\Property(property="website", type="string", example="https://acme.com"),
- *             @OA\Property(property="logo", type="string", example="https://acme.com/logo.png"),
- *             @OA\Property(property="description", type="string", example="A description of the organization"),
- *             @OA\Property(property="is_active", type="boolean", example=true)
- * 
- * )
- */
 
 class OrganizationController extends Controller
 {
-    /**
-     * @OA\Get(
-     *     path="/api/v1/organizations",
-     *     summary="List all organizations",
-     *     tags={"Organizations"},
-     *   @OA\Response(
-     *        response=200,
-     *       description="List of organizations",
-     *      @OA\JsonContent(
-     *         type="array",
-     *        @OA\Items(ref="#/components/schemas/Organization")
-     *    )
-     * )
-     * )
-     */
+
     public function index()
     {
         return new OrganizationCollection(Organization::all());
     }
 
-    /**
-     * @OA\Post(
-     *     path="/api/v1/organizations",
-     *     summary="Create a new organization",
-     *     tags={"Organizations"},
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"name", "address"},
-     *             @OA\Property(property="name", type="string", example="Acme Corp"),
-     *             @OA\Property(property="address", type="string", example="123 Main St"),
-     *             @OA\Property(property="city", type="string", example="Anytown"),
-     *             @OA\Property(property="state", type="string", example="CA"),
-     *             @OA\Property(property="country", type="string", example="USA"),
-     *             @OA\Property(property="postal_code", type="string", example="12345"),
-     *             @OA\Property(property="website", type="string", example="https://acme.com"),
-     *             @OA\Property(property="logo", type="string", example="https://acme.com/logo.png"),
-     *             @OA\Property(property="description", type="string", example="A description of the organization"),
-     *             @OA\Property(property="is_active", type="boolean", example=true)
-     * 
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=201,
-     *         description="Organization created successfully",
-     *         @OA\JsonContent(ref="#/components/schemas/Organization")
-     *     ),
-     *     @OA\Response(
-     *         response=422,
-     *         description="Validation error",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Validation error")
-     *         )
-     *     )
-     * )
-     */
+
     public function store(StoreOrganizationRequest $request)
     {
 
@@ -119,52 +52,6 @@ class OrganizationController extends Controller
         return new OrganizationResource($organization);
     }
 
-    /**
-     * @OA\Put(
-     *     path="/api/v1/organizations/{organization}",
-     *     summary="Update an organization",
-     *     tags={"Organizations"},
-     *     @OA\Parameter(
-     *         name="organization",
-     *         in="path",
-     *         required=true,
-     *         description="Organization ID",
-     *         @OA\Schema(
-     *             type="string",
-     *             format="uuid"
-     *         )
-     *     ),
-     *     @OA\RequestBody(
-     *         required=true,
-     *         @OA\JsonContent(
-     *             required={"name", "address"},
-     *             @OA\Property(property="name", type="string", example="Acme Corp"),
-     *             @OA\Property(property="address", type="string", example="123 Main St"),
-     *             @OA\Property(property="city", type="string", example="Anytown"),
-     *             @OA\Property(property="state", type="string", example="CA"),
-     *             @OA\Property(property="country", type="string", example="USA"),
-     *             @OA\Property(property="postal_code", type="string", example="12345"),
-     *             @OA\Property(property="website", type="string", example="https://acme.com"),
-     *             @OA\Property(property="logo", type="string", example="https://acme.com/logo.png"),
-     *             @OA\Property(property="description", type="string", example="A description of the organization"),
-     *             @OA\Property(property="is_active", type="boolean", example=true)
-     *         )
-     *     ),
-     *     @OA\Response(
-     *         response=202,
-     *         description="Organization updated successfully",
-     *         @OA\JsonContent(ref="#/components/schemas/Organization")
-     *     ),
-     *     @OA\Response(
-     *         response=422,
-     *         description="Validation error",
-     *         @OA\JsonContent(
-     *             @OA\Property(property="message", type="string", example="Validation error")
-     *         )
-     *     )
-     * )
-
-     */
     public function update(UpdateOrganizationRequest $request, Organization $organization)
     {
 
@@ -184,28 +71,6 @@ class OrganizationController extends Controller
         return response(new OrganizationResource($organization), Response::HTTP_ACCEPTED);
     }
 
-    /**
-     * @OA\Delete(
-     *    path="/api/v1/organizations/{organization}",
-     *   summary="Delete an organization",
-     *  tags={"Organizations"},
-     * @OA\Parameter(
-     *    name="organization",
-     *  in="path",
-     * required=true,
-     * description="Organization ID",
-     * @OA\Schema(
-     *   type="string",
-     * format="uuid"
-     * )
-     * ),
-     * @OA\Response(
-     *   response=204,
-     * description="Organization deleted successfully"
-     * )
-     * )
-     * 
-     */
     public function destroy(Organization $organization)
     {
         $organization->delete();
