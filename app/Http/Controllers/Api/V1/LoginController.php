@@ -113,6 +113,13 @@ class LoginController extends Controller
         }
     }
 
+    public function validationToken(Request $request)
+    {
+        return response()->json([
+            'message' => 'Token is valid'
+        ], Response::HTTP_OK); //200
+    }
+
 
     public function registerMember(Request $request) {}
 }

@@ -16,6 +16,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout']);
+        Route::get('/validateToken', [LoginController::class, 'validationToken']);
 
         Route::get('/organizations', [OrganizationController::class, 'index']);
         Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
