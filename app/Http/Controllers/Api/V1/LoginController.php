@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Support\Facades\Auth;
 
 /**
  * @OA\Info(title="Inventory API Documentation", version="0.0.1")
@@ -115,9 +115,15 @@ class LoginController extends Controller
 
     public function validationToken(Request $request)
     {
-        return response()->json([
-            'message' => 'Token is valid'
-        ], Response::HTTP_OK); //200
+        //validar token
+
+        //validate if token is valid
+
+        if (Auth::guard('sanctum')->check()) {
+            return response()->json(['valid' => true, 'message' => 'Token is valid.'], 200);
+        } else {
+            return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
+        }
     }
 
 
