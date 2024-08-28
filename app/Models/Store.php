@@ -6,24 +6,22 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
 
-class Client extends Model
+class Store extends Model
 {
-    use Uuids;
     use HasFactory;
+    use Uuids;
 
     protected $fillable = [
-        'organization_id',
         'name',
+        'description',
         'email',
         'phone',
         'address',
         'city',
         'state',
         'country',
-        'notes',
-        'wholeasaler',
+        'zip',
         'status',
-        'notes'
     ];
 
     public function organization()
@@ -31,8 +29,18 @@ class Client extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function stores()
+    public function sellers()
     {
-        return $this->belongsToMany(Store::class, 'client_store', 'client_id', 'store_id');
+        return $this->hasMany(Seller::class);
+    }
+
+    public function clients()
+    {
+        return $this->hasMany(Client::class);
+    }
+
+    public function rolePermissions()
+    {
+        return $this->hasMany(RolePermission::class);
     }
 }

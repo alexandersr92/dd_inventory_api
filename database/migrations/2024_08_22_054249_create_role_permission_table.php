@@ -11,15 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('role_metas', function (Blueprint $table) {
+        Schema::create('role_permissions', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('role_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('module_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('store_id')->constrained()->onDelete('cascade');
             $table->boolean('read')->default(false);
             $table->boolean('create')->default(false);
             $table->boolean('update')->default(false);
             $table->boolean('delete')->default(false);
-            $table->boolean('is_active')->default(true);
+
             $table->timestamps();
         });
     }
@@ -29,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('role_metas');
+        Schema::dropIfExists('role_permissions');
     }
 };

@@ -15,13 +15,13 @@ class Module extends Model
         'name',
         'description',
         'icon',
-        'route',
-        'is_active',
+        'path',
+        'status',
     ];
 
     public function roles()
     {
-        return $this->belongsToMany(RoleMeta::class);
+        return $this->belongsToMany(RolePermission::class);
     }
 
     public function organization()

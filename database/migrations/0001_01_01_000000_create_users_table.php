@@ -19,6 +19,7 @@ return new class extends Migration
             $table->string('password');
             $table->foreignUuid('organization_id')->nullable()->index();
             $table->foreignUuid('role_id')->nullable()->index();
+            $table->string('status')->default('active');
             $table->rememberToken();
             $table->timestamps();
         });

@@ -19,9 +19,9 @@ class ModuleFactory extends Factory
         return [
             'name' => $this->faker->unique()->word(),
             'icon' => 'https://via.placeholder.com/150',
-            'route' => $this->faker->word(),
+            'path' => $this->faker->word(),
             'description' => $this->faker->sentence(),
-            'is_active' => true,
+            'status' => 'active',
 
         ];
     }

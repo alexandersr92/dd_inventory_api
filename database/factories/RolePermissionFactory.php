@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 /**
  * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\RoleMeta>
  */
-class RoleMetaFactory extends Factory
+class RolePermissionFactory extends Factory
 {
     /**
      * Define the model's default state.
@@ -18,12 +18,13 @@ class RoleMetaFactory extends Factory
     {
         return [
             'role_id' => $this->faker->uuid,
-            'module_id' => 1,
+            'module_id' => \App\Models\Module::factory(),
+            'store_id' => \App\Models\Store::factory(),
             'read' => $this->faker->boolean,
             'create' => $this->faker->boolean,
             'update' => $this->faker->boolean,
             'delete' => $this->faker->boolean,
-            'is_active' => $this->faker->boolean,
+
         ];
     }
 }

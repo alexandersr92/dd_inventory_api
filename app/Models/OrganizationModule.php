@@ -14,7 +14,9 @@ class OrganizationModule extends Model
     protected $fillable = [
         'organization_id',
         'module_id',
-        'is_active',
+        'status',
+        'start_date',
+        'end_date',
     ];
 
     public function organization()

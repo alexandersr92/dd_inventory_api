@@ -20,15 +20,10 @@ class OrganizationFactory extends Factory
             'name' => $this->faker->company(),
             'email' => $this->faker->unique()->safeEmail(),
             'phone' => $this->faker->phoneNumber(),
-            'address' => $this->faker->address(),
-            'city' => $this->faker->city(),
-            'state' => $this->faker->state(),
-            'country' => $this->faker->country(),
-            'postal_code' => $this->faker->postcode(),
             'website' => $this->faker->url(),
             'logo' => $this->faker->imageUrl(),
             'description' => $this->faker->sentence(),
-            'is_active' => true,
+            'status' => 'active',
             'owner_id' => \App\Models\User::factory(),
         ];
     }

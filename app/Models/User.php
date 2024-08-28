@@ -26,6 +26,9 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'status',
+        'organization_id',
+        'role_id',
     ];
 
     /**
@@ -55,16 +58,16 @@ class User extends Authenticatable
 
     public function roles()
     {
-        return $this->belongsToMany(Role::class);
+        return $this->belongsTo(Role::class);
     }
 
-    public function organization()
+    public function owner()
     {
         return $this->hasOne(Organization::class, 'owner_id');
     }
 
-    public function hasRole(string $role): bool
+    public function organization()
     {
-        return $this->roles->contains('name', $role);
+        return $this->belongsTo(Organization::class);
     }
 }

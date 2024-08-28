@@ -11,19 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('clients', function (Blueprint $table) {
+        Schema::create('stores', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('organization_id')->constrained();
             $table->string('name');
-            $table->string('email');
+            $table->text('description');
             $table->string('phone');
+            $table->string('email');
             $table->string('address');
             $table->string('city');
             $table->string('state');
             $table->string('country');
+            $table->string('zip');
             $table->string('status')->default('active');
-            $table->boolean('wholeasaler')->default(false);
-            $table->text('notes')->nullable();
             $table->timestamps();
         });
     }
@@ -33,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('clients');
+        Schema::dropIfExists('stores');
     }
 };

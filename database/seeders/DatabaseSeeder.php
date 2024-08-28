@@ -39,6 +39,14 @@ class DatabaseSeeder extends Seeder
             'owner_id' => $ownerNike->id,
         ]); // Access the first item in the collection
 
+        $adidasStore = \App\Models\Store::factory()->create([
+            'name' => 'Adidas Store',
+        ]);
+
+        $nikeStore = \App\Models\Store::factory()->create([
+            'name' => 'Nike Store',
+        ]);
+
 
 
 
@@ -46,29 +54,21 @@ class DatabaseSeeder extends Seeder
 
         \App\Models\Role::factory()->create([
             'name' => 'Owner',
-            'description' => 'Owner role',
-            'is_active' => true,
             'organization_id' => $adidas->id,
         ]);
 
         $adidasSellerRole = \App\Models\Role::factory()->create([
             'name' => 'Seller Adidas',
-            'description' => 'Seller role',
-            'is_active' => true,
             'organization_id' => $adidas->id,
         ]);
 
         \App\Models\Role::factory()->create([
             'name' => 'Owner',
-            'description' => 'Owner role',
-            'is_active' => true,
             'organization_id' => $nike->id,
         ]);
 
         \App\Models\Role::factory()->create([
             'name' => 'Seller Nike',
-            'description' => 'Seller role',
-            'is_active' => true,
             'organization_id' => $nike->id,
         ]);
 
@@ -86,17 +86,17 @@ class DatabaseSeeder extends Seeder
         $clientModule =  \App\Models\Module::factory()->create([
             'name' => 'Clientes',
             'description' => 'Modulo de Clientes',
-            'is_active' => true,
         ]);
 
-        \App\Models\RoleMeta::factory()->create([
+        \App\Models\RolePermission::factory()->create([
             'role_id' => $adidasSellerRole->id,
             'module_id' => $clientModule->id,
+            'store_id' => $adidasStore->id,
             'read' => true,
             'create' => true,
             'update' => false,
             'delete' => false,
-            'is_active' => true,
+
         ]);
 
 
@@ -107,5 +107,21 @@ class DatabaseSeeder extends Seeder
         \App\Models\Client::factory(121)->create([
             'organization_id' => $nike->id,
         ]);
+
+        //asignar cliente a tienda
+        $clients = \App\Models\Client::all();
+        $clients->each(function ($client) use ($adidasStore, $nikeStore) {
+            $adidas = \App\Models\Organization::where('name', 'Adidas')->first();
+            if ($client->organization_id == $adidas->id)
+                \App\Models\StoreClient::factory()->create([
+                    'store_id' => $adidasStore->id,
+                    'client_id' => $client->id,
+                ]);
+            else
+                \App\Models\StoreClient::factory()->create([
+                    'store_id' => $nikeStore->id,
+                    'client_id' => $client->id,
+                ]);
+        });
     }
 }

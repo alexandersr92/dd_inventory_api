@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
 
-class RoleMeta extends Model
+class RolePermission extends Model
 {
     use Uuids;
     use HasFactory;
@@ -14,11 +14,11 @@ class RoleMeta extends Model
     protected $fillable = [
         'role_id',
         'module_id',
+        'store_id',
         'read',
         'create',
         'update',
         'delete',
-        'is_active',
     ];
 
     public function role()
@@ -29,5 +29,10 @@ class RoleMeta extends Model
     public function module()
     {
         return $this->hasOne(Module::class);
+    }
+
+    public function store()
+    {
+        return $this->hasOne(Store::class);
     }
 }

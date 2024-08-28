@@ -21,6 +21,9 @@ class ClientController extends Controller
 
     public function index(Request $request)
     {
+
+
+
         $perPage = $request->query('per_page', 10);
         //get organization id from the authenticated user and get all clients for that organization
         $userLoggedIn = Auth::user()->organization_id;

@@ -12,6 +12,7 @@ class ClientPolicy
      */
     public function index(User $user, Client $client,): bool
     {
+        //usuario tiene permiso para ver todos los clientes
 
         return true;
     }

@@ -15,15 +15,10 @@ class Organization extends Model
         'name',
         'email',
         'phone',
-        'address',
-        'city',
-        'state',
-        'country',
-        'postal_code',
         'website',
         'logo',
         'description',
-        'is_active',
+        'status',
 
     ];
 
@@ -32,10 +27,6 @@ class Organization extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function members()
-    {
-        return $this->hasMany(Member::class);
-    }
 
     public function modules()
     {
@@ -45,5 +36,15 @@ class Organization extends Model
     public function roles()
     {
         return $this->hasMany(Role::class);
+    }
+
+    public function clients()
+    {
+        return $this->hasMany(Client::class);
+    }
+
+    public function stores()
+    {
+        return $this->hasMany(Store::class);
     }
 }

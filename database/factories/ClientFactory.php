@@ -26,7 +26,7 @@ class ClientFactory extends Factory
             'city' => $this->faker->city(),
             'state' => $this->faker->state(),
             'country' => $this->faker->country(),
-            'is_active' => true,
+            'status' => 'active',
             'wholeasaler' => false,
             'organization_id' => \App\Models\Organization::factory(),
             'notes' => $this->faker->sentence(),

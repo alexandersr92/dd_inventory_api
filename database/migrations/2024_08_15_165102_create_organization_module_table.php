@@ -15,7 +15,7 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('organization_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('module_id')->constrained()->onDelete('cascade');
-            $table->boolean('is_active')->default(true);
+            $table->string('status')->default('active');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();
 

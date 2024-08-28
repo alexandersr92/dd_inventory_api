@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\Member;
+use App\Models\Seller;
 use Illuminate\Http\Request;
 
-class MemberController extends Controller
+class SellerController extends Controller
 {
     /**
      * Display a listing of the resource.
@@ -27,7 +27,7 @@ class MemberController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Member $member)
+    public function show(Seller $Seller)
     {
         //
     }
@@ -35,7 +35,7 @@ class MemberController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Member $member)
+    public function update(Request $request, Seller $Seller)
     {
         //
     }
@@ -43,7 +43,7 @@ class MemberController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Member $member)
+    public function destroy(Seller $Seller)
     {
         //
     }
