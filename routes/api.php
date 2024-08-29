@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\ModuleController;
 use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\LoginController;
+use App\Http\Controllers\Api\V1\StoreController;
 
 
 
@@ -18,12 +19,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
 
-        Route::get('/organizations', [OrganizationController::class, 'index']);
-        Route::get('/organizations/{organization}', [OrganizationController::class, 'show']);
-        Route::post('/organizations', [OrganizationController::class, 'store']);
-        Route::put('/organizations/{organization}', [OrganizationController::class, 'update']);
-        Route::delete('/organizations/{organization}', [OrganizationController::class, 'destroy']);
-
+        Route::apiResource('organizations', OrganizationController::class);
+        Route::apiResource('stores', StoreController::class);
         Route::apiResource('clients', ClientController::class);
     });
 });

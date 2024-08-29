@@ -115,12 +115,10 @@ class LoginController extends Controller
 
     public function validationToken(Request $request)
     {
-        //validar token
-
-        //validate if token is valid
+        $user = Auth::user();
 
         if (Auth::guard('sanctum')->check()) {
-            return response()->json(['valid' => true, 'message' => 'Token is valid.'], 200);
+            return response()->json(['valid' => true, 'message' => 'Token is valid.', 'user' => $user], 200);
         } else {
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
         }

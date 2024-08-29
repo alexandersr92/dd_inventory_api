@@ -22,6 +22,7 @@ class Store extends Model
         'country',
         'zip',
         'status',
+        'organization_id',
     ];
 
     public function organization()

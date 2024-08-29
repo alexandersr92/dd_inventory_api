@@ -6,15 +6,13 @@ use App\Http\Controllers\Controller;
 use App\Models\Seller;
 use Illuminate\Http\Request;
 
+
 class SellerController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
-    {
-        //
-    }
+    public function index() {}
 
     /**
      * Store a newly created resource in storage.
