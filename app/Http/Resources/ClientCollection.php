@@ -27,6 +27,7 @@ class ClientCollection extends ResourceCollection
                 'wholeasaler' => $client->wholeasaler,
                 'created_at' => $client->created_at,
                 'updated_at' => $client->updated_at,
+                'organization_id' => $client->organization_id,
             ];
         })->toArray();
     }

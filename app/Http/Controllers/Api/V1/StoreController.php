@@ -27,6 +27,7 @@ class StoreController extends Controller
         return new StoreCollection($store);
     }
 
+
     /**
      * Store a newly created resource in storage.
      */

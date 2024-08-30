@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
 
 
-class StoreClient extends Model
+class ClientStore extends Model
 {
     use HasFactory;
     use Uuids;

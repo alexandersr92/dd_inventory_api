@@ -39,12 +39,26 @@ class DatabaseSeeder extends Seeder
             'owner_id' => $ownerNike->id,
         ]); // Access the first item in the collection
 
+        //edit user to add organization_id
+        $ownerNike->update([
+            'organization_id' => $nike->id,
+        ]);
+
+        $ownerAdidas->update([
+            'organization_id' => $adidas->id,
+        ]);
+
+
+
         $adidasStore = \App\Models\Store::factory()->create([
             'name' => 'Adidas Store',
+
+            'organization_id' => $adidas->id,
         ]);
 
         $nikeStore = \App\Models\Store::factory()->create([
             'name' => 'Nike Store',
+            'organization_id' => $nike->id,
         ]);
 
 
@@ -112,16 +126,24 @@ class DatabaseSeeder extends Seeder
         $clients = \App\Models\Client::all();
         $clients->each(function ($client) use ($adidasStore, $nikeStore) {
             $adidas = \App\Models\Organization::where('name', 'Adidas')->first();
-            if ($client->organization_id == $adidas->id)
-                \App\Models\StoreClient::factory()->create([
-                    'store_id' => $adidasStore->id,
-                    'client_id' => $client->id,
-                ]);
-            else
-                \App\Models\StoreClient::factory()->create([
-                    'store_id' => $nikeStore->id,
-                    'client_id' => $client->id,
-                ]);
+            if ($client->organization_id == $adidas->id) {
+
+                $numRandom = rand(1, 5);
+                if ($numRandom == 2) {
+                    \App\Models\ClientStore::factory()->create([
+                        'store_id' => $adidasStore->id,
+                        'client_id' => $client->id,
+                    ]);
+                }
+            } else {
+                $numRandom = rand(1, 5);
+                if ($numRandom == 2) {
+                    \App\Models\ClientStore::factory()->create([
+                        'store_id' => $nikeStore->id,
+                        'client_id' => $client->id,
+                    ]);
+                }
+            }
         });
     }
 }

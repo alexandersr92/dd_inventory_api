@@ -22,44 +22,48 @@ class ClientController extends Controller
     public function index(Request $request)
     {
 
-
-
-        $perPage = $request->query('per_page', 10);
+        $perPage = $request->query('per_page', 20);
         //get organization id from the authenticated user and get all clients for that organization
         $userLoggedIn = Auth::user()->organization_id;
 
-        $clients = Client::where('organization_id', $userLoggedIn)->get();
-
-        //paginate the clients
-        $clients = Client::paginate($perPage);
+        $clients = Client::where('organization_id', $userLoggedIn)->paginate($perPage);
 
 
 
         if ($request->has('search')) {
-            $asc = $request->query('asc', 'true');
+            $order = $request->query('order', 'asc');
+            $searchBy = $request->query('search_by', 'name');
 
-            $clients = Client::where('name', 'like', '%' . $request->search . '%')
-                ->orWhere('email', 'like', '%' . $request->search . '%')
-                ->orWhere('phone', 'like', '%' . $request->search . '%')
-                ->orWhere('address', 'like', '%' . $request->search . '%')
-                ->orWhere('city', 'like', '%' . $request->search . '%')
-                ->orWhere('state', 'like', '%' . $request->search . '%')
-                ->orWhere('country', 'like', '%' . $request->search . '%')
-                ->orWhere('is_active', 'like', '%' . $request->search . '%')
-                ->orderBy('name', $asc === 'true' ? 'asc' : 'desc')
+            $clients = Client::where($searchBy, 'like', '%' . $request->search . '%',)
+                ->where('organization_id', $userLoggedIn)
+                ->orderBy('name', $order)
                 ->paginate($perPage);
         }
 
         if ($request->has('sort')) {
-            $asc = $request->query('asc', 'true');
+            $order = $request->query('order', 'asc');
 
-            $clients = Client::orderBy($request->sort, $asc === 'true' ? 'asc' : 'desc')
+
+            $clients = Client::orderBy($request->sort, $order)
+                ->where('organization_id', $userLoggedIn)
                 ->paginate($perPage);
         }
 
+        if ($request->has('store')) {
+            $order = $request->query('order', 'asc');
+            $store = $request->query('store');
+
+            //get clients for a specific store, store and client are related many to many
+            $clients = Client::whereHas('stores', function ($query) use ($store) {
+                $query->where('store_id', $store);
+            })->where('organization_id', $userLoggedIn)
+                ->orderBy('name', $order)
+                ->paginate($perPage);
+        }
+
+
         return new ClientCollection($clients);
     }
-
 
     public function store(StoreClientRequest $request)
     {
@@ -90,8 +94,6 @@ class ClientController extends Controller
             Response::HTTP_OK
         );
     }
-
-
 
     public function destroy(Client $client)
     {
