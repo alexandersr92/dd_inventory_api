@@ -28,7 +28,7 @@ class StoreOrganizationRequest extends FormRequest
             'website' => 'nullable|string|max:255',
             'logo' => 'nullable|string|max:255',
             'description' => 'nullable|string|max:255',
-            'status' => 'required|boolean',
+            'status' => 'required|string|max:255',
         ];
     }
 }
