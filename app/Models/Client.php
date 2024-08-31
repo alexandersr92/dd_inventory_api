@@ -33,6 +33,6 @@ class Client extends Model
 
     public function stores()
     {
-        return $this->belongsToMany(Store::class, 'client_stores', 'client_id', 'store_id');
+        return $this->belongsToMany(Store::class);
     }
 }

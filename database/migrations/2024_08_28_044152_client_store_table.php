@@ -11,11 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('client_stores', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+        Schema::create('client_store', function (Blueprint $table) {
+
             $table->foreignUuid('client_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('store_id')->constrained()->onDelete('cascade');
-            $table->timestamps();
         });
     }
 
@@ -24,6 +23,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('client_stores');
+        Schema::dropIfExists('client_store');
     }
 };

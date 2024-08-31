@@ -37,7 +37,7 @@ class Store extends Model
 
     public function clients()
     {
-        return $this->hasMany(Client::class);
+        return $this->belongsToMany(Client::class);
     }
 
     public function rolePermissions()

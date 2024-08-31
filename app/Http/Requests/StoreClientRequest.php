@@ -31,7 +31,6 @@ class StoreClientRequest extends FormRequest
             'country' => 'required|string|max:255',
             'is_active' => 'required|boolean',
             'wholeasaler' => 'required|boolean',
-            'organization_id' => 'required|uuid|exists:organizations,id',
             'notes' => 'nullable|string',
         ];
     }

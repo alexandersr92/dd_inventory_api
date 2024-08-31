@@ -130,18 +130,12 @@ class DatabaseSeeder extends Seeder
 
                 $numRandom = rand(1, 5);
                 if ($numRandom == 2) {
-                    \App\Models\ClientStore::factory()->create([
-                        'store_id' => $adidasStore->id,
-                        'client_id' => $client->id,
-                    ]);
+                    $client->stores()->attach($adidasStore->id);
                 }
             } else {
                 $numRandom = rand(1, 5);
                 if ($numRandom == 2) {
-                    \App\Models\ClientStore::factory()->create([
-                        'store_id' => $nikeStore->id,
-                        'client_id' => $client->id,
-                    ]);
+                    $client->stores()->attach($nikeStore->id);
                 }
             }
         });

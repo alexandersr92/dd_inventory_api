@@ -15,6 +15,7 @@ class ClientResource extends JsonResource
     public function toArray(Request $request): array
     {
         //has creditos
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -28,6 +29,7 @@ class ClientResource extends JsonResource
             'wholeasaler' => $this->wholeasaler,
             'has_credit' => true,
             'notes' => $this->notes,
+            'stores' => $this->stores,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

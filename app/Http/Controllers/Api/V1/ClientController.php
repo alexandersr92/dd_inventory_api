@@ -68,7 +68,22 @@ class ClientController extends Controller
     public function store(StoreClientRequest $request)
     {
 
+        $orgId = Auth::user()->organization_id;
+
+        $request->merge(['organization_id' => $orgId]);
         $client = Client::create($request->all());
+
+        if ($request->has('stores')) {
+
+            foreach ($request->stores as $store) {
+                $store = \App\Models\Store::find($store);
+                if ($store->organization_id === $orgId) {
+                    //dd($store->organization_id, $orgId);
+                    $client->stores()->attach($store);
+                }
+                // dd($store->organization_id, $orgId);
+            }
+        }
         return response(
             new ClientResource($client),
             Response::HTTP_CREATED

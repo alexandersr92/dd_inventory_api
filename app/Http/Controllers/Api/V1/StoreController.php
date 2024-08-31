@@ -48,6 +48,8 @@ class StoreController extends Controller
 
         $store = Store::create($request->all());
 
+
+
         return response(
             new StoreResource($store),
             Response::HTTP_CREATED
