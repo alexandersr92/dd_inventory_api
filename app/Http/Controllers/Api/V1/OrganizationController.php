@@ -40,7 +40,10 @@ class OrganizationController extends Controller
             return response(['message' => 'Phone already exists'], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $organization = $request->user()->organization()->create($request->validated());
+        $owner_id = $request->user()->id;
+        $request->merge(['owner_id' => $owner_id]);
+
+        $organization = Organization::create($request->all());
 
         $request->user()->update(['organization_id' => $organization->id]);
 

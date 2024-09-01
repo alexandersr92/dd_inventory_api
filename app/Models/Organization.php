@@ -19,6 +19,7 @@ class Organization extends Model
         'logo',
         'description',
         'status',
+        'owner_id',
 
     ];
 
