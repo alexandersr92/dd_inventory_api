@@ -20,7 +20,7 @@ class OrganizationCollection extends ResourceCollection
                 'id' => $organization->id,
                 'name' => $organization->name,
                 'logo' => $organization->logo,
-                'is_active' => $organization->is_active,
+                'status' => $organization->status,
                 'owner_id' => $organization->owner_id,
 
             ];

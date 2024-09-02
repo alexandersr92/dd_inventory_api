@@ -23,13 +23,14 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'phone' => 'required|string|max:255',
-            'address' => 'required|string|max:255',
-            'city' => 'required|string|max:255',
-            'state' => 'required|string|max:255',
-            'country' => 'required|string|max:255',
-            'is_active' => 'required|boolean',
+            'email' => 'email|max:255',
+            'phone' => 'string|max:255',
+            'address' => 'string|max:255',
+            'city' => 'string|max:255',
+            'state' => 'string|max:255',
+            'country' => 'string|max:255',
+            'zip' => 'string|max:255',
+            'status' => 'required|string|max:255',
             'wholeasaler' => 'required|boolean',
             'notes' => 'nullable|string',
         ];

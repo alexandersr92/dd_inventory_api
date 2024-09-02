@@ -139,5 +139,29 @@ class DatabaseSeeder extends Seeder
                 }
             }
         });
+
+        $adidasSupplier = \App\Models\Supplier::factory(10)->create([
+            'organization_id' => $adidas->id,
+        ]);
+
+        foreach ($adidasSupplier as $supplier) {
+
+            $numRandom = rand(2, 8);
+
+            \App\Models\SupplierContact::factory($numRandom)->create([
+                'supplier_id' => $supplier->id,
+            ]);
+        }
+
+        $nikeSupplier = \App\Models\Supplier::factory(10)->create([
+            'organization_id' => $nike->id,
+        ]);
+
+        /*  foreach ($nikeSupplier as $supplier) {
+            $numRandom = rand(2, 8);
+            \App\Models\SupplierContact::factory($numRandom)->create([
+                'supplier_id' => $supplier->id,
+            ]);
+        } */
     }
 }

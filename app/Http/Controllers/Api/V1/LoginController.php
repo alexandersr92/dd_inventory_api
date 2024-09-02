@@ -57,9 +57,6 @@ class LoginController extends Controller
         ], Response::HTTP_OK); //200
     }
 
-    //register new user 
-
-    //login seller
     public function loginSeller(Request $request) {}
 
 
@@ -127,7 +124,6 @@ class LoginController extends Controller
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
         }
     }
-
 
     public function registerMember(Request $request) {}
 }

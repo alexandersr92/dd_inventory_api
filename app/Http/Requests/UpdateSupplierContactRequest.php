@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class UpdateClientRequest extends FormRequest
+class UpdateSupplierContactRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -25,13 +25,6 @@ class UpdateClientRequest extends FormRequest
             'name' => 'required|string|max:255',
             'email' => 'email|max:255',
             'phone' => 'string|max:255',
-            'address' => 'string|max:255',
-            'city' => 'string|max:255',
-            'state' => 'string|max:255',
-            'country' => 'string|max:255',
-            'zip' => 'string|max:255',
-            'status' => 'required|string|max:255',
-            'wholeasaler' => 'required|boolean',
             'notes' => 'nullable|string',
         ];
     }

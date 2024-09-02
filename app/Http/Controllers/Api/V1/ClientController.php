@@ -26,7 +26,14 @@ class ClientController extends Controller
         //get organization id from the authenticated user and get all clients for that organization
         $userLoggedIn = Auth::user()->organization_id;
 
-        $clients = Client::where('organization_id', $userLoggedIn)->paginate($perPage);
+        $order = 'asc';
+        if ($request->has('order')) {
+            $order = $request->query('order', 'asc');
+        }
+
+        $clients = Client::where('organization_id', $userLoggedIn)
+            ->orderBy('name', $order)
+            ->paginate($perPage);
 
 
 

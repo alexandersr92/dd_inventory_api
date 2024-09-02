@@ -9,8 +9,7 @@ use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\StoreController;
-
-
+use App\Http\Controllers\Api\V1\SupplierController;
 
 Route::prefix('v1')->group(function () {
     Route::post('/login', [LoginController::class, 'login']);
@@ -22,5 +21,11 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('organizations', OrganizationController::class);
         Route::apiResource('stores', StoreController::class);
         Route::apiResource('clients', ClientController::class);
+        Route::apiResource('suppliers', SupplierController::class);
+
+        Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
+        Route::post('suppliers/{supplier}/contacts', [SupplierController::class, 'contactStore']);
+        Route::put('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactUpdate']);
+        Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactDestroy']);
     });
 });

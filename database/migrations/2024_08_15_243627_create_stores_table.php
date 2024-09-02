@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('city');
             $table->string('state');
             $table->string('country');
-            $table->string('zip');
+            $table->string('zip')->nullable();
             $table->string('status')->default('active');
             $table->timestamps();
         });
