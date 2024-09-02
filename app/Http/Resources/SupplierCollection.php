@@ -22,6 +22,8 @@ class SupplierCollection extends ResourceCollection
                 'id' => $supplier->id,
                 'name' => $supplier->name,
                 'contact_count' => $contactCount,
+                'city' => $supplier->city,
+                'state' => $supplier->state,
                 'status' => $supplier->status,
                 'created_at' => $supplier->created_at,
                 'updated_at' => $supplier->updated_at,
