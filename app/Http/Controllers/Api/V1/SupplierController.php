@@ -74,6 +74,13 @@ class SupplierController extends Controller
 
         $client = Supplier::create($request->all());
 
+        if ($request->has('contacts')) {
+            foreach ($request->contacts as $contact) {
+                $contact['supplier_id'] = $client->id;
+                SupplierContact::create($contact);
+            }
+        }
+
 
         return response(
             new SupplierResource($client),

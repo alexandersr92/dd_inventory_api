@@ -30,6 +30,7 @@ class StoreSupplierRequest extends FormRequest
             'state' => 'required|string|max:255',
             'zip' => 'string|max:255',
             'country' => 'required|string|max:255',
+            'contacts' => 'array',
 
         ];
     }
