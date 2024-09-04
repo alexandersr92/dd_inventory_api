@@ -22,7 +22,7 @@ class ClientCollection extends ResourceCollection
                 'phone' => $client->phone,
                 'city' => $client->city,
                 'state' => $client->state,
-                'is_active' => $client->is_active,
+                'status' => $client->status,
                 'has_credit' => true,
                 'wholeasaler' => $client->wholeasaler,
                 'created_at' => $client->created_at,

@@ -10,10 +10,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 use App\Traits\Uuids;
+use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
     use Uuids;
+    use HasRoles;
+
 
     use HasFactory, Notifiable, HasApiTokens;
 
@@ -56,11 +59,6 @@ class User extends Authenticatable
 
 
 
-    public function roles()
-    {
-        return $this->belongsTo(Role::class);
-    }
-
     public function owner()
     {
         return $this->hasOne(Organization::class, 'owner_id');
@@ -69,5 +67,15 @@ class User extends Authenticatable
     public function organization()
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function role()
+    {
+        return $this->belongsTo(Role::class);
+    }
+
+    public function hasRole($role)
+    {
+        return $this->role()->where('name', $role)->exists();
     }
 }

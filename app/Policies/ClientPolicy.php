@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\Client;
+use App\Models\Role;
 use App\Models\User;
 
 class ClientPolicy
@@ -10,10 +11,14 @@ class ClientPolicy
     /**
      * Create a new policy instance.
      */
-    public function index(User $user, Client $client,): bool
+    public function index(User $user): bool
     {
-        //usuario tiene permiso para ver todos los clientes
+        if ($user->hasRole('Owner')) {
+            return true;
+        }
 
-        return true;
+        if ($user->role_id == null) {
+            return false;
+        }
     }
 }

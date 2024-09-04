@@ -25,7 +25,7 @@ class ClientResource extends JsonResource
             'city' => $this->city,
             'state' => $this->state,
             'country' => $this->country,
-            'is_active' => $this->is_active,
+            'status' => $this->is_active,
             'wholeasaler' => $this->wholeasaler,
             'has_credit' => true,
             'notes' => $this->notes,

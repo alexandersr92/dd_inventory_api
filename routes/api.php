@@ -22,6 +22,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stores', StoreController::class);
         Route::apiResource('clients', ClientController::class);
         Route::apiResource('suppliers', SupplierController::class);
+        Route::apiResource('roles', RoleController::class);
 
         Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
         Route::post('suppliers/{supplier}/contacts', [SupplierController::class, 'contactStore']);

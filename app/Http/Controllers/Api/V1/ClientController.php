@@ -13,14 +13,16 @@ use Symfony\Component\HttpFoundation\Response;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 
 class ClientController extends Controller
 {
+    use AuthorizesRequests;
 
     public function index(Request $request)
     {
+        $this->authorize('index', Client::class);
 
         $perPage = $request->query('per_page', 20);
         //get organization id from the authenticated user and get all clients for that organization

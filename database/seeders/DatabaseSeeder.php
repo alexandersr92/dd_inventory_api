@@ -66,52 +66,6 @@ class DatabaseSeeder extends Seeder
 
         //Se crean los roles en cada organizacion
 
-        \App\Models\Role::factory()->create([
-            'name' => 'Owner',
-            'organization_id' => $adidas->id,
-        ]);
-
-        $adidasSellerRole = \App\Models\Role::factory()->create([
-            'name' => 'Seller Adidas',
-            'organization_id' => $adidas->id,
-        ]);
-
-        \App\Models\Role::factory()->create([
-            'name' => 'Owner',
-            'organization_id' => $nike->id,
-        ]);
-
-        \App\Models\Role::factory()->create([
-            'name' => 'Seller Nike',
-            'organization_id' => $nike->id,
-        ]);
-
-        //Se crea un usuario Seller para una organizacion
-
-
-        \App\Models\User::factory()->create([
-            'name' => 'Seller Adidas',
-            'email' => 'seller@adidas.com',
-            'organization_id' => $adidas->id,
-            'role_id' => $adidasSellerRole->id,
-
-        ]);
-
-        $clientModule =  \App\Models\Module::factory()->create([
-            'name' => 'Clientes',
-            'description' => 'Modulo de Clientes',
-        ]);
-
-        \App\Models\RolePermission::factory()->create([
-            'role_id' => $adidasSellerRole->id,
-            'module_id' => $clientModule->id,
-            'store_id' => $adidasStore->id,
-            'read' => true,
-            'create' => true,
-            'update' => false,
-            'delete' => false,
-
-        ]);
 
 
 
@@ -152,16 +106,5 @@ class DatabaseSeeder extends Seeder
                 'supplier_id' => $supplier->id,
             ]);
         }
-
-        $nikeSupplier = \App\Models\Supplier::factory(10)->create([
-            'organization_id' => $nike->id,
-        ]);
-
-        /*  foreach ($nikeSupplier as $supplier) {
-            $numRandom = rand(2, 8);
-            \App\Models\SupplierContact::factory($numRandom)->create([
-                'supplier_id' => $supplier->id,
-            ]);
-        } */
     }
 }

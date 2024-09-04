@@ -19,10 +19,7 @@ class Module extends Model
         'status',
     ];
 
-    public function roles()
-    {
-        return $this->belongsToMany(RolePermission::class);
-    }
+
 
     public function organization()
     {
