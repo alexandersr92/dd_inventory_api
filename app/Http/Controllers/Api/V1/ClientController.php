@@ -102,6 +102,7 @@ class ClientController extends Controller
 
     public function show(Client $client)
     {
+        $this->authorize('show', Client::class);
         return response(
             new ClientResource($client),
             Response::HTTP_OK

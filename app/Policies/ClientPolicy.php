@@ -21,4 +21,11 @@ class ClientPolicy
             return false;
         }
     }
+
+    public function show(User $user): bool
+    {
+        if ($user->hasPermissionTo('client.show')) {
+            return true;
+        }
+    }
 }

@@ -25,7 +25,10 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@adidas.com',
         ]); // Access the first item in the collection
 
-        //Se crean las organizaciones
+        $sellerAdidas = \App\Models\User::factory()->create([
+            'name' => 'Seller Adidas',
+            'email' => 'seller@adidas.com',
+        ]);
 
         $adidas = \App\Models\Organization::factory()->create([
             'name' => 'Adidas',
@@ -45,6 +48,10 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $ownerAdidas->update([
+            'organization_id' => $adidas->id,
+        ]);
+
+        $sellerAdidas->update([
             'organization_id' => $adidas->id,
         ]);
 
@@ -106,5 +113,14 @@ class DatabaseSeeder extends Seeder
                 'supplier_id' => $supplier->id,
             ]);
         }
+
+        $owner =  \App\Models\Role::create(['name' => 'Owner', 'organization_id' => $adidas->id]);
+        $seller = \App\Models\Role::create(['name' => 'Seller', 'organization_id' => $adidas->id]);
+
+        \App\Models\Permission::create(['name' => 'client.index'])->assignRole($owner);
+        \App\Models\Permission::create(['name' => 'client.show'])->assignRole($seller);
+
+        $ownerAdidas->assignRole($owner);
+        $sellerAdidas->assignRole($seller);
     }
 }
