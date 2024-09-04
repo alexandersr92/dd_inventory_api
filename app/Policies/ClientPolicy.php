@@ -13,19 +13,20 @@ class ClientPolicy
      */
     public function index(User $user): bool
     {
-        if ($user->hasRole('Owner')) {
+        /*   if ($user->hasRole('Owner')) {
             return true;
         }
 
-        if ($user->role_id == null) {
-            return false;
-        }
+        */
+        return true;
     }
 
     public function show(User $user): bool
     {
-        if ($user->hasPermissionTo('client.show')) {
+        /*  if ($user->hasPermissionTo('client.show')) {
             return true;
-        }
+        } */
+
+        return true;
     }
 }
