@@ -117,8 +117,11 @@ class DatabaseSeeder extends Seeder
         $owner =  \App\Models\Role::create(['name' => 'Owner', 'organization_id' => $adidas->id]);
         $seller = \App\Models\Role::create(['name' => 'Seller', 'organization_id' => $adidas->id]);
 
-        \App\Models\Permission::create(['name' => 'client.index'])->assignRole($owner);
-        \App\Models\Permission::create(['name' => 'client.show'])->assignRole($seller);
+        \App\Models\Permission::create(['name' => 'client.index', 'display_name' => "Lista de clientes"])->assignRole($owner);
+        \App\Models\Permission::create(['name' => 'client.show',  'display_name' => "Ver un Cliente"])->assignRole($seller);
+        \App\Models\Permission::create(['name' => 'client.store',  'display_name' => "Crear un Cliente"])->assignRole($seller);
+        \App\Models\Permission::create(['name' => 'client.update',  'display_name' => "Editar un Cliente"])->assignRole($seller);
+        \App\Models\Permission::create(['name' => 'client.delete',  'display_name' => "Eliminar un Cliente"])->assignRole($seller);
 
         $ownerAdidas->assignRole($owner);
         $sellerAdidas->assignRole($seller);

@@ -28,6 +28,7 @@ return new class extends Migration
             //$table->engine('InnoDB');
             $table->uuid('uuid')->primary()->unique(); // permission id
             $table->string('name');       // For MyISAM use string('name', 225); // (or 166 for InnoDB with Redundant/Compact row format)
+            $table->string('display_name');
             $table->string('guard_name'); // For MyISAM use string('guard_name', 25);
             $table->timestamps();
 

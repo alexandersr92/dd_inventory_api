@@ -12,6 +12,12 @@ class Role extends SpatieRole
     use HasUuids;
     protected $primaryKey = 'uuid';
 
+    protected $fillable = [
+        'name',
+        'organization_id',
+        'guard_name'
+    ];
+
     public function organization()
     {
         return $this->belongsTo(Organization::class);

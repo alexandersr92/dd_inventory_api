@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
 
+
 Route::prefix('v1')->group(function () {
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
@@ -23,6 +24,8 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('clients', ClientController::class);
         Route::apiResource('suppliers', SupplierController::class);
         Route::apiResource('roles', RoleController::class);
+        Route::get('roles/permissions', [RoleController::class, 'premmisionIndex']);
+
 
         Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
         Route::post('suppliers/{supplier}/contacts', [SupplierController::class, 'contactStore']);
