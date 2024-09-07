@@ -23,7 +23,7 @@ class OrganizationResource extends JsonResource
             'website' => $this->website,
             'logo' => $this->logo,
             'description' => $this->description,
-            'is_active' => $this->is_active,
+            'status' => $this->is_active,
             'owner' => new UserResource(User::find($this->owner_id)),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,

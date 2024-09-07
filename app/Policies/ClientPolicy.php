@@ -11,10 +11,15 @@ class ClientPolicy
     /**
      * Create a new policy instance.
      */
-    public function index(User $user): bool
+    public function index(User $user, Client $client): bool
     {
         /*   if ($user->hasRole('Owner')) {
             return true;
+        }
+
+        if(user ){
+        
+
         }
 
         */

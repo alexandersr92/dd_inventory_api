@@ -40,8 +40,8 @@ class Store extends Model
         return $this->belongsToMany(Client::class);
     }
 
-    public function rolePermissions()
+    public function users()
     {
-        return $this->hasMany(RolePermission::class);
+        return $this->belongsToMany(User::class);
     }
 }

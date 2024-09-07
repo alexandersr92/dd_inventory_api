@@ -45,7 +45,12 @@ class OrganizationController extends Controller
 
         $organization = Organization::create($request->all());
 
-        $request->user()->update(['organization_id' => $organization->id]);
+        if ($request->hasFile('logo')) {
+            $organization->logo = $request->file('logo')->store('organizationLogo', 'public');
+        }
+
+        $organization->save();
+
 
         return response(new OrganizationResource($organization), Response::HTTP_CREATED);
     }

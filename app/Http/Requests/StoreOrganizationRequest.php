@@ -26,7 +26,7 @@ class StoreOrganizationRequest extends FormRequest
             'email' => 'required|email|max:255',
             'phone' => 'required|string|max:255',
             'website' => 'nullable|string|max:255',
-            'logo' => 'nullable|string|max:255',
+            'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
             'description' => 'nullable|string|max:255',
             'status' => 'required|string|max:255',
         ];
