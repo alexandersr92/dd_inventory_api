@@ -19,6 +19,7 @@ class StoreCollection extends ResourceCollection
                 'id' => $store->id,
                 'name' => $store->name,
                 'city' => $store->city,
+                'address' => $store->address,
                 'state' => $store->state,
                 'country' => $store->country,
                 'status' => $store->status,

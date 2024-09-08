@@ -125,5 +125,38 @@ class DatabaseSeeder extends Seeder
 
         $ownerAdidas->assignRole($owner);
         $sellerAdidas->assignRole($seller);
+
+        \App\Models\Category::factory(10)->create([
+            'organization_id' => $adidas->id,
+
+        ]);
+
+        \App\Models\Tag::factory(20)->create([
+            'organization_id' => $nike->id,
+        ]);
+
+        \App\Models\Product::factory(100)->create([
+            'organization_id' => $adidas->id,
+        ]);
+
+        //asignar productos a categorias
+        $products = \App\Models\Product::all();
+        $products->each(function ($product) use ($adidas) {
+            $numRandom = rand(1, 5);
+            if ($numRandom == 2) {
+                $category = \App\Models\Category::where('organization_id', $adidas->id)->inRandomOrder()->first();
+                $product->categories()->attach($category->id);
+            }
+        });
+
+        //asignar productos a tags
+        $products = \App\Models\Product::all();
+        $products->each(function ($product) use ($nike) {
+            $numRandom = rand(1, 5);
+            if ($numRandom == 2) {
+                $tag = \App\Models\Tag::where('organization_id', $nike->id)->inRandomOrder()->first();
+                $product->tags()->attach($tag->id);
+            }
+        });
     }
 }

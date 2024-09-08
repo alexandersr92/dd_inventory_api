@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\LoginController;
 use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\TagController;
+use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\ProductController;
 
 
 Route::prefix('v1')->group(function () {
@@ -23,13 +26,14 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stores', StoreController::class);
         Route::apiResource('clients', ClientController::class);
         Route::apiResource('suppliers', SupplierController::class);
-        Route::apiResource('roles', RoleController::class);
-        Route::get('roles/permissions', [RoleController::class, 'premmisionIndex']);
-
-
         Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
         Route::post('suppliers/{supplier}/contacts', [SupplierController::class, 'contactStore']);
         Route::put('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactUpdate']);
         Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactDestroy']);
+        Route::apiResource('roles', RoleController::class);
+        Route::get('roles/permissions', [RoleController::class, 'premmisionIndex']);
+        Route::apiResource('tags', TagController::class)->except(['show']);
+        Route::apiResource('categories', CategoryController::class)->except(['show']);
+        Route::apiResource('products', ProductController::class);
     });
 });
