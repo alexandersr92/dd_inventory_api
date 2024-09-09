@@ -15,6 +15,19 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $tags = $this->tags->map(function ($tag) {
+            return [
+                'id' => $tag->id,
+                'name' => $tag->name,
+            ];
+        });
+
+        $categories = $this->categories->map(function ($category) {
+            return [
+                'id' => $category->id,
+                'name' => $category->name,
+            ];
+        });
         return [
             'id' => $this->id,
             'sku' => $this->sku,
@@ -26,8 +39,8 @@ class ProductResource extends JsonResource
             'stock' => 1231,
             'min_stock' => $this->min_stock,
             'unit_of_masure' => $this->unit_of_masure,
-            'category' => Category::collection($this->category_id),
-            'tags' => TagResource::collection($this->tags),
+            'categories' => $categories,
+            'tags' => $tags
         ];
     }
 }

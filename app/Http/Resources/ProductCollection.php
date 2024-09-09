@@ -15,18 +15,32 @@ class ProductCollection extends ResourceCollection
     public function toArray(Request $request): array
     {
         return $this->collection->map(function ($product) {
+
+            $tags = $product->tags->map(function ($tag) {
+                return [
+                    'id' => $tag->id,
+                    'name' => $tag->name,
+                ];
+            });
+
+            $categories = $product->categories->map(function ($category) {
+                return [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                ];
+            });
             return [
-                'id' => $this->id,
-                'sku' => $this->sku,
-                'barcode' => $this->barcode,
-                'name' => $this->name,
-                'image' => $this->image,
-                'price' => $this->price,
+                'id' => $product->id,
+                'sku' => $product->sku,
+                'barcode' => $product->barcode,
+                'name' => $product->name,
+                'image' => $product->image,
+                'price' => $product->price,
                 'stock' => 1231,
-                'min_stock' => $this->min_stock,
-                'unit_of_masure' => $this->unit_of_masure,
-                'category' => CategoryResource::collection($this->category_id),
-                'tags' => TagResource::collection($this->tags),
+                'min_stock' => $product->min_stock,
+                'unit_of_masure' => $product->unit_of_masure,
+                'categories' => $categories,
+                'tags' => $tags
             ];
         })->toArray();
     }

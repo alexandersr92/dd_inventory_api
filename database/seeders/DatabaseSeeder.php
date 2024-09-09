@@ -132,7 +132,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         \App\Models\Tag::factory(20)->create([
-            'organization_id' => $nike->id,
+            'organization_id' => $adidas->id,
         ]);
 
         \App\Models\Product::factory(100)->create([
@@ -151,10 +151,10 @@ class DatabaseSeeder extends Seeder
 
         //asignar productos a tags
         $products = \App\Models\Product::all();
-        $products->each(function ($product) use ($nike) {
+        $products->each(function ($product) use ($adidas) {
             $numRandom = rand(1, 5);
             if ($numRandom == 2) {
-                $tag = \App\Models\Tag::where('organization_id', $nike->id)->inRandomOrder()->first();
+                $tag = \App\Models\Tag::where('organization_id', $adidas->id)->inRandomOrder()->first();
                 $product->tags()->attach($tag->id);
             }
         });

@@ -14,13 +14,13 @@ return new class extends Migration
         Schema::create('products', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->foreignUuid('organization_id')->constrained();
-            $table->string('barcode')->unique();
-            $table->string('sku')->unique();
+            $table->string('barcode')->nullable();
+            $table->string('sku')->nullable();
             $table->string('name');
             $table->text('description')->nullable();
 
             $table->float('price');
-            $table->float('min_stock');
+            $table->float('min_stock')->nullable();
             $table->string('unit_of_masure')->nullable();
             $table->string('image')->nullable();
             $table->string('status')->default('active');
