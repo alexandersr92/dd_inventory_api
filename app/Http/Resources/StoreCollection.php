@@ -24,11 +24,6 @@ class StoreCollection extends ResourceCollection
                 'state' => $store->state,
                 'country' => $store->country,
                 'status' => $store->status,
-
-
-
-
-
             ];
         })->toArray();
     }

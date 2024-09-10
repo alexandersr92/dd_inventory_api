@@ -51,6 +51,8 @@ class OrganizationController extends Controller
 
         $organization->save();
 
+        $request->user()->organization()->save($organization);
+
 
         return response(new OrganizationResource($organization), Response::HTTP_CREATED);
     }
