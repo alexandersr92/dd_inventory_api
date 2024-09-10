@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
+use App\Models\User;
 
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
@@ -12,6 +13,7 @@ use App\Http\Resources\OrganizationCollection;
 use Symfony\Component\HttpFoundation\Response;
 
 
+use Illuminate\Support\Facades\Auth;
 
 class OrganizationController extends Controller
 {
@@ -49,13 +51,18 @@ class OrganizationController extends Controller
             $organization->logo = $request->file('logo')->store('organizationLogo', 'public');
         }
 
-        $organization->save();
 
-        //update user role to be owner
-        $request->user()->update(['role' => 'owner']);
+        $user = Auth::user();
 
-        //update user organization_id
-        $request->user()->organization_id = $organization->id;
+        // Verifica que $user sea una instancia de User
+        if (!$user instanceof User) {
+            return response(['message' => 'User not found or not authenticated'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $user->organization_id = $organization->id;
+
+        $user->save();
+
 
 
         return response(new OrganizationResource($organization), Response::HTTP_CREATED);
