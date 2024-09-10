@@ -29,7 +29,7 @@ class OrganizationController extends Controller
 
         //validate is user don't have organization
         if ($request->user()->organization()->exists()) {
-            return response(['message' => 'User already has an organization'], Response::HTTP_UNPROCESSABLE_ENTITY);
+            return response(['message' => 'User already has an organization'], Response::HTTP_CONFLICT);
         }
 
         //validate email is unique
