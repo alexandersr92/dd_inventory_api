@@ -51,7 +51,11 @@ class OrganizationController extends Controller
 
         $organization->save();
 
-        $request->user()->organization()->save($organization);
+        //update user role to be owner
+        $request->user()->update(['role' => 'owner']);
+
+        //update user organization_id
+        $request->user()->organization_id = $organization->id;
 
 
         return response(new OrganizationResource($organization), Response::HTTP_CREATED);
