@@ -44,6 +44,7 @@ class StoreController extends Controller
         }
 
         if ($request->zip == '') {
+
             $request->merge(['zip' => null]);
         }
 
