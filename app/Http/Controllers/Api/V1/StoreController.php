@@ -42,6 +42,11 @@ class StoreController extends Controller
                 'message' => 'Store name already exists'
             ], Response::HTTP_CONFLICT);
         }
+
+        if ($request->zip == '') {
+            $request->merge(['zip' => null]);
+        }
+
         $request->merge(['organization_id' => $orgID]);
         $request->merge(['status' => 'active']);
 
