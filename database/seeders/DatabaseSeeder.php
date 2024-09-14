@@ -139,6 +139,8 @@ class DatabaseSeeder extends Seeder
             'organization_id' => $adidas->id,
         ]);
 
+
+
         //asignar productos a categorias
         $products = \App\Models\Product::all();
         $products->each(function ($product) use ($adidas) {
@@ -146,6 +148,8 @@ class DatabaseSeeder extends Seeder
             if ($numRandom == 2) {
                 $category = \App\Models\Category::where('organization_id', $adidas->id)->inRandomOrder()->first();
                 $product->categories()->attach($category->id);
+
+                $product->suppliers()->attach(\App\Models\Supplier::where('organization_id', $adidas->id)->inRandomOrder()->first()->id);
             }
         });
 

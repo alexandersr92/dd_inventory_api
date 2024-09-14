@@ -28,6 +28,7 @@ class StoreFactory extends Factory
             'country' => $this->faker->country,
             'zip' => $this->faker->postcode,
             'status' => 'active',
+            'ruc' => $this->faker->unique()->numerify('###########'),
         ];
     }
 }

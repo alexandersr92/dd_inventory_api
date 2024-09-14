@@ -23,6 +23,7 @@ class Store extends Model
         'zip',
         'status',
         'organization_id',
+        'ruc'
     ];
 
     public function organization()

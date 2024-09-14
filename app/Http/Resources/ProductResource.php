@@ -40,6 +40,7 @@ class ProductResource extends JsonResource
             'min_stock' => $this->min_stock,
             'unit_of_masure' => $this->unit_of_masure,
             'categories' => $categories,
+            'suppliers' => $this->suppliers,
             'tags' => $tags
         ];
     }

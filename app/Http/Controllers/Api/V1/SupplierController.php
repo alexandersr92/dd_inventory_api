@@ -137,6 +137,8 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
+        $supplier->contacts()->delete();
+
         $supplier->delete();
 
         return response()->json(['message' => 'Supplier deleted successfully'], Response::HTTP_OK);
@@ -207,6 +209,8 @@ class SupplierController extends Controller
         if ($supplier->organization_id != $userLoggedIn) {
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
+
+
 
         $contact->delete();
 

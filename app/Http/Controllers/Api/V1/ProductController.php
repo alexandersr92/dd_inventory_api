@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\Tag;
 use App\Models\Category;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 
 use App\Http\Resources\ProductResource;
@@ -118,6 +119,17 @@ class ProductController extends Controller
             $product->image = $request->file('image')->store('productsImages', 'public');
         }
 
+        if ($request->has('suppliers')) {
+            $suppliers = explode(',', $request->suppliers);
+
+            foreach ($suppliers as $supplier) {
+                // Asegúrate de que el proveedor exista antes de adjuntarlo
+                if (Supplier::find($supplier)) {
+                    $product->suppliers()->attach($supplier);
+                }
+            }
+        }
+
         $product->save();
 
         return response(
@@ -182,6 +194,19 @@ class ProductController extends Controller
 
         if ($request->hasFile('image')) {
             $product->image = $request->file('image')->store('productsImages', 'public');
+        }
+
+        if ($request->has('suppliers')) {
+            $suppliers = explode(',', $request->suppliers);
+
+            $product->suppliers()->detach();
+
+            foreach ($suppliers as $supplier) {
+                // Asegúrate de que el proveedor exista antes de adjuntarlo
+                if (Supplier::find($supplier)) {
+                    $product->suppliers()->attach($supplier);
+                }
+            }
         }
 
         $product->save();

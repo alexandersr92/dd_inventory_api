@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignUuid('organization_id')->constrained();
             $table->string('name');
             $table->text('description')->nullable();
+            $table->string('ruc')->nullable();
             $table->string('phone');
             $table->string('email');
             $table->string('address');

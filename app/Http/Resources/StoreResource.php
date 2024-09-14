@@ -27,6 +27,7 @@ class StoreResource extends JsonResource
             'status' => $this->status,
             'zip' => $this->zip,
             'status' => $this->status,
+            'ruc' => $this->ruc,
 
 
         ];

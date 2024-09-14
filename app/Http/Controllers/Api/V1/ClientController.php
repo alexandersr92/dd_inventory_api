@@ -113,6 +113,7 @@ class ClientController extends Controller
     {
 
 
+
         $client->update($request->all());
         return response(
             new ClientResource($client),

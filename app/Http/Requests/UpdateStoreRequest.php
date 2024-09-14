@@ -31,6 +31,7 @@ class UpdateStoreRequest extends FormRequest
             'state' => ['required', 'string', 'max:255'],
             'country' => ['required', 'string', 'max:255'],
             'zip' => ['nullable', 'string', 'max:255'],
+            'ruc' => ['nullable', 'string', 'max:255'],
 
         ];
     }

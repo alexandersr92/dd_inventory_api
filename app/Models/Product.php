@@ -46,4 +46,9 @@ class Product extends Model
     {
         return $this->hasMany(ProductMeta::class);
     }
+
+    public function suppliers()
+    {
+        return $this->belongsToMany(Supplier::class);
+    }
 }
