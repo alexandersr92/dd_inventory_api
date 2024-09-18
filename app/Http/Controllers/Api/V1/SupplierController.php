@@ -139,6 +139,10 @@ class SupplierController extends Controller
 
         $supplier->contacts()->delete();
 
+        //delete relation with product, but don't delete the product
+        $supplier->products()->detach();
+
+
         $supplier->delete();
 
         return response()->json(['message' => 'Supplier deleted successfully'], Response::HTTP_OK);
@@ -209,6 +213,8 @@ class SupplierController extends Controller
         if ($supplier->organization_id != $userLoggedIn) {
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
+
+
 
 
 

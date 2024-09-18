@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\InventoryController;
 
 
 Route::prefix('v1')->group(function () {
@@ -35,5 +36,6 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('tags', TagController::class)->except(['show']);
         Route::apiResource('categories', CategoryController::class)->except(['show']);
         Route::apiResource('products', ProductController::class);
+        Route::apiResource('inventories', InventoryController::class);
     });
 });

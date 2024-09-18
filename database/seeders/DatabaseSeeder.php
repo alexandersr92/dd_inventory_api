@@ -153,8 +153,7 @@ class DatabaseSeeder extends Seeder
             }
         });
 
-        //asignar productos a tags
-        $products = \App\Models\Product::all();
+
         $products->each(function ($product) use ($adidas) {
             $numRandom = rand(1, 5);
             if ($numRandom == 2) {
@@ -162,5 +161,19 @@ class DatabaseSeeder extends Seeder
                 $product->tags()->attach($tag->id);
             }
         });
+
+        \App\Models\Inventory::factory(1)->create([
+            'organization_id' => $adidas->id,
+            'store_id' => $adidasStore->id,
+        ]);
+
+        $inventory = \App\Models\Inventory::first();
+
+        foreach ($products as $product) {
+            \App\Models\InventoryDetail::factory(1)->create([
+                'inventory_id' => $inventory->id,
+                'product_id' => $product->id,
+            ]);
+        }
     }
 }
