@@ -21,7 +21,7 @@ class ProductFactory extends Factory
             'barcode' => $this->faker->ean13,
             'organization_id' => \App\Models\Organization::factory(),
             'sku' => $this->faker->ean8,
-            'unit_of_masure' => $this->faker->randomElement(['kg', 'g', 'l', 'ml', 'pcs']),
+            'unit_of_measure' => $this->faker->randomElement(['kg', 'g', 'l', 'ml', 'pcs']),
             'image' => $this->faker->imageUrl(),
             'description' => $this->faker->text,
             'price' => $this->faker->randomFloat(2, 1, 1000),

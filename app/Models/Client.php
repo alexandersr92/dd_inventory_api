@@ -21,7 +21,7 @@ class Client extends Model
         'state',
         'country',
         'notes',
-        'wholeasaler',
+        'wholesaler',
         'status',
         'notes'
     ];

@@ -23,7 +23,7 @@ return new class extends Migration
             $table->string('country')->nullable();
             $table->string('zip')->nullable();
             $table->string('status')->default('active');
-            $table->boolean('wholeasaler')->default(false);
+            $table->boolean('wholesaler')->default(false);
             $table->text('notes')->nullable();
             $table->timestamps();
         });

@@ -37,5 +37,6 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('categories', CategoryController::class)->except(['show']);
         Route::apiResource('products', ProductController::class);
         Route::apiResource('inventories', InventoryController::class);
+        Route::get('inventories/{inventory}/products', [InventoryController::class, 'showProducts']);
     });
 });

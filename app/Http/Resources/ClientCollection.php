@@ -24,7 +24,7 @@ class ClientCollection extends ResourceCollection
                 'state' => $client->state,
                 'status' => $client->status,
                 'has_credit' => true,
-                'wholeasaler' => $client->wholeasaler,
+                'wholesaler' => $client->wholesaler,
                 'created_at' => $client->created_at,
                 'updated_at' => $client->updated_at,
 

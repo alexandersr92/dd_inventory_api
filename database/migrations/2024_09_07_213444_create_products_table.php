@@ -21,7 +21,7 @@ return new class extends Migration
 
             $table->float('price');
             $table->float('min_stock')->nullable();
-            $table->string('unit_of_masure')->nullable();
+            $table->string('unit_of_measure')->nullable();
             $table->string('image')->nullable();
             $table->string('status')->default('active');
             $table->timestamps();

@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Inventory;
+use App\Models\InventoryDetail;
 use Illuminate\Http\Request;
 
 use App\Http\Resources\InventoryResource;
 use App\Http\Resources\InventoryCollection;
+use App\Http\Resources\InventoryDetailCollection;
 use App\Http\Requests\StoreInventoryRequest;
 use App\Http\Requests\UpdateInventoryRequest;
 use Illuminate\Support\Facades\Auth;
@@ -46,6 +48,28 @@ class InventoryController extends Controller
     {
         return response(
             new InventoryResource($inventory),
+            Response::HTTP_OK
+        );
+    }
+
+    public function showProducts(Inventory $inventory, Request $request)
+    {
+        if ($request->has('barcode')) {
+            $barcode = $request->query('barcode');
+            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($barcode) {
+                $query->where('barcode', $barcode);
+            })->get();
+        } else if ($request->has('sku')) {
+            $sku = $request->query('sku');
+            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($sku) {
+                $query->where('sku', $sku);
+            })->get();
+        } else {
+            $inventoryDetails = $inventory->inventoryDetails;
+        }
+
+        return response(
+            new InventoryDetailCollection($inventoryDetails),
             Response::HTTP_OK
         );
     }

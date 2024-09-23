@@ -38,7 +38,7 @@ class ProductCollection extends ResourceCollection
                 'price' => $product->price,
                 'stock' => 1231,
                 'min_stock' => $product->min_stock,
-                'unit_of_masure' => $product->unit_of_masure,
+                'unit_of_measure' => $product->unit_of_measure,
                 'categories' => $categories,
                 'tags' => $tags
             ];

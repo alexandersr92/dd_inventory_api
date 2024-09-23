@@ -18,7 +18,6 @@ return new class extends Migration
             $table->integer('quantity');
             $table->string('status')->default('active');
             $table->string('description')->nullable();
-            $table->string('address')->nullable();
             $table->string('price')->nullable();
             $table->timestamps();
         });

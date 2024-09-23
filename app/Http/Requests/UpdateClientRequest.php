@@ -31,7 +31,7 @@ class UpdateClientRequest extends FormRequest
             'country' => 'string|max:255',
             'zip' => 'string|max:255',
 
-            'wholeasaler' => 'required|boolean',
+            'wholesaler' => 'required|boolean',
             'notes' => 'nullable|string',
         ];
     }

@@ -27,7 +27,7 @@ class ClientFactory extends Factory
             'state' => $this->faker->state(),
             'country' => $this->faker->country(),
             'status' => 'active',
-            'wholeasaler' => false,
+            'wholesaler' => false,
             'organization_id' => \App\Models\Organization::factory(),
             'notes' => $this->faker->sentence(),
         ];

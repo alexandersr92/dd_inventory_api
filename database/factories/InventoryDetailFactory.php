@@ -22,7 +22,6 @@ class InventoryDetailFactory extends Factory
             'quantity' => $this->faker->randomNumber(),
             'status' => 'active',
             'description' => $this->faker->text,
-            'address' => $this->faker->address,
             'price' => $this->faker->randomFloat(2, 0, 1000),
         ];
     }

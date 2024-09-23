@@ -29,7 +29,7 @@ class UpdateProductRequest extends FormRequest
             'image' => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             'price' => ['numeric'],
             'min_stock' => ['numeric'],
-            'unit_of_masure' => ['string', 'max:255'],
+            'unit_of_measure' => ['string', 'max:255'],
         ];
     }
 }

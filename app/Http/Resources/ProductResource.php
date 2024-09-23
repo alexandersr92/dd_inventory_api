@@ -38,7 +38,7 @@ class ProductResource extends JsonResource
             'price' => $this->price,
             'stock' => 1231,
             'min_stock' => $this->min_stock,
-            'unit_of_masure' => $this->unit_of_masure,
+            'unit_of_measure' => $this->unit_of_measure,
             'categories' => $categories,
             'suppliers' => $this->suppliers,
             'tags' => $tags
