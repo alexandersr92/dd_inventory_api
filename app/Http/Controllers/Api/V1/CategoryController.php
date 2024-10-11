@@ -27,10 +27,7 @@ class CategoryController extends Controller
 
         $categories = Category::where('organization_id', $orgId)->get();
 
-        return response(
-            new CategoryCollection($categories),
-            Response::HTTP_CREATED
-        );
+        return new CategoryCollection($categories);
     }
 
     /**

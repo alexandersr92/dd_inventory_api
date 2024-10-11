@@ -67,10 +67,8 @@ class ProductController extends Controller
                 ->paginate($per_page);
         }
 
-        return response(
-            new ProductCollection($products),
-            Response::HTTP_OK
-        );
+
+        return new ProductCollection($products);
     }
 
     /**

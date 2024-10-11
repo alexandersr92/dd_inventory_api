@@ -27,10 +27,7 @@ class TagController extends Controller
 
         $tags = Tag::where('organization_id', $orgId)->get();
 
-        return response(
-            new TagCollection($tags),
-            Response::HTTP_CREATED
-        );
+        return new TagCollection($tags);
     }
 
     /**

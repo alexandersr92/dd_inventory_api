@@ -15,7 +15,7 @@ class ClientResource extends JsonResource
     public function toArray(Request $request): array
     {
         //has creditos
-
+        dd($this);
         return [
             'id' => $this->id,
             'name' => $this->name,

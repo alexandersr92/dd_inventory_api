@@ -68,10 +68,7 @@ class InventoryController extends Controller
             $inventoryDetails = $inventory->inventoryDetails;
         }
 
-        return response(
-            new InventoryDetailCollection($inventoryDetails),
-            Response::HTTP_OK
-        );
+        return new InventoryDetailCollection($inventoryDetails);
     }
 
     /**

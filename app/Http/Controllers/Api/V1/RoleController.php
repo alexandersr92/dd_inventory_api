@@ -37,7 +37,7 @@ class RoleController extends Controller
             return response()->json(['message' => 'Role not found'], Response::HTTP_NOT_FOUND);
         }
 
-        return response()->json(new RoleResource($role), Response::HTTP_OK);
+        return new RoleResource($role);
     }
 
     public function store(StoreRoleRequest $request)
