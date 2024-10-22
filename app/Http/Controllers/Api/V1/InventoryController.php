@@ -71,6 +71,18 @@ class InventoryController extends Controller
         return new InventoryDetailCollection($inventoryDetails);
     }
 
+    public function syncProduct(Inventory $inventory, Request $request) {}
+
+    public function addProduct(Inventory $inventory, Request $request)
+    {
+        //creacion de producto y asignacion a inventario de donde se crea
+    }
+
+    public function removeProduct(Inventory $inventory, Request $request)
+    {
+        //remover producto de inventario
+    }
+
     /**
      * Update the specified resource in storage.
      */

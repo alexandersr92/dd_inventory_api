@@ -28,13 +28,15 @@ class ProductResource extends JsonResource
                 'name' => $category->name,
             ];
         });
+
+        $thisDoamin = env('APP_URL');
         return [
             'id' => $this->id,
             'sku' => $this->sku,
             'barcode' => $this->barcode,
             'name' => $this->name,
             'description' => $this->description,
-            'image' => $this->image,
+            'image' =>  $thisDoamin . '/' . $this->image,
             'price' => $this->price,
             'stock' => 1231,
             'min_stock' => $this->min_stock,

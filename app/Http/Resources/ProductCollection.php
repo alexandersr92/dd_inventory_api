@@ -29,12 +29,13 @@ class ProductCollection extends ResourceCollection
                     'name' => $category->name,
                 ];
             });
+            $thisDoamin = env('APP_URL');
             return [
                 'id' => $product->id,
                 'sku' => $product->sku,
                 'barcode' => $product->barcode,
                 'name' => $product->name,
-                'image' => $product->image,
+                'image' =>  $thisDoamin . '/' . $product->image,
                 'price' => $product->price,
                 'stock' => 1231,
                 'min_stock' => $product->min_stock,
