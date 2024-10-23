@@ -29,7 +29,8 @@ class ProductCollection extends ResourceCollection
                     'name' => $category->name,
                 ];
             });
-            $thisDoamin = env('APP_URL');
+
+            $thisDoamin = env('APP_URL') . '/storage';
             return [
                 'id' => $product->id,
                 'sku' => $product->sku,

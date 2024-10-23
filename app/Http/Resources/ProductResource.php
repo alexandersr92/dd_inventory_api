@@ -29,7 +29,7 @@ class ProductResource extends JsonResource
             ];
         });
 
-        $thisDoamin = env('APP_URL');
+        $thisDoamin = env('APP_URL') . '/storage';
         return [
             'id' => $this->id,
             'sku' => $this->sku,
