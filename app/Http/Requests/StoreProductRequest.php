@@ -30,6 +30,7 @@ class StoreProductRequest extends FormRequest
             'price' => ['required', 'numeric'],
             'min_stock' => ['numeric'],
             'unit_of_measure' => ['required', 'string', 'max:255'],
+            'inventory_id' => ['uuid', 'exists:inventories,id'],
         ];
     }
 }

@@ -29,6 +29,8 @@ class ProductResource extends JsonResource
             ];
         });
 
+
+
         $thisDoamin = env('APP_URL') . '/storage';
         return [
             'id' => $this->id,
@@ -43,7 +45,8 @@ class ProductResource extends JsonResource
             'unit_of_measure' => $this->unit_of_measure,
             'categories' => $categories,
             'suppliers' => $this->suppliers,
-            'tags' => $tags
+            'tags' => $tags,
+            'inventory' => ''
         ];
     }
 }

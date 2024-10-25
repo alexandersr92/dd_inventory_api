@@ -71,6 +71,18 @@ class InventoryController extends Controller
         return new InventoryDetailCollection($inventoryDetails);
     }
 
+    /*     public function showProductDetail(Inventory $inventory, Product $product)
+    {
+        $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)
+            ->where('product_id', $product->id)
+            ->first();
+
+        return response(
+            new InventoryDetailResource($inventoryDetail),
+            Response::HTTP_OK
+        );
+    } */
+
     public function syncProduct(Inventory $inventory, Request $request) {}
 
     public function addProduct(Inventory $inventory, Request $request)

@@ -7,15 +7,16 @@ use App\Models\Product;
 use App\Models\Tag;
 use App\Models\Category;
 use App\Models\Supplier;
-use Illuminate\Http\Request;
+use App\Models\Inventory;
+use App\Models\InventoryDetail;
 
 use App\Http\Resources\ProductResource;
 use App\Http\Resources\ProductCollection;
 use App\Http\Requests\StoreProductRequest;
 use App\Http\Requests\UpdateProductRequest;
-
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Http\Request;
 
 
 
@@ -124,6 +125,28 @@ class ProductController extends Controller
                 // Asegúrate de que el proveedor exista antes de adjuntarlo
                 if (Supplier::find($supplier)) {
                     $product->suppliers()->attach($supplier);
+                }
+            }
+        }
+
+        if ($request->has('inventories')) {
+
+            $inventories = explode(',', $request->inventories);
+
+
+            foreach ($inventories as $inventory) {
+
+                if (Inventory::find($inventory)) {
+                    //add product to inventory whit quantity 0
+
+                    $inventoryDetail = new InventoryDetail();
+                    $inventoryDetail->inventory_id = $inventory;
+
+                    $inventoryDetail->product_id = $product->id;
+
+                    $inventoryDetail->quantity = 0;
+                    $inventoryDetail->price = $product->price;
+                    $inventoryDetail->save();
                 }
             }
         }
