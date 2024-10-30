@@ -77,6 +77,13 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
+        dd([
+            'headers' => $request->headers->all(),
+            'input' => $request->input(),
+            'all' => $request->all(),
+            'files' => $request->allFiles(),
+
+        ]);
 
         $orgId = Auth::user()->organization_id;
 
@@ -176,10 +183,17 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
-        $product->update($request->all());
 
-        //sku y barcode deben ser unicos dentro de la organizacion, excepto si es el mismo producto
-
+        //dd($request->all());
+        /*    dd([
+            'headers' => $request->headers->all(),
+            'input' => $request->input(),
+            'all' => $request->all(),
+            'files' => $request->allFiles(),
+            'image' => $request->file('image')
+        ]); */
+        // $product->update($request->all());
+        /*
         $orgId = Auth::user()->organization_id;
 
         $request->validate([
@@ -235,8 +249,18 @@ class ProductController extends Controller
         return response(
             new ProductResource($product),
             Response::HTTP_OK
-        );
+        ); */
+
+        return json_encode([
+            'headers' => $request->headers->all(),
+            'input' => $request->input(),
+            'all' => $request->all(),
+            'files' => $request->allFiles(),
+            'image' => $request->file('image')
+        ]);
     }
+
+
 
     /**
      * Remove the specified resource from storage.
