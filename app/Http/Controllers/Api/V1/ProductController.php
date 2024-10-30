@@ -184,22 +184,19 @@ class ProductController extends Controller
     public function update(UpdateProductRequest $request, Product $product)
     {
 
-        //dd($request->all());
-        /*    dd([
-            'headers' => $request->headers->all(),
-            'input' => $request->input(),
-            'all' => $request->all(),
-            'files' => $request->allFiles(),
-            'image' => $request->file('image')
-        ]); */
-        // $product->update($request->all());
-        /*
+        $data = $request->all();
+
         $orgId = Auth::user()->organization_id;
 
         $request->validate([
             'sku' => 'unique:products,sku,' . $product->id . ',id,organization_id,' . $orgId,
             'barcode' => 'unique:products,barcode,' . $product->id . ',id,organization_id,' . $orgId,
         ]);
+
+
+        // Actualizar producto
+        $product->update($data);
+
 
         if ($request->has('categories')) {
             $categories = explode(',', $request->categories);
@@ -227,10 +224,6 @@ class ProductController extends Controller
             }
         }
 
-        if ($request->hasFile('image')) {
-            $product->image = $request->file('image')->store('productsImages', 'public');
-        }
-
         if ($request->has('suppliers')) {
             $suppliers = explode(',', $request->suppliers);
 
@@ -244,20 +237,37 @@ class ProductController extends Controller
             }
         }
 
+
+        return response(
+            new ProductResource($product),
+            Response::HTTP_OK
+        );
+    }
+
+    public function removeImage(Product $product)
+    {
+        $product->image = null;
         $product->save();
 
         return response(
             new ProductResource($product),
             Response::HTTP_OK
-        ); */
+        );
+    }
 
-        return json_encode([
-            'headers' => $request->headers->all(),
-            'input' => $request->input(),
-            'all' => $request->all(),
-            'files' => $request->allFiles(),
-            'image' => $request->file('image')
-        ]);
+    public function addImageToProduct(Request $request, Product $product)
+    {
+
+
+        if ($request->hasFile('image')) {
+            $product->image = $request->file('image')->store('productsImages', 'public');
+        }
+        $product->save();
+
+        return response(
+            new ProductResource($product),
+            Response::HTTP_OK
+        );
     }
 
 

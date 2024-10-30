@@ -31,14 +31,14 @@ class ProductResource extends JsonResource
 
 
 
-        $thisDoamin = env('APP_URL') . '/storage';
+        $imageURL = env('APP_URL') . '/storage'  . '/' . $this->image;
         return [
             'id' => $this->id,
             'sku' => $this->sku,
             'barcode' => $this->barcode,
             'name' => $this->name,
             'description' => $this->description,
-            'image' =>  $thisDoamin . '/' . $this->image,
+            'image' =>  $this->image ? $imageURL : null,
             'price' => $this->price,
             'stock' => 1231,
             'min_stock' => $this->min_stock,

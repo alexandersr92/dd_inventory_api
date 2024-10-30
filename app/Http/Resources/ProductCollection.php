@@ -30,13 +30,13 @@ class ProductCollection extends ResourceCollection
                 ];
             });
 
-            $thisDoamin = env('APP_URL') . '/storage';
+            $imageURL = env('APP_URL') . '/storage'  . '/' . $product->image;
             return [
                 'id' => $product->id,
                 'sku' => $product->sku,
                 'barcode' => $product->barcode,
                 'name' => $product->name,
-                'image' =>  $thisDoamin . '/' . $product->image,
+                'image' =>  $product->image ? $imageURL : null,
                 'price' => $product->price,
                 'stock' => 1231,
                 'min_stock' => $product->min_stock,

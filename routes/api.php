@@ -36,8 +36,10 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('tags', TagController::class)->except(['show']);
         Route::apiResource('categories', CategoryController::class)->except(['show']);
         Route::apiResource('products', ProductController::class);
+        Route::delete('products/{product}/removeImage', [ProductController::class, 'removeImage']);
+        Route::post('products/{product}/addImageToProduct', [ProductController::class, 'addImageToProduct']);
         Route::apiResource('inventories', InventoryController::class);
         Route::get('inventories/{inventory}/products', [InventoryController::class, 'showProducts']);
-      //  Route::get('inventories/{inventory}/products/{product}', [InventoryController::class, 'showProductDetail']);
+        //  Route::get('inventories/{inventory}/products/{product}', [InventoryController::class, 'showProductDetail']);
     });
 });
