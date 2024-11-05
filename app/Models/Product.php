@@ -20,6 +20,7 @@ class Product extends Model
         'unit_of_measure',
         'image',
         'description',
+        'cost',
         'price',
         'min_stock',
         'status',

@@ -37,6 +37,7 @@ class ProductCollection extends ResourceCollection
                 'barcode' => $product->barcode,
                 'name' => $product->name,
                 'image' =>  $product->image ? $imageURL : null,
+                'cost' => $product->cost,
                 'price' => $product->price,
                 'stock' => 1231,
                 'min_stock' => $product->min_stock,

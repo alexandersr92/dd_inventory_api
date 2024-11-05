@@ -77,14 +77,6 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
-        dd([
-            'headers' => $request->headers->all(),
-            'input' => $request->input(),
-            'all' => $request->all(),
-            'files' => $request->allFiles(),
-
-        ]);
-
         $orgId = Auth::user()->organization_id;
 
         $request->merge(['organization_id' => $orgId]);
@@ -94,8 +86,6 @@ class ProductController extends Controller
             'sku' => 'unique:products,sku,NULL,id,organization_id,' . $orgId,
             'barcode' => 'unique:products,barcode,NULL,id,organization_id,' . $orgId,
         ]);
-
-
 
         $product = Product::create($request->all());
 

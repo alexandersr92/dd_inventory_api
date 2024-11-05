@@ -17,7 +17,6 @@ return new class extends Migration
             $table->foreignUuid('product_id')->constrained();
             $table->integer('quantity');
             $table->string('status')->default('active');
-            $table->string('description')->nullable();
             $table->string('price')->nullable();
             $table->timestamps();
         });

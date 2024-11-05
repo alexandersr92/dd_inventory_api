@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('sku')->nullable();
             $table->string('name');
             $table->text('description')->nullable();
-
+            $table->float('cost');
             $table->float('price');
             $table->float('min_stock')->nullable();
             $table->string('unit_of_measure')->nullable();

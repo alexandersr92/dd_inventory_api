@@ -17,6 +17,7 @@ class InventoryDetailCollection extends ResourceCollection
         return $this->collection->map(function ($inventoryDetail) {
             return [
                 'id' => $inventoryDetail->id,
+                'product_id' => $inventoryDetail->product_id,
                 'product' => $inventoryDetail->product->name,
                 'quantity' => $inventoryDetail->quantity,
                 'status' => $inventoryDetail->status,

@@ -26,6 +26,7 @@ class UpdateProductRequest extends FormRequest
             'barcode' => ['string', 'max:255'],
             'name' => ['string', 'max:255'],
             'description' => ['string'],
+            'cost' => ['numeric'],
             'price' => ['numeric'],
             'min_stock' => ['numeric'],
             'unit_of_measure' => ['string', 'max:255'],

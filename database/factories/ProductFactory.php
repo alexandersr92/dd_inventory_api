@@ -24,9 +24,10 @@ class ProductFactory extends Factory
             'unit_of_measure' => $this->faker->randomElement(['kg', 'g', 'l', 'ml', 'pcs']),
             'image' => $this->faker->imageUrl(),
             'description' => $this->faker->text,
-            'price' => $this->faker->randomFloat(2, 1, 1000),
+            'price' => $this->faker->randomFloat(2, 1, 100),
             'min_stock' => $this->faker->randomNumber(2),
             'status' => $this->faker->randomElement(['active', 'inactive']),
+            'cost' => $this->faker->randomFloat(2, 1, 100),
 
 
         ];

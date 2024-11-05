@@ -21,7 +21,6 @@ class InventoryDetailFactory extends Factory
             'product_id' => \App\Models\Product::factory(),
             'quantity' => $this->faker->randomNumber(),
             'status' => 'active',
-            'description' => $this->faker->text,
             'price' => $this->faker->randomFloat(2, 0, 1000),
         ];
     }

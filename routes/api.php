@@ -40,6 +40,8 @@ Route::prefix('v1')->group(function () {
         Route::post('products/{product}/addImageToProduct', [ProductController::class, 'addImageToProduct']);
         Route::apiResource('inventories', InventoryController::class);
         Route::get('inventories/{inventory}/products', [InventoryController::class, 'showProducts']);
+        Route::post('inventories/{inventory}/addProducts', [InventoryController::class, 'addProducts']);
+        Route::post('inventories/{inventory}/removeProducts', [InventoryController::class, 'removeProducts']);
         //  Route::get('inventories/{inventory}/products/{product}', [InventoryController::class, 'showProductDetail']);
     });
 });
