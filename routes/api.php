@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\InventoryController;
+use App\Http\Controllers\Api\V1\InvoiceController;
 
 
 Route::prefix('v1')->group(function () {
@@ -43,5 +44,7 @@ Route::prefix('v1')->group(function () {
         Route::post('inventories/{inventory}/addProducts', [InventoryController::class, 'addProducts']);
         Route::post('inventories/{inventory}/removeProducts', [InventoryController::class, 'removeProducts']);
         //  Route::get('inventories/{inventory}/products/{product}', [InventoryController::class, 'showProductDetail']);
+        Route::apiResource('invoices', InvoiceController::class)->except(['destroy']);
+        Route::post('invoices/{invoice}/cancel', [InvoiceController::class, 'cancel']);
     });
 });

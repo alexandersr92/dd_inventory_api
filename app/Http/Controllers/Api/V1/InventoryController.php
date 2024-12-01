@@ -164,4 +164,16 @@ class InventoryController extends Controller
 
         return response(null, Response::HTTP_NO_CONTENT);
     }
+
+    public function getProductInventory(Inventory $inventory, Product $product)
+    {
+        $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)
+            ->where('product_id', $product->id)
+            ->first();
+
+        return response(
+            new InventoryDetailCollection($inventoryDetail),
+            Response::HTTP_OK
+        );
+    }
 }
