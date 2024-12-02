@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\InventoryDetail;
+use App\Models\CreditDetail;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
 
@@ -18,7 +19,7 @@ class InvoiceController extends Controller
      */
     public function index()
     {
-        //
+        return Invoice::with('invoiceDetails')->get();
     }
 
     /**
@@ -96,6 +97,38 @@ class InvoiceController extends Controller
 
         }
 
+        if($request->isCredit && $request->client_id){
+            
+           $credit = $invoice->credit()->create([
+                'user_id' => $userID,
+                'organization_id' => $orgId,
+                'store_id' => $request->store_id,
+                'client_id' => $request->client_id,
+                'invoice_id' => $invoice->id,
+                'total' => $request->grand_total,
+                'current' => 0,
+                'credit_status' => 'active'
+             
+            ]);
+
+            if($request->init_payment){
+                if($request->init_payment > $request->grand_total){
+                    return response()->json(['message' => 'Credit amount cannot be greater than grand total.'], 400);
+                }
+
+                $credit->creditDetails()->create([
+                    'credit_id' => $credit->id,
+                    'amount' => $request->init_payment,
+                    'date' => $request->payment_date,
+                    'note' => 'Initial payment'
+                ]);
+
+                $credit->current = $request->init_payment;
+                $credit->save();
+                
+            }
+        }
+
         return response()->json(['message' => 'Invoice created successfully.'], 201);
         
 
@@ -111,7 +144,7 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
-        //
+        return $invoice->load('invoiceDetails');
     }
 
     /**

@@ -54,4 +54,9 @@ class Invoice extends Model
     }
 
 
+    public function credit()
+    {
+        return $this->hasOne(Credit::class);
+    }
+
 }
