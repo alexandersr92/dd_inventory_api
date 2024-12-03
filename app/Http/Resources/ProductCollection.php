@@ -30,6 +30,15 @@ class ProductCollection extends ResourceCollection
                 ];
             });
 
+            $inventory = $product->inventoryDetails->map(function ($inventory) {
+                return [
+                    'id' => $inventory->id,
+                    'quantity' => $inventory->quantity,
+                    'inventory_id' => $inventory->inventory_id,
+                 
+                ];
+            });
+
             $imageURL = env('APP_URL') . '/storage'  . '/' . $product->image;
             return [
                 'id' => $product->id,
@@ -43,7 +52,8 @@ class ProductCollection extends ResourceCollection
                 'min_stock' => $product->min_stock,
                 'unit_of_measure' => $product->unit_of_measure,
                 'categories' => $categories,
-                'tags' => $tags
+                'tags' => $tags,
+                'inventory' => $inventory,
             ];
         })->toArray();
     }

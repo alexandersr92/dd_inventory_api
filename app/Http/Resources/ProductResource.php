@@ -29,9 +29,16 @@ class ProductResource extends JsonResource
             ];
         });
 
-
-
         $imageURL = env('APP_URL') . '/storage'  . '/' . $this->image;
+
+        $inventory = $this->inventoryDetails->map(function ($inventory) {
+            return [
+                'id' => $inventory->id,
+                'quantity' => $inventory->quantity,
+                'inventory_id' => $inventory->inventory_id,
+             
+            ];
+        });
         return [
             'id' => $this->id,
             'sku' => $this->sku,
@@ -47,7 +54,7 @@ class ProductResource extends JsonResource
             'categories' => $categories,
             'suppliers' => $this->suppliers,
             'tags' => $tags,
-            'inventory' => ''
+            'inventory' => $inventory,
         ];
     }
 }
