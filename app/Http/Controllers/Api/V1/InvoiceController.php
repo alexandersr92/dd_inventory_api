@@ -34,7 +34,7 @@ class InvoiceController extends Controller
         $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
 
         foreach($productArray as $product){
-            dd($product);
+            var_dump($product);
             $inventoryID = $product['inventory_id'];
             $productID = $product['product_id'];
             $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
