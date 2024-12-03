@@ -34,10 +34,11 @@ class InvoiceController extends Controller
         $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
 
         foreach($productArray as $product){
-            var_dump($product);
+     
             $inventoryID = $product['inventory_id'];
             $productID = $product['product_id'];
             $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
+            var_dump($productObjs);
             if($productObjs->quantity < $product['quantity']){
                //return a error message which product is out of stock and return quantity available in stock and product name
                 return response()->json(
