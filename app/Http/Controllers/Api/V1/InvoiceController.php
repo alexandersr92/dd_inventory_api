@@ -38,7 +38,7 @@ class InvoiceController extends Controller
             $inventoryID = $product['inventory_id'];
             $productID = $product['product_id'];
             $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
-            var_dump($productObjs);
+       
             if($productObjs->quantity < $product['quantity']){
                //return a error message which product is out of stock and return quantity available in stock and product name
                 return response()->json(
