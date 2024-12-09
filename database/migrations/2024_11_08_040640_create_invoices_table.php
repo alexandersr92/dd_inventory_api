@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignUuid('store_id')->constrained();
             $table->foreignUuid('client_id')->nullable()->constrained();
             $table->string('invoice_number')->nullable();
-            $table->string('invoice_status')->default('paid');
+            $table->string('invoice_status')->default('Completed');
             $table->string('invoice_date')->nullable();
             $table->string('invoice_note')->nullable();
             $table->string('client_name')->nullable();

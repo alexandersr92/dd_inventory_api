@@ -8,6 +8,8 @@ use App\Models\InventoryDetail;
 use App\Models\CreditDetail;
 use App\Models\Invoice;
 use Illuminate\Http\Request;
+use App\Http\Resources\InvoiceCollection;
+use App\Http\Resources\InvoiceResource;
 
 use App\Http\Requests\StoreInvoiceRequest;
 use Illuminate\Support\Facades\Auth;
@@ -17,9 +19,12 @@ class InvoiceController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
-        return Invoice::with('invoiceDetails')->get();
+        $orgId = Auth::user()->organization_id;
+        $per_page = $request->query('per_page', 20);
+        $Invoice = Invoice::where('organization_id', $orgId)->paginate($per_page);
+        return new InvoiceCollection($Invoice);
     }
 
     /**
@@ -72,10 +77,12 @@ class InvoiceController extends Controller
             'payment_date'
         ]);
 
+
         $invoice = Invoice::create(
             array_merge(
                 $invoiceData,
                 [
+                    'invoice_status' => $request->isCredit ? 'credit' : 'completed',
                     'user_id' => $userID,
                     'organization_id' => $orgId,
                 
@@ -132,13 +139,6 @@ class InvoiceController extends Controller
         }
 
         return response()->json(['message' => 'Invoice created successfully.'], 201);
-        
-
-
-
-    
-        
-
     }
 
     /**
@@ -146,15 +146,7 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
-        return $invoice->load('invoiceDetails');
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Invoice $invoice)
-    {
-        //
+        return new InvoiceResource($invoice);
     }
 
     /**
@@ -162,6 +154,17 @@ class InvoiceController extends Controller
      */
     public function cancel(Invoice $invoice)
     {
-        //
+        $invoice->invoice_status = 'canceled';
+        $invoice->save();
+
+        $invoiceDetails = $invoice->invoiceDetails;
+
+        foreach($invoiceDetails as $invoiceDetail){
+            $productObjs = InventoryDetail::where('product_id', $invoiceDetail->product_id)->where('inventory_id', $invoiceDetail->inventory_id)->first();
+            $productObjs->quantity = $productObjs->quantity + $invoiceDetail->quantity;
+            $productObjs->save();
+        }
+
+        return response()->json(['message' => 'Invoice cancelled successfully.']);
     }
 }

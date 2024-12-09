@@ -1,0 +1,33 @@
+<?php
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\ResourceCollection;
+
+class InvoiceCollection extends ResourceCollection
+{
+    /**
+     * Transform the resource collection into an array.
+     *
+     * @return array<int|string, mixed>
+     */
+    public function toArray(Request $request): array
+    {
+        return $this->collection->map(function ($invoice) {
+
+            $totalItems = $invoice->invoiceDetails->count();
+
+            return [
+                'id' => $invoice->id,
+                'client_name' => $invoice->client_name,
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_date' => $invoice->invoice_date,
+                'invoice_status' => $invoice->invoice_status,
+                'total_items' => $totalItems,
+                'client' => $invoice->client,
+                'grand_total' => $invoice->grand_total,
+            ];
+        })->toArray();
+    }
+}
