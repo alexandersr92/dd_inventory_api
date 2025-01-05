@@ -96,14 +96,22 @@ class InventoryController extends Controller
             if (Product::find($product)) {
                 $productModel = Product::find($product);
 
-                $inventoryDetail = new InventoryDetail();
+                //validate if product already exists in inventory
+                $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)
+                    ->where('product_id', $productModel->id)
+                    ->first();
 
-                $inventoryDetail->inventory_id = $inventory->id;
-                $inventoryDetail->product_id = $productModel->id;
-                $inventoryDetail->quantity = 0;
-                $inventoryDetail->price = $productModel->price;
-                $inventoryDetail->save();
-            }
+                if (!$inventoryDetail) {
+                   
+                    $inventoryDetail = new InventoryDetail();
+    
+                    $inventoryDetail->inventory_id = $inventory->id;
+                    $inventoryDetail->product_id = $productModel->id;
+                    $inventoryDetail->quantity = 0;
+                    $inventoryDetail->price = $productModel->price;
+                    $inventoryDetail->save();
+                }
+                }
         }
 
         return response(
