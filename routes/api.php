@@ -44,7 +44,8 @@ Route::prefix('v1')->group(function () {
         Route::get('inventories/{inventory}/products', [InventoryController::class, 'showProducts']);
         Route::post('inventories/{inventory}/addProducts', [InventoryController::class, 'addProducts']);
         Route::post('inventories/{inventory}/removeProducts', [InventoryController::class, 'removeProducts']);
-        //  Route::get('inventories/{inventory}/products/{product}', [InventoryController::class, 'showProductDetail']);
+        Route::get('inventories/stores/{store}', [InventoryController::class, 'getProductByStore']);
+
         Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'cancel']);
         Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);

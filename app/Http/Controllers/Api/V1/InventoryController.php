@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
 use App\Models\Product;
+use App\Models\Store;
 use Illuminate\Http\Request;
 
 use App\Http\Resources\InventoryResource;
@@ -175,5 +176,15 @@ class InventoryController extends Controller
             new InventoryDetailCollection($inventoryDetail),
             Response::HTTP_OK
         );
+    }
+
+    public function getProductByStore(Store $store){
+         
+        $inventories = Inventory::where('store_id', $store->id)->get();
+
+        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventories->pluck('id'))->get();
+
+        return new InventoryDetailCollection($inventoryDetails); 
+        
     }
 }
