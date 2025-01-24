@@ -23,14 +23,14 @@ class InventoryController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $orgId = Auth::user()->organization_id;
 
         $inventories = Inventory::where('organization_id', $orgId)->get();
         $store = $request->query('store');
         if($store){
-            $Invoice = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
+            $inventories = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
         }
 
         return response(
