@@ -87,10 +87,10 @@ class ClientController extends Controller
             foreach ($request->stores as $store) {
                 $store = \App\Models\Store::find($store);
                 if ($store->organization_id === $orgId) {
-                    //dd($store->organization_id, $orgId);
+          
                     $client->stores()->attach($store);
                 }
-                // dd($store->organization_id, $orgId);
+
             }
         }
         return response(
