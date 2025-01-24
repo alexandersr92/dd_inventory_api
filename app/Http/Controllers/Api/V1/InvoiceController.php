@@ -24,6 +24,11 @@ class InvoiceController extends Controller
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
         $Invoice = Invoice::where('organization_id', $orgId)->paginate($per_page);
+        $store = $request->query('store');
+        if($store){
+            $Invoice = Invoice::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
+        }
+        
         return new InvoiceCollection($Invoice);
     }
 
