@@ -20,7 +20,7 @@ class InventoryDetailCollection extends ResourceCollection
                 'product_id' => $inventoryDetail->product_id,
                 'inventory_id' => $inventoryDetail->inventory_id,
                 'inventory_name' => $inventoryDetail->inventory->name,  
-                'product' => $inventoryDetail->product->name,
+                'name' => $inventoryDetail->product->name,
                 'quantity' => $inventoryDetail->quantity,
                 'status' => $inventoryDetail->status,
                 'price' => $inventoryDetail->price,

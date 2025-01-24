@@ -50,6 +50,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'cancel']);
         Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
         Route::post('credits/{credit}', [CreditController::class, 'payment']);
+
+        Route::apiResource('purchases', PurchaseController::class)->except(['update']);
+        
         
     });
 });
