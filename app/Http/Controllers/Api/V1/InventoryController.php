@@ -28,6 +28,7 @@ class InventoryController extends Controller
         $orgId = Auth::user()->organization_id;
 
         $inventories = Inventory::where('organization_id', $orgId)->get();
+        $per_page = $request->query('per_page', 20);
         $store = $request->query('store');
         if($store){
             $inventories = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
