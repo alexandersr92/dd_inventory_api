@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\CreditController;
+use App\Http\Controllers\Api\V1\PurchasesController;
 
 
 Route::prefix('v1')->group(function () {
@@ -51,7 +52,8 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
         Route::post('credits/{credit}', [CreditController::class, 'payment']);
 
-        Route::apiResource('purchases', PurchaseController::class)->except(['update']);
+        Route::apiResource('purchases', PurchasesController::class)->except(['update']);
+        Route::post('purchases/upload', [PurchasesController::class, 'upload']);
         
         
     });

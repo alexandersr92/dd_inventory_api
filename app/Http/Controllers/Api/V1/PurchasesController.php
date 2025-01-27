@@ -6,6 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\Purchases;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Imports\ChunkImport;
+use App\Models\Product;
+use Illuminate\Support\Collection; 
 
 class PurchasesController extends Controller
 {
@@ -45,26 +49,105 @@ class PurchasesController extends Controller
     {
         //
     }
-
+    
     public function upload(Request $request)
-    {
-         // Validar que el archivo sea Excel o CSV
-         $request->validate([
-            'file' => 'required|file|mimes:csv,xlsx,xls',
-        ]);
+{
+    $request->validate([
+        'file' => 'required|file|mimes:xlsx',
+    ]);
 
-        // Leer y procesar el archivo
-        $file = $request->file('file');
-        $import = new InventoryImport();
-        Excel::import($import, $file);
+    $file = $request->file('file');
 
-        // Obtener resultados
-        $validRecords = $import->getValidRecords();
-        $invalidRecords = $import->getInvalidRecords();
+    // Arrays para los resultados
+    $validExisting = [];
+    $validNew = [];
+    $invalid = [];
 
-        return response()->json([
-            'valid_records' => $validRecords,
-            'invalid_records' => $invalidRecords,
-        ]);
-    }
+    // Leer archivo en chunks para evitar problemas de memoria
+    Excel::import(new class($validExisting, $validNew, $invalid) implements \Maatwebsite\Excel\Concerns\ToCollection {
+        private $validExisting;
+        private $validNew;
+        private $invalid;
+
+        public function __construct(&$validExisting, &$validNew, &$invalid)
+        {
+            $this->validExisting = &$validExisting;
+            $this->validNew = &$validNew;
+            $this->invalid = &$invalid;
+        }
+
+        public function collection(Collection $rows)
+        {
+            foreach ($rows->skip(1) as $index => $row) { // Saltar encabezados
+                $sku = trim($row[0]);
+                $price = trim($row[5]);
+                $quantity = trim($row[6]);
+                $cost = trim($row[7]);
+
+                $errors = [];
+
+                // Validaciones
+                if (empty($sku)) {
+                    $errors[] = 'El SKU está vacío';
+                }
+
+                if (empty($price) || !is_numeric(str_replace('C$', '', $price))) {
+                    $errors[] = 'El precio no es válido';
+                }
+
+                if (empty($quantity) || !is_numeric($quantity)) {
+                    $errors[] = 'La cantidad no es válida';
+                }
+
+                if (empty($cost) || !is_numeric(str_replace('C$', '', $cost))) {
+                    $errors[] = 'El costo no es válido';
+                }
+
+                // Verificar si existe el SKU en la base de datos
+                $exists = Product::where('sku', $sku)->exists();
+
+                if (empty($errors)) {
+                    // Datos válidos
+                    if ($exists) {
+                        $this->validExisting[] = [
+                            'sku' => $sku,
+                            'price' => (float)str_replace('C$', '', $price),
+                            'quantity' => (int)$quantity,
+                            'cost' => (float)str_replace('C$', '', $cost),
+                        ];
+                    } else {
+                        $this->validNew[] = [
+                            'sku' => $sku,
+                            'name' => trim($row[3]),
+                            'barcode' => trim($row[4]),
+                            'price' => (float)str_replace('C$', '', $price),
+                            'quantity' => (int)$quantity,
+                            'cost' => (float)str_replace('C$', '', $cost),
+                        ];
+                    }
+                } else {
+                    // Datos inválidos
+                    $this->invalid[] = [
+                        'row' => $index + 2, // Fila actual (sumar 2 porque se salta encabezado)
+                        'errors' => $errors,
+                         'data' => [
+                            'sku' => $sku,
+                            'name' => trim($row[3]),
+                            'barcode' => trim($row[4]),
+                            'price' => $price,
+                            'quantity' => $quantity,
+                            'cost' => $cost,
+                        ],
+                    ];
+                }
+            }
+        }
+    }, $file);
+
+    return response()->json([
+        'valid_existing' => $validExisting,
+        'valid_new' => $validNew,
+        'invalid' => $invalid,
+    ]);
+}
 }
