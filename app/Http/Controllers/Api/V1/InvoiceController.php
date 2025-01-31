@@ -23,7 +23,19 @@ class InvoiceController extends Controller
     {
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
-        $Invoice = Invoice::where('organization_id', $orgId)->paginate($per_page);
+        $order = $request->query('order', 'desc');
+        $Invoice = Invoice::where('organization_id', $orgId)->orderBy('created_at', $order)->paginate($per_page);
+
+        $search = $request->query('search');
+
+        if($search){
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->where('invoice_number', 'like', '%'.$search.'%')
+                ->orWhere('client_name', 'like', '%'.$search.'%')
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+        }
+        
        
 
         return new InvoiceCollection($Invoice);
