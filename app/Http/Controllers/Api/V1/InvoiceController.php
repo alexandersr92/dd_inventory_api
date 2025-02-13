@@ -23,7 +23,7 @@ class InvoiceController extends Controller
     {
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
-        $order = $request->query('order', 'desc');
+        $order = $request->query('order', 'asc');
         $Invoice = Invoice::where('organization_id', $orgId)->orderBy('created_at', $order)->paginate($per_page);
 
         $search = $request->query('search');
