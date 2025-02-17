@@ -39,6 +39,8 @@ class ProductResource extends JsonResource
              
             ];
         });
+
+        $totalStock = $this->inventoryDetails->sum('quantity');
         return [
             'id' => $this->id,
             'sku' => $this->sku,
@@ -48,7 +50,7 @@ class ProductResource extends JsonResource
             'image' =>  $this->image ? $imageURL : null,
             'cost' => $this->cost,
             'price' => $this->price,
-            'stock' => 1231,
+            'stock' => $totalStock,
             'min_stock' => $this->min_stock,
             'unit_of_measure' => $this->unit_of_measure,
             'categories' => $categories,

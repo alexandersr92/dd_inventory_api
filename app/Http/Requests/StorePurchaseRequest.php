@@ -22,15 +22,15 @@ class StorePurchaseRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_id' => 'required|uuid|exists:users,id',
-            'organization_id' => 'required|uuid|exists:organizations,id',
+        
             'store_id' => 'required|uuid|exists:stores,id',
-            'supplier_id' => 'required|uuid|exists:suppliers,id',
+            'supplier_id' => 'nullable|uuid|exists:suppliers,id',
             'inventory_id' => 'required|uuid|exists:inventories,id',
             'total' => 'required|numeric',
             'purchase_date' => 'required|date',
             'purchase_note' => 'nullable|string',
             'total_items' => 'required|numeric',
+            'products' => 'required',
         ];
     }
 }

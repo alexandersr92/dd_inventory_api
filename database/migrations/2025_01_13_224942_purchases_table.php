@@ -17,12 +17,13 @@ return new class extends Migration
                 $table->foreignUuid('user_id')->constrained();
                 $table->foreignUuid('organization_id')->constrained();
                 $table->foreignUuid('store_id')->constrained();
-                $table->foreignUuid('supplier_id')->constrained();
+                $table->foreignUuid('supplier_id')->constrained()->nullable();
                 $table->foreignUuid('inventory_id')->constrained();
                 $table->float('total')->default(0);
                 $table->date('purchase_date');
                 $table->string('purchase_note')->nullable();
                 $table->float('total_items')->default(0);
+                $table->enum('status', [ 'completed', 'cancelled'])->default('completed');
                 $table->timestamps();
             });
     }
@@ -35,3 +36,5 @@ return new class extends Migration
         Schema::dropIfExists('purchases');
     }
 };
+
+

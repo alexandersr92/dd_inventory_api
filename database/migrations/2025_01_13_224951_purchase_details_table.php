@@ -17,8 +17,9 @@ return new class extends Migration
             $table->foreignUuid('purchase_id')->constrained();
             $table->foreignUuid('product_id')->constrained();
             $table->float('price')->default(0);
+            $table->float('cost')->default(0);
             $table->float('quantity')->default(0);
-            $table->float('total')->default(0);
+       
             $table->timestamps();
         });
     }
