@@ -147,8 +147,7 @@ class PurchasesController extends Controller
     
     public function upload(Request $request)
     {
-        //return json request all
-        return response()->json($request->all());
+     
         $request->validate([
             'file' => 'required|file|mimes:xlsx',
         ]);
