@@ -147,6 +147,7 @@ class PurchasesController extends Controller
     
     public function upload(Request $request)
     {
+        dd($request->all());
         $request->validate([
             'file' => 'required|file|mimes:xlsx',
         ]);
