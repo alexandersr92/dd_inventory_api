@@ -152,7 +152,8 @@ class InvoiceController extends Controller
             }
         }
 
-        return response()->json(['message' => 'Invoice created successfully.'], 201);
+        //return response()->json(['message' => 'Invoice created successfully.', 'data' =>], 201);
+        return new InvoiceResource($invoice);
     }
 
     /**
