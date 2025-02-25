@@ -18,6 +18,7 @@ use App\Http\Requests\StorePurchaseRequest;
 
 use Symfony\Component\HttpFoundation\Response;
 use App\Http\Resources\PurchaseResource;
+use App\Http\Resources\PurchaseCollection;
 
 
 class PurchasesController extends Controller
@@ -25,12 +26,18 @@ class PurchasesController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $orgId = Auth::user()->organization_id;
         $purchases = Purchases::where('organization_id', $orgId)->get();
-        return response()->json($purchases);
+        return new PurchaseCollection($purchases);
+
+        return response(
+            new PurchaseCollection($inventories),
+            Response::HTTP_CREATED
+        );
     }
+   
 
     /**
      * Store a newly created resource in storage.
