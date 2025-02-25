@@ -16,6 +16,9 @@ use App\Imports\ChunkImport;
 use Illuminate\Support\Collection; 
 use App\Http\Requests\StorePurchaseRequest;
 
+use Symfony\Component\HttpFoundation\Response;
+use App\Http\Resources\PurchaseResource;
+
 
 class PurchasesController extends Controller
 {
@@ -116,11 +119,13 @@ class PurchasesController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Purchases $purchases)
+    public function show(Purchases $purchase)
     {
-        return response()->json($purchases);
+        return response(
+            new PurchaseResource($purchase),
+            Response::HTTP_OK
+        );
     }
-
  
 
     /**

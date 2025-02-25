@@ -51,7 +51,7 @@ class Purchases extends Model
 
     public function purchaseDetails()
     {
-        return $this->hasMany(PurchaseDetail::class);
+        return $this->hasMany(PurchaseDetail::class, 'purchase_id');
     }
 
   
