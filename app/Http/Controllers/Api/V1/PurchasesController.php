@@ -138,18 +138,22 @@ class PurchasesController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Purchases $purchases)
+    public function destroy(Purchases $purchase)
     {
-        $purchaseID = $purchases->id;
+        $purchaseID = $purchase->id;
         //find purchase
         $purchase = Purchases::find($purchaseID);
         //change status to anulled
+
         $purchase->status = 'cancelled';
         $purchase->save();
         //find purchase details and restore inventory
         $purchaseDetails = PurchaseDetail::where('purchase_id', $purchaseID)->get();
+
         foreach ($purchaseDetails as $purchaseDetail) {
+            
             $inventoryDetail = InventoryDetail::where('inventory_id', $purchase->inventory_id)->where('product_id', $purchaseDetail->product_id)->first();
+            dd($purchaseDetail->product_id);
             $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
             $inventoryDetail->save();
         }
