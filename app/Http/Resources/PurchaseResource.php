@@ -33,6 +33,7 @@ class PurchaseResource extends JsonResource
             'total' => $this->total,
             'purchase_date' => $this->purchase_date,
             'purchase_note' => $this->purchase_note,
+            'status' => $this->status,
             'total_items' => $this->total_items,
             'products' =>       $products,  
             'created_at' => $this->created_at,

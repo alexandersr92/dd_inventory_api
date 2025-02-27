@@ -24,6 +24,7 @@ class PurchaseCollection extends ResourceCollection
             'total' => $purchase->total,
             'purchase_date' => $purchase->purchase_date,
             'purchase_note' => $purchase->purchase_note,
+            'status' => $purchase->status,
             'total_items' => $purchase->total_items,
             'created_at' => $purchase->created_at,
             'updated_at' => $purchase->updated_at,
