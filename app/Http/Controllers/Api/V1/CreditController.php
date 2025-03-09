@@ -7,8 +7,10 @@ use App\Models\Credit;
 use App\Models\CreditDetail;
 use Illuminate\Http\Request;
 use App\Http\Resources\CreditCollection;
+use App\Http\Resources\CreditByClientCollection;
 use App\Http\Resources\CreditResource;
 use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
 class CreditController extends Controller
 {
     /**
@@ -20,6 +22,55 @@ class CreditController extends Controller
         $per_page = $request->query('per_page', 20);
         $credits = Credit::where('organization_id', $orgId)->paginate($per_page);
         return new CreditCollection($credits);
+    }
+
+    public function indexByClient()
+    {
+        $orgId = Auth::user()->organization_id;
+
+        // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
+        $credits = Credit::whereHas('client', function ($query) use ($orgId) {
+            $query->where('organization_id', $orgId);
+        })->where('credit_status', '!=', 'paid')->get();
+
+
+        if ($credits->isEmpty()) {
+            return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $groupedCredits = $credits->groupBy('client_id')->map(function ($clientCredits) {
+            $firstCredit = $clientCredits->first();
+            return (object) [
+                'client_id' => $firstCredit->client->id,
+                'client' => $firstCredit->client->name,
+                'invoices_qty' => $clientCredits->count(),
+                'total_credit' => $clientCredits->sum('total'),
+                'created_at' => $firstCredit->created_at,
+                'updated_at' => $firstCredit->updated_at,
+            ];
+        })->values();
+
+        return new CreditByClientCollection($groupedCredits);
+    }
+
+    public function indexByClientID($client_id)
+    {
+        $orgId = Auth::user()->organization_id;
+
+        // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
+        $credits = Credit::whereHas('client', function ($query) use ($orgId, $client_id) {
+            $query->where('organization_id', $orgId)->where('id', $client_id);
+        })->where('credit_status', '!=', 'paid')->get();
+
+        if ($credits->isEmpty()) {
+            return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
+        }
+
+        
+
+        return new CreditCollection($credits);
+
+
     }
 
 
@@ -34,40 +85,42 @@ class CreditController extends Controller
     /**
      * payment the specified resource in storage.
      */
-    public function payment(Request $request, Credit $credit)
+    public function payment(Request $request)
     {
-        $orgId = Auth::user()->organization_id;
-        $userID = Auth::user()->id;
-
-        if($credit->organization_id !== $orgId){
-            return response()->json(['message' => 'You are not authorized to make payment for this credit.'], 403);
-        }
-
-        if($credit->credit_status === 'paid'){
-            return response()->json(['message' => 'This credit has already been paid.'], 400);
-        }
-
-        if($credit->current < $request->amount){
-            return response()->json(['message' => 'The amount you are trying to pay is greater than the current credit amount.'], 400);
-        }
-
+        $orgID = Auth::user()->organization_id;
+        $credits =json_decode( $request->credits_id);
+        $amount = $request->amount; 
+        $notes = $request->notes;
         
-        $credit->current = $credit->current - $request->amount;
 
-        if( $credit->current === 0.00){
-          
-            $credit->credit_status = 'paid';
+        foreach ($credits as $creditId) {
+            $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first(); 
+    
+            if ($credit) {
+                if ($amount >= $credit->debt) {
+                  
+                    $amount -= $credit->debt; 
+                    $credit->debt = 0; 
+                    $credit->credit_status = 'paid'; 
+                } else {
+                    $credit->debt -= $amount; 
+                    $amount = 0; 
+                }
+    
+                $credit->save(); 
+    
+                $creditDetail = new CreditDetail();
+                $creditDetail->credit_id = $credit->id;
+                $creditDetail->amount = $request->amount;
+                $creditDetail->date = date('Y-m-d');
+                $creditDetail->note = $notes;
+                $creditDetail->save();
+    
+                if ($amount == 0) {
+                    break;
+                }
+            }
         }
-        
-      
-        $credit->save();
-
-        $creditDetail = new CreditDetail();
-        $creditDetail->credit_id = $credit->id;
-        $creditDetail->amount = $request->amount;
-        $creditDetail->date = date('Y-m-d');
-        $creditDetail->note = $request->note;
-        $creditDetail->save();
 
         return response()->json(['message' => 'Payment has been made successfully.'], 200);
     }

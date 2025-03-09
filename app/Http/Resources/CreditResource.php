@@ -14,7 +14,7 @@ class CreditResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        $parymentsHistory = $this->creditDetails->map(function ($payment) {
+        $paymentsHistory = $this->creditDetails->map(function ($payment) {
             return [
                 'id' => $payment->id,
                 'amount' => $payment->amount,
@@ -28,13 +28,13 @@ class CreditResource extends JsonResource
         return [
             'id' => $this->id,
             'amount' => $this->total,
-            'current' => $this->current,
+            'current_debt' => $this->current,
             'client' => $this->client->name,
             'status' => $this->credit_status,
             'invoice_number' => $this->invoice->invoice_number,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'parymentsHistory' => $parymentsHistory,
+            'paymentsHistory' => $paymentsHistory,
           
         ];
     }

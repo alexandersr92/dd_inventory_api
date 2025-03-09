@@ -25,8 +25,12 @@ class InvoiceController extends Controller
         $per_page = $request->query('per_page', 20);
         $order = $request->query('order', 'asc');
         $Invoice = Invoice::where('organization_id', $orgId)->orderBy('created_at', $order)->paginate($per_page);
+        $store_id = $request->query('store_id');
 
         $search = $request->query('search');
+
+        //filtrar por tienda opcional
+        
 
         if($search){
             $Invoice = Invoice::where('organization_id', $orgId)
@@ -129,6 +133,7 @@ class InvoiceController extends Controller
                 'client_id' => $request->client_id,
                 'invoice_id' => $invoice->id,
                 'total' => $request->grand_total,
+                'debt' => $request->grand_total,
                 'current' => 0,
                 'credit_status' => 'active'
              

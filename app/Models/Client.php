@@ -35,4 +35,16 @@ class Client extends Model
     {
         return $this->belongsToMany(Store::class);
     }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function credits()
+    {
+        return $this->hasMany(Credit::class);
+    }
+
+    
 }
