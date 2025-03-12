@@ -18,7 +18,7 @@ class CreditCollection extends ResourceCollection
             return [
                 'id' => $credit->id,
                 'amount' => $credit->total,
-                'current_debt' => $credit->current,
+                'current_debt' => $credit->debt,
                 'client' => $credit->client->name,
                 'status' => $credit->credit_status,
                 'invoice_number' => $credit->invoice->invoice_number,
