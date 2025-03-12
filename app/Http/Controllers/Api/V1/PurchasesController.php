@@ -224,7 +224,7 @@ class PurchasesController extends Controller
                             $this->validExisting[] = [
                                 'product_id' => Product::where('sku', $sku)->first()->id,
                                 'sku' => $sku,
-                                'name' => trim($row[3]),
+                                'product_name' => trim($row[3]),
                                 'barcode' => trim($row[4]),
                                 'quantity' => (int)$quantity,
                                 'price' => (float)str_replace('C$', '', $price),
@@ -236,7 +236,7 @@ class PurchasesController extends Controller
                             $this->validNew[] = [
                                 'product_id' => null,
                                 'sku' => $sku,
-                                'name' => trim($row[3]),
+                                'product_name' => trim($row[3]),
                                 'barcode' => trim($row[4]),
                                 'price' => (float)str_replace('C$', '', $price),
                                 'quantity' => (int)$quantity,
@@ -250,7 +250,7 @@ class PurchasesController extends Controller
                             'errors' => $errors,
                             'data' => [
                                 'sku' => $sku,
-                                'name' => trim($row[3]),
+                                'product_name' => trim($row[3]),
                                 'barcode' => trim($row[4]),
                                 'price' => $price,
                                 'quantity' => $quantity,
