@@ -90,8 +90,8 @@ class CreditController extends Controller
         $orgID = Auth::user()->organization_id;
         $credits =json_decode( $request->credits_id);
 
-        if (!$request->amount || !$request->notes || !$credits) {
-            return response()->json(['message' => 'Amount, notes and credits_id are required.'], 400);
+        if (!$request->amount || !$credits) {
+            return response()->json(['message' => 'Amount and credits_id are required.'], 400);
         }
 
         $amount = $request->amount; 
