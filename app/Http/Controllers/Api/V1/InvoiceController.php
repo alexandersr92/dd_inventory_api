@@ -134,7 +134,6 @@ class InvoiceController extends Controller
                 'invoice_id' => $invoice->id,
                 'total' => $request->grand_total,
                 'debt' => $request->grand_total,
-                'current' => 0,
                 'credit_status' => 'active'
              
             ]);
@@ -151,7 +150,7 @@ class InvoiceController extends Controller
                     'note' => 'Initial payment'
                 ]);
 
-                $credit->current = $request->init_payment;
+                $credit->debt = $credit->debt - $request->init_payment;
                 $credit->save();
                 
             }
