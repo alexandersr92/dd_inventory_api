@@ -19,10 +19,13 @@ class PurchaseResource extends JsonResource
       $products = $this->purchaseDetails->map(function($purchaseDetail) {
             return [
                 'id' => $purchaseDetail->id,
+                'sku' => $purchaseDetail->product->sku,
+                'barcode' => $purchaseDetail->product->barcode,
                 'product_id' => $purchaseDetail->product_id,
                 'product_name' => $purchaseDetail->product->name,
                 'quantity' => $purchaseDetail->quantity,
                 'price' => $purchaseDetail->price,
+                'cost' => $purchaseDetail->cost,
             ];
         })->toArray(); 
         return [
