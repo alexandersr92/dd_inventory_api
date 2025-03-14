@@ -55,9 +55,9 @@ class InvoiceController extends Controller
         $userID = Auth::user()->id;
      
         $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
-
+        $totalItems = 0;
         foreach($productArray as $product){
-     
+            $totalItems += $product['quantity'];
             $inventoryID = $product['inventory_id'];
             $productID = $product['product_id'];
             $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
@@ -77,7 +77,9 @@ class InvoiceController extends Controller
 
 
 
-        }
+        }   
+
+
 
 
         $invoiceData = $request->only([
@@ -87,7 +89,6 @@ class InvoiceController extends Controller
             'invoice_date',
             'invoice_note',
             'client_name',
-            'total',
             'discount',
             'tax',
             'grand_total',
@@ -95,6 +96,9 @@ class InvoiceController extends Controller
             'payment_date'
         ]);
 
+        $invoiceData['total'] = $totalItems;
+
+ 
 
         $invoice = Invoice::create(
             array_merge(
