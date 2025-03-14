@@ -70,7 +70,7 @@ class PurchasesController extends Controller
                 $newProduct = new Product();
                 $newProduct->organization_id = $orgId;
                 $newProduct->sku = $product['sku'];
-                $newProduct->name = $product['name'];
+                $newProduct->name = $product['product_name'];
                 $newProduct->barcode = $product['barcode'];
                 $newProduct->price = $product['price'];
                 $newProduct->cost = $product['cost'];

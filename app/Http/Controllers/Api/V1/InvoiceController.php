@@ -27,6 +27,8 @@ class InvoiceController extends Controller
         $Invoice = Invoice::where('organization_id', $orgId)->orderBy('created_at', $order)->paginate($per_page);
         $store_id = $request->query('store_id');
 
+        $method = $request->query('method');
+
         $search = $request->query('search');
 
         //filtrar por tienda opcional
@@ -36,6 +38,7 @@ class InvoiceController extends Controller
             $Invoice = Invoice::where('organization_id', $orgId)
                 ->where('invoice_number', 'like', '%'.$search.'%')
                 ->orWhere('client_name', 'like', '%'.$search.'%')
+               
                 ->orderBy('created_at', $order)
                 ->paginate($per_page);
         }
