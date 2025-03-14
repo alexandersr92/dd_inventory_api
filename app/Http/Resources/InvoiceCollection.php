@@ -27,6 +27,7 @@ class InvoiceCollection extends ResourceCollection
                 'total_items' => $totalItems,
                 'client' => $invoice->client,
                 'grand_total' => $invoice->grand_total,
+                'method' => $invoice->method,
             ];
         })->toArray();
     }

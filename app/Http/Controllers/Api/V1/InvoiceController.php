@@ -53,6 +53,8 @@ class InvoiceController extends Controller
 
         $orgId = Auth::user()->organization_id;
         $userID = Auth::user()->id;
+
+        $clientID = $request->client_id ? $request->client_id : null;
      
         $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
         $totalItems = 0;
@@ -97,6 +99,7 @@ class InvoiceController extends Controller
         ]);
 
         $invoiceData['total'] = $totalItems;
+
 
  
 
