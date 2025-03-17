@@ -28,6 +28,13 @@ class StoreResource extends JsonResource
             'zip' => $this->zip,
             'status' => $this->status,
             'ruc' => $this->ruc,
+            'print_logo' => $this->print_logo,
+            'print_header' => $this->print_header,
+            'print_footer' => $this->print_footer,
+            'print_note' => $this->print_note,
+            'print_width' => $this->print_width,
+            'invoice_number' => $this->invoice_number,
+            'invoice_prefix' => $this->invoice_prefix,
 
 
         ];

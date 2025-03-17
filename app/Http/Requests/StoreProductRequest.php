@@ -23,7 +23,7 @@ class StoreProductRequest extends FormRequest
     {
         return [
             'sku' => ['string', 'max:255'],
-            'barcode' => ['string', 'max:255'],
+            'barcode' => ['string', 'max:255', 'unique:products,barcode', 'nullable'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['string'],
             'image' => 'image|mimes:jpeg,png,jpg,gif,svg|max:2048',

@@ -84,8 +84,15 @@ class ProductController extends Controller
         //sku debe ser unico dentro de la organizacion
         $request->validate([
             'sku' => 'unique:products,sku,NULL,id,organization_id,' . $orgId,
-            'barcode' => 'unique:products,barcode,NULL,id,organization_id,' . $orgId,
+         
         ]);
+
+        //validate barcode unique if exists
+        if ($request->has('barcode')) {
+            $request->validate([
+                'barcode' => 'unique:products,barcode,NULL,id,organization_id,' . $orgId,
+            ]);
+        }
 
         $product = Product::create($request->all());
 

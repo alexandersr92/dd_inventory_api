@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\InventoryDetail;
 use App\Models\CreditDetail;
 use App\Models\Invoice;
+use App\Models\Store;
 use Illuminate\Http\Request;
 use App\Http\Resources\InvoiceCollection;
 use App\Http\Resources\InvoiceResource;
@@ -26,15 +27,56 @@ class InvoiceController extends Controller
         $order = $request->query('order', 'asc');
         $Invoice = Invoice::where('organization_id', $orgId)->orderBy('created_at', $order)->paginate($per_page);
         $store_id = $request->query('store_id');
+        $date_from = $request->query('date_from') ? $request->query('date_from') . ' 00:00:00' : null;
+        $date_to = $request->query('date_to') ? $request->query('date_to') . ' 23:59:59' : null;
+ 
 
         $method = $request->query('method');
 
         $search = $request->query('search');
 
-        //filtrar por tienda opcional
+        if($store_id){
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->where('store_id', $store_id)
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+        }
+
+        if($method){
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->where('payment_method', $method)
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+        }
+
+        if($date_from && $date_to){
         
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->whereBetween('created_at', [$date_from, $date_to])
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+
+        }
+
+        if($date_from){
+
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->where('created_at', '>=', $date_from)
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+           
+        }
+
+        if($date_to){
+     
+            $Invoice = Invoice::where('organization_id', $orgId)
+                ->where('created_at', '<=', $date_to)
+                ->orderBy('created_at', $order)
+                ->paginate($per_page);
+        }
 
         if($search){
+ 
             $Invoice = Invoice::where('organization_id', $orgId)
                 ->where('invoice_number', 'like', '%'.$search.'%')
                 ->orWhere('client_name', 'like', '%'.$search.'%')
@@ -56,6 +98,7 @@ class InvoiceController extends Controller
 
         $orgId = Auth::user()->organization_id;
         $userID = Auth::user()->id;
+        $store =  Store::where('id', $request->store_id)->first();
 
         $clientID = $request->client_id ? $request->client_id : null;
      
@@ -85,6 +128,8 @@ class InvoiceController extends Controller
         }   
 
 
+        $invoiceNumber =  $store->invoice_prefix .'-'. str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
+
 
 
         $invoiceData = $request->only([
@@ -100,7 +145,7 @@ class InvoiceController extends Controller
             'payment_method',
             'payment_date'
         ]);
-
+        $invoiceData['invoice_number'] = $invoiceNumber;
         $invoiceData['total'] = $totalItems;
 
 
@@ -117,6 +162,14 @@ class InvoiceController extends Controller
                 ]
             )
         );
+
+        //validate if the invoice is created
+        if(!$invoice){
+            return response()->json(['message' => 'Invoice could not be created.'], 400);
+        }
+
+        $store->invoice_number = $store->invoice_number + 1;
+        $store->save();
 
         foreach($productArray as $product){
             $invoice->invoiceDetails()->create([

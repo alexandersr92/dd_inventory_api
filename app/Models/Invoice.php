@@ -26,6 +26,9 @@ class Invoice extends Model
         'grand_total',
         'payment_method',
         'payment_date'
+  
+
+
     ];
 
     public function user()

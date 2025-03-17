@@ -39,6 +39,8 @@ class ProductCollection extends ResourceCollection
                 ];
             });
 
+            $totalStock = $product->inventoryDetails->sum('quantity');
+         
             $imageURL = env('APP_URL') . '/storage'  . '/' . $product->image;
             return [
                 'id' => $product->id,
@@ -48,7 +50,7 @@ class ProductCollection extends ResourceCollection
                 'image' =>  $product->image ? $imageURL : null,
                 'cost' => $product->cost,
                 'price' => $product->price,
-                'stock' => 1231,
+                'stock' =>  $totalStock,
                 'min_stock' => $product->min_stock,
                 'unit_of_measure' => $product->unit_of_measure,
                 'categories' => $categories,

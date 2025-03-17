@@ -23,11 +23,12 @@ class InvoiceCollection extends ResourceCollection
                 'client_name' => $invoice->client_name,
                 'invoice_number' => $invoice->invoice_number,
                 'invoice_date' => $invoice->invoice_date,
+                'created_at' => $invoice->created_at,
                 'invoice_status' => $invoice->invoice_status,
                 'total_items' => $totalItems,
                 'client' => $invoice->client,
                 'grand_total' => $invoice->grand_total,
-                'method' => $invoice->method,
+                'method' => $invoice->payment_method,
             ];
         })->toArray();
     }

@@ -49,7 +49,7 @@ class PurchasesController extends Controller
         $orgId = Auth::user()->organization_id;
         $userID = Auth::user()->id;
 
-     
+        dd($request->all());
         $purchase = new Purchases();
         $purchase->user_id = $userID;
         $purchase->organization_id = $orgId;
@@ -71,7 +71,7 @@ class PurchasesController extends Controller
                 $newProduct->organization_id = $orgId;
                 $newProduct->sku = $product['sku'];
                 $newProduct->name = $product['product_name'];
-                $newProduct->barcode = $product['barcode'];
+                $newProduct->barcode = $product['barcode'] ?? '';
                 $newProduct->price = $product['price'];
                 $newProduct->cost = $product['cost'];
                 $newProduct->min_stock = 0;
@@ -197,6 +197,11 @@ class PurchasesController extends Controller
                     $cost = trim($row[7]);
 
                     $errors = [];
+
+                    //if all fields are empty, skip
+                    if (empty($sku) && empty($price) && empty($quantity) && empty($cost)) {
+                        continue;
+                    }
 
                     // Validaciones
                     if (empty($sku)) {

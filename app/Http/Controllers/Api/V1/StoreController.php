@@ -55,6 +55,10 @@ class StoreController extends Controller
         $store = Store::create($request->all());
 
 
+        if ($request->hasFile('print_logo')) {
+            $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
+        }
+
 
         return response(
             new StoreResource($store),

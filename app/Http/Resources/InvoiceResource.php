@@ -27,7 +27,7 @@ class InvoiceResource extends JsonResource
             'discount' => $this->discount,
             'tax' => $this->tax,
             'grand_total' => $this->grand_total,
-            'method' => $this->method,
+            'method' => $this->payment_method,
             'invoice_details' => $this->invoiceDetails->map(function($invoiceDetail) {
                 return [
                     'id' => $invoiceDetail->id,

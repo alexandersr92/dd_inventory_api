@@ -31,7 +31,7 @@ class CreditResource extends JsonResource
             'current_debt' => $this->debt,
             'client' => $this->client->name,
             'status' => $this->credit_status,
-            'invoice_number' => $this->invoice->invoice_number,
+            'invoice' => $this->invoice,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'paymentsHistory' => $paymentsHistory,
