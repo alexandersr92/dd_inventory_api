@@ -54,7 +54,7 @@ Route::prefix('v1')->group(function () {
         Route::get('credits-by-client', [CreditController::class, 'indexByClient']);
         Route::get('credits-by-client/{client_id}', [CreditController::class, 'indexByClientID']);
 
-        Route::apiResource('purchases', PurchasesController::class)->except(['update']);
+        Route::apiResource('purchases', PurchasesController::class);
         Route::post('purchases/upload', [PurchasesController::class, 'upload']);
         
         

@@ -49,7 +49,7 @@ class PurchasesController extends Controller
         $orgId = Auth::user()->organization_id;
         $userID = Auth::user()->id;
 
-        dd($request->all());
+
         $purchase = new Purchases();
         $purchase->user_id = $userID;
         $purchase->organization_id = $orgId;
@@ -132,6 +132,99 @@ class PurchasesController extends Controller
             new PurchaseResource($purchase),
             Response::HTTP_OK
         );
+    }
+
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(Request $request, Purchases $purchase)
+    {
+        $orgId = Auth::user()->organization_id;
+        //obtener la compra actual 
+        $inventoryID = $purchase->inventory_id;
+        $requestInventoryID = $request->inventory_id;
+        $purchaseDetails = PurchaseDetail::where('purchase_id', $purchase->id)->get();
+        $newProductList = $request->products;
+        $newTotalItems = 0;
+
+        foreach ($purchaseDetails as $purchaseDetail) {
+            $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
+            dd($purchaseDetail);
+            $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
+            $inventoryDetail->save();
+        }
+    
+        //clear purchase details
+        PurchaseDetail::where('purchase_id', $purchase->id)->delete();
+
+        //add new purchase details if no exist any product create it
+        foreach ($newProductList as $product) {
+            //if product id is null, create a new product
+            if($product['product_id'] == null){
+                $newProduct = new Product();
+                $newProduct->organization_id = $orgId;
+                $newProduct->sku = $product['sku'];
+                $newProduct->name = $product['product_name'];
+                $newProduct->barcode = $product['barcode'] ?? '';
+                $newProduct->price = $product['price'];
+                $newProduct->cost = $product['cost'];
+                $newProduct->min_stock = 0;
+                $newProduct->unit_of_measure = 'unit';
+                $newProduct->status = 'active';
+                $newProduct->save();
+                $product['product_id'] = $newProduct->id;
+            }
+            $purchaseDetail = new PurchaseDetail();
+            $purchaseDetail->purchase_id = $purchase->id;
+            $purchaseDetail->product_id = $product['product_id'];
+            $purchaseDetail->quantity = $product['quantity'];
+            $purchaseDetail->price = $product['price'];
+            $purchaseDetail->cost = $product['cost'];
+            $purchaseDetail->save();
+            $newTotalItems = $newTotalItems + $product['quantity'];
+
+
+        }
+
+        //update purchase header
+        $purchase->store_id = $request->store_id;
+        $purchase->supplier_id = $request->supplier_id;
+        $purchase->inventory_id = $request->inventory_id;
+        $purchase->total = $request->total;
+        $purchase->purchase_date = $request->purchase_date;
+        $purchase->purchase_note = $request->purchase_note;
+        $purchase->total_items = $newTotalItems;
+        $purchase->save();
+
+        //update inventory details
+        $inventory = Inventory::where('organization_id', $orgId)->where('id', $requestInventoryID)->first();
+        if($inventory){
+            $listProducts = PurchaseDetail::where('purchase_id', $purchase->id)->get();
+            foreach ($listProducts as $product) {
+                //get inventoryDetail
+                $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)->where('product_id', $product['product_id'])->first();
+                if($inventoryDetail){
+                    $inventoryDetail->quantity = $inventoryDetail->quantity + $product['quantity'];
+                    $inventoryDetail->save();
+                }else{
+                    
+                    $inventoryDetail = new InventoryDetail();
+                    $inventoryDetail->inventory_id = $inventory->id;
+                    $inventoryDetail->product_id = $product['product_id'];
+                    $inventoryDetail->quantity = $product['quantity'];
+                    $inventoryDetail->price = $product['price'];
+                    $inventoryDetail->save();
+                }
+
+            }
+        }
+
+
+        return response(
+            new PurchaseResource($purchase),
+            Response::HTTP_OK
+        );
+   
     }
  
 
