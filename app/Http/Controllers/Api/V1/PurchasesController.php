@@ -149,7 +149,7 @@ class PurchasesController extends Controller
 
         foreach ($purchaseDetails as $purchaseDetail) {
             $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
-            dd($purchaseDetail);
+
             $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
             $inventoryDetail->save();
         }
