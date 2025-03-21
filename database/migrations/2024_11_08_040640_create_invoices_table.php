@@ -29,6 +29,7 @@ return new class extends Migration
             $table->float('grand_total')->default(0);
             $table->string('payment_method')->nullable();
             $table->string('payment_date')->nullable();
+
             $table->timestamps();
         });
     }
