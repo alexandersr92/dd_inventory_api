@@ -31,7 +31,6 @@ class StoreClientRequest extends FormRequest
             'country' => 'string|max:255 | nullable',
             'zip' => 'string|max:255 | nullable',
             'status' => 'string|max:255 | nullable',
-            'wholesaler' => 'required|boolean',
             'notes' => 'nullable|string',
         ];
     }

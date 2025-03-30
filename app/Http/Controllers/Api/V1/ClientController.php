@@ -82,6 +82,12 @@ class ClientController extends Controller
         $request->merge(['organization_id' => $orgId]);
         $client = Client::create($request->all());
 
+        if(!$request->wholesaler){
+            $client->wholesaler = 0;
+        }
+
+        
+
         if ($request->has('stores')) {
 
             foreach ($request->stores as $store) {

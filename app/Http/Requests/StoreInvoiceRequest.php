@@ -24,7 +24,6 @@ class StoreInvoiceRequest extends FormRequest
         return [
           
             'store_id' => 'required',
-            'invoice_number' => 'required',
             'invoice_date' => 'required|date',
             'invoice_note' => 'nullable | string',
             'client_name' => 'required',

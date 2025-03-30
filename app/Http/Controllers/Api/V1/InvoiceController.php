@@ -29,63 +29,78 @@ class InvoiceController extends Controller
         $store_id = $request->query('store_id');
         $date_from = $request->query('date_from') ? $request->query('date_from') . ' 00:00:00' : null;
         $date_to = $request->query('date_to') ? $request->query('date_to') . ' 23:59:59' : null;
- 
+        $number_invoice_from = $request->query('number_invoice_from');
+        $number_invoice_to = $request->query('number_invoice_to');
+
+        
 
         $method = $request->query('method');
 
         $search = $request->query('search');
 
-        if($store_id){
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->where('store_id', $store_id)
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
-        }
+        $query = Invoice::where('organization_id', $orgId);
 
-        if($method){
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->where('payment_method', $method)
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
-        }
-
-        if($date_from && $date_to){
-        
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->whereBetween('created_at', [$date_from, $date_to])
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
-
-        }
-
-        if($date_from){
-
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->where('created_at', '>=', $date_from)
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
-           
-        }
-
-        if($date_to){
-     
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->where('created_at', '<=', $date_to)
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
-        }
-
-        if($search){
- 
-            $Invoice = Invoice::where('organization_id', $orgId)
-                ->where('invoice_number', 'like', '%'.$search.'%')
-                ->orWhere('client_name', 'like', '%'.$search.'%')
-               
-                ->orderBy('created_at', $order)
-                ->paginate($per_page);
+        // Agregar filtro por tienda
+        if ($store_id) {
+            $query->where('store_id', $store_id);
         }
         
-       
+        // Agregar filtro por método de pago
+        if ($method) {
+            $query->where('payment_method', $method);
+        }
+        
+        // Agregar filtro por rango de fechas
+        if ($date_from && $date_to) {
+            $query->whereBetween('created_at', [$date_from, $date_to]);
+        } elseif ($date_from) {
+            $query->where('created_at', '>=', $date_from);
+        } elseif ($date_to) {
+            $query->where('created_at', '<=', $date_to);
+        }
+        
+        // Agregar filtro por búsqueda
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('invoice_number', 'like', '%' . $search . '%')
+                  ->orWhere('client_name', 'like', '%' . $search . '%');
+            });
+        }
+        
+        // Agregar filtro por rango de números de factura
+        if ($number_invoice_from && $number_invoice_to && $store_id) {
+            $prefix = Store::where('id', $store_id)->first()->invoice_prefix;
+            $number_invoice_from = $prefix . '-' . str_pad($number_invoice_from, 6, '0', STR_PAD_LEFT);
+            $number_invoice_to = $prefix . '-' . str_pad($number_invoice_to, 6, '0', STR_PAD_LEFT);
+            $query->whereBetween('invoice_number', [$number_invoice_from, $number_invoice_to]);
+        } elseif ($number_invoice_from && $store_id) {
+            $prefix = Store::where('id', $store_id)->first()->invoice_prefix;
+            $number_invoice_from = $prefix . '-' . str_pad($number_invoice_from, 6, '0', STR_PAD_LEFT);
+            $query->where('invoice_number', '>=', $number_invoice_from);
+        } elseif ($number_invoice_to && $store_id) {
+            $prefix = Store::where('id', $store_id)->first()->invoice_prefix;
+            $number_invoice_to = $prefix . '-' . str_pad($number_invoice_to, 6, '0', STR_PAD_LEFT);
+            $query->where('invoice_number', '<=', $number_invoice_to);
+        }
+        
+        // Validar si falta el store_id cuando se filtra por número de factura
+        if (($number_invoice_from || $number_invoice_to) && !$store_id) {
+            return response()->json(['message' => 'Store ID is required when searching by invoice number.'], 400);
+        }
+    
+        // Agregar opción de ordenamiento
+        $sort_by = $request->query('sort_by', 'created_at'); // Valor por defecto: created_at
+        $order = $request->query('order', 'asc'); // Valor por defecto: asc
+        $allowed_sort_fields = ['grand_total', 'created_at', 'client_name', 'invoice_number'];
+
+        if (in_array($sort_by, $allowed_sort_fields)) {
+            $query->orderBy($sort_by, $order);
+        } else {
+            return response()->json(['message' => 'Invalid sort_by field.'], 400);
+        }
+
+        // Ordenar y paginar los resultados
+        $Invoice = $query->paginate($per_page);
 
         return new InvoiceCollection($Invoice);
     }
@@ -100,8 +115,10 @@ class InvoiceController extends Controller
         $userID = Auth::user()->id;
         $store =  Store::where('id', $request->store_id)->first();
 
+
         $clientID = $request->client_id ? $request->client_id : null;
      
+        
         $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
         $totalItems = 0;
         foreach($productArray as $product){

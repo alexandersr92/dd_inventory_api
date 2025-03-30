@@ -24,9 +24,13 @@ class CreditController extends Controller
         return new CreditCollection($credits);
     }
 
-    public function indexByClient()
+    public function indexByClient( Request $request)
     {
         $orgId = Auth::user()->organization_id;
+        $sort = $request->query('sort', 'created_at');
+        $order = $request->query('order', 'asc');
+
+
 
         // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
         $credits = Credit::whereHas('client', function ($query) use ($orgId) {
@@ -37,6 +41,8 @@ class CreditController extends Controller
         if ($credits->isEmpty()) {
             return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
         }
+
+
 
         $groupedCredits = $credits->groupBy('client_id')->map(function ($clientCredits) {
             $firstCredit = $clientCredits->first();
@@ -49,6 +55,10 @@ class CreditController extends Controller
                 'updated_at' => $firstCredit->updated_at,
             ];
         })->values();
+     //   dd($sortBy);
+        // Ordenar los créditos agrupados por la fecha de creación
+        $groupedCredits = $groupedCredits->sortBy($sort, SORT_REGULAR, $order === 'desc')->values();
+
 
         return new CreditByClientCollection($groupedCredits);
     }
