@@ -48,7 +48,7 @@ class CreditController extends Controller
             $firstCredit = $clientCredits->first();
             return (object) [
                 'client_id' => $firstCredit->client->id,
-                'client' => $firstCredit->client->name,
+                'v' => $firstCredit->client->name,
                 'invoices_qty' => $clientCredits->count(),
                 'total_credit' => $clientCredits->sum('total'),
                 'created_at' => $firstCredit->created_at,

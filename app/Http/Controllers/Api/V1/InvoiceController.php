@@ -15,6 +15,9 @@ use App\Http\Resources\InvoiceResource;
 use App\Http\Requests\StoreInvoiceRequest;
 use Illuminate\Support\Facades\Auth;
 
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\InvoiceExport;
+
 class InvoiceController extends Controller
 {
     /**
@@ -265,5 +268,20 @@ class InvoiceController extends Controller
         }
 
         return response()->json(['message' => 'Invoice cancelled successfully.']);
+    }
+
+    
+    public function exportInvoices(Request $request)
+    {
+
+        $orgId = Auth::user()->organization_id;
+        $invoices = Invoice::where('organization_id', $orgId)
+            ->where('store_id', $request->store_id)
+            ->get();
+
+            
+
+        
+       return Excel::download(new InvoiceExport($invoices), 'reporte_invoices.xlsx');
     }
 }

@@ -23,6 +23,11 @@ Route::prefix('v1')->group(function () {
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::middleware('auth:sanctum')->group(function () {
+            //Excel Reports
+            Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
+
+
+
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
 
@@ -49,13 +54,16 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'cancel']);
-        Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
         Route::post('credits', [CreditController::class, 'payment']);
+        Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
         Route::get('credits-by-client', [CreditController::class, 'indexByClient']);
         Route::get('credits-by-client/{client_id}', [CreditController::class, 'indexByClientID']);
 
         Route::apiResource('purchases', PurchasesController::class);
         Route::post('purchases/upload', [PurchasesController::class, 'upload']);
+
+
+    
         
         
     });
