@@ -35,8 +35,6 @@ class InvoiceController extends Controller
         $number_invoice_from = $request->query('number_invoice_from');
         $number_invoice_to = $request->query('number_invoice_to');
 
-        
-
         $method = $request->query('method');
 
         $search = $request->query('search');
@@ -147,10 +145,7 @@ class InvoiceController extends Controller
 
         }   
 
-
-        $invoiceNumber =  $store->invoice_prefix .'-'. str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
-
-
+        $invoiceNumber = $store->invoice_prefix ? $store->invoice_prefix . '-' . str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT) : str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
 
         $invoiceData = $request->only([
             'client_id',
