@@ -15,9 +15,11 @@ class CreditByClientCollection extends ResourceCollection
     public function toArray(Request $request): array
     {
         return $this->collection->map(function ($credit) {
+
+         
             return [
                 'client_id' => $credit->client_id,
-                'client' => $credit->client,
+                'client_name' => $credit->client_name,
                 'invoices_qty' => $credit->invoices_qty,
                 'total_credit' => $credit->total_credit,
                 'created_at' => $credit->created_at,

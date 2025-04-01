@@ -48,7 +48,7 @@ class CreditController extends Controller
             $firstCredit = $clientCredits->first();
             return (object) [
                 'client_id' => $firstCredit->client->id,
-                'v' => $firstCredit->client->name,
+                'client_name' => $firstCredit->client->name,
                 'invoices_qty' => $clientCredits->count(),
                 'total_credit' => $clientCredits->sum('total'),
                 'created_at' => $firstCredit->created_at,
@@ -59,7 +59,7 @@ class CreditController extends Controller
         // Ordenar los créditos agrupados por la fecha de creación
         $groupedCredits = $groupedCredits->sortBy($sort, SORT_REGULAR, $order === 'desc')->values();
 
-
+        
         return new CreditByClientCollection($groupedCredits);
     }
 
