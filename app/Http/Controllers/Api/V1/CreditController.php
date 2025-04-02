@@ -134,6 +134,8 @@ class CreditController extends Controller
                 if ($amount == 0) {
                     break;
                 }
+            }else{
+                return response()->json(['message' => 'Credit not found or does not belong to the organization.'], 404);
             }
         }
 
