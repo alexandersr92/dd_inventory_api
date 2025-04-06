@@ -18,6 +18,7 @@ class Credit extends Model
         'client_id',
         'invoice_id',
         'total',
+        'debt',
         'current',
         'credit_status',
     ];

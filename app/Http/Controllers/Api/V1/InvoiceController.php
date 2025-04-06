@@ -203,7 +203,7 @@ class InvoiceController extends Controller
         }
 
         if($request->isCredit && $request->client_id){
-            
+         
            $credit = $invoice->credit()->create([
                 'user_id' => $userID,
                 'organization_id' => $orgId,
@@ -215,6 +215,8 @@ class InvoiceController extends Controller
                 'credit_status' => 'active'
              
             ]);
+
+            
 
             if($request->init_payment){
                 if($request->init_payment > $request->grand_total){
