@@ -104,6 +104,13 @@ class CreditController extends Controller
             return response()->json(['message' => 'Amount and credits_id are required.'], 400);
         }
 
+        if ($request->amoun > 0) {
+            return response()->json(['message' => 'The amount exceeds the total debt of the selected credits.'], 400);
+        }
+        if (count($credits) == 0) {
+            return response()->json(['message' => 'No credits selected.'], 400);
+        }
+
         $amount = $request->amount; 
         $notes = $request->notes;
         
@@ -139,7 +146,16 @@ class CreditController extends Controller
             }
         }
 
-        return response()->json(['message' => 'Payment has been made successfully.'], 200);
+        $allCredistsList = [];
+        foreach ($credits as $creditId) {
+            $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first();
+            if ($credit) {
+                $allCredistsList[] =new  CreditResource($credit);
+            }
+        }
+     
+
+        return response()->json( $allCredistsList, 200);
     }
 
 }
