@@ -27,6 +27,7 @@ class InventoryExportCollection extends ResourceCollection
                 'quantity' => $inventoryDetail->quantity,
                 'status' => $inventoryDetail->status,
                 'price' => $inventoryDetail->price,
+                'cost' => $inventoryDetail->product->cost, 
                 'barcode' => $inventoryDetail->product->barcode,
                 'sku' => $inventoryDetail->product->sku,
                 'tags' =>   $inventoryDetail->product->tags,
