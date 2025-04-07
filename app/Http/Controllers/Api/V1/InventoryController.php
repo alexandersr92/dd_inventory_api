@@ -17,6 +17,11 @@ use App\Http\Requests\UpdateInventoryRequest;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
+use App\Http\Resources\InventoryExportCollection;
+
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\InventoryExport;
+
 
 class InventoryController extends Controller
 {
@@ -199,5 +204,18 @@ class InventoryController extends Controller
 
         return new InventoryDetailCollection($inventoryDetails); 
         
+    }
+
+    public function exportInventory(Request $request)
+    {
+
+        $orgId = Auth::user()->organization_id;
+        $inventory = InventoryDetail::where('inventory_id', $request->inventory_id)
+            ->get();
+
+    //    $newData = new InventoryExportCollection($inventory); 
+        $exportData = (new InventoryExportCollection($inventory))->toArray(request());
+     // return $newData;
+     return Excel::download(new InventoryExport($exportData), 'reporte_inventario.xlsx');
     }
 }

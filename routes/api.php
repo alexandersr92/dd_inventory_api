@@ -25,7 +25,7 @@ Route::prefix('v1')->group(function () {
     Route::middleware('auth:sanctum')->group(function () {
             //Excel Reports
             Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
-
+            Route::get('inventories/export', [InventoryController::class, 'exportInventory']);
 
 
         Route::post('/logout', [LoginController::class, 'logout']);
