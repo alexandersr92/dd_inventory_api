@@ -137,6 +137,10 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
+        if($supplier->status == 'active'){
+            return response()->json(['message' => 'Supplier is active, you can not delete it'], Response::HTTP_UNAUTHORIZED);
+        }
+
         $supplier->contacts()->delete();
 
         //delete relation with product, but don't delete the product
