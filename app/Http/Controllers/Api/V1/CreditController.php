@@ -35,8 +35,9 @@ class CreditController extends Controller
         // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
         $credits = Credit::whereHas('client', function ($query) use ($orgId) {
             $query->where('organization_id', $orgId);
-        })->where('credit_status', '!=', 'paid')->get();
+        })->get();
 
+     
 
         if ($credits->isEmpty()) {
             return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
@@ -50,7 +51,9 @@ class CreditController extends Controller
                 'client_id' => $firstCredit->client->id,
                 'client_name' => $firstCredit->client->name,
                 'invoices_qty' => $clientCredits->count(),
-                'total_credit' => $clientCredits->sum('total'),
+                'total_debt' => $clientCredits->where('credit_status', '!=', 'paid')->sum('debt'),
+                'total_paid' => $clientCredits->where('credit_status', 'paid')->count(),
+                'total_unpaid' => $clientCredits->where('credit_status', '!=', 'paid')->count(),
                 'created_at' => $firstCredit->created_at,
                 'updated_at' => $firstCredit->updated_at,
             ];
@@ -66,23 +69,33 @@ class CreditController extends Controller
     public function indexByClientID($client_id)
     {
         $orgId = Auth::user()->organization_id;
-
-        // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
+        $show = request()->query('show', 'active');
+        $per_page = request()->query('per_page', 20);
+        $sort = request()->query('sort', 'created_at');
+        $order = request()->query('order', 'asc');
+    
         $credits = Credit::whereHas('client', function ($query) use ($orgId, $client_id) {
-            $query->where('organization_id', $orgId)->where('id', $client_id);
-        })->where('credit_status', '!=', 'paid')->get();
-
+                $query->where('organization_id', $orgId)
+                      ->where('id', $client_id);
+            })
+            ->when($show, function ($query) use ($show) {
+                if ($show === 'all') {
+                    return $query;
+                } elseif ($show === 'active') {
+                    return $query->where('credit_status', '!=', 'paid');
+                } elseif ($show === 'paid') {
+                    return $query->where('credit_status', 'paid');
+                }
+            })
+            ->orderBy($sort, $order) // Orden dinámico
+            ->paginate($per_page);   // Paginación
+    
         if ($credits->isEmpty()) {
             return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
         }
-
-        
-
+    
         return new CreditCollection($credits);
-
-
     }
-
 
     /**
      * Display the specified resource.

@@ -25,7 +25,9 @@ class Invoice extends Model
         'tax',
         'grand_total',
         'payment_method',
-        'payment_date'
+        'payment_date',
+        'invoice_status',
+        'invoice_type', 
   
 
 

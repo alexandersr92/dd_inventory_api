@@ -21,7 +21,9 @@ class CreditByClientCollection extends ResourceCollection
                 'client_id' => $credit->client_id,
                 'client_name' => $credit->client_name,
                 'invoices_qty' => $credit->invoices_qty,
-                'total_credit' => $credit->total_credit,
+                'total_debt' => $credit->total_debt,
+                'total_paid' => $credit->total_paid,
+                'total_unpaid' => $credit->total_unpaid,
                 'created_at' => $credit->created_at,
                 'updated_at' => $credit->updated_at,
                 

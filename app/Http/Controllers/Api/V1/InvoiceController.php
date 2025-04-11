@@ -34,7 +34,7 @@ class InvoiceController extends Controller
         $date_to = $request->query('date_to') ? $request->query('date_to') . ' 23:59:59' : null;
         $number_invoice_from = $request->query('number_invoice_from');
         $number_invoice_to = $request->query('number_invoice_to');
-
+        $invoice_status = $request->query('invoice_status');
         $method = $request->query('method');
 
         $search = $request->query('search');
@@ -87,6 +87,10 @@ class InvoiceController extends Controller
         // Validar si falta el store_id cuando se filtra por número de factura
         if (($number_invoice_from || $number_invoice_to) && !$store_id) {
             return response()->json(['message' => 'Store ID is required when searching by invoice number.'], 400);
+        }
+
+        if($invoice_status) {
+            $query->where('invoice_status', $invoice_status);
         }
     
         // Agregar opción de ordenamiento
@@ -164,13 +168,14 @@ class InvoiceController extends Controller
         $invoiceData['total'] = $totalItems;
 
 
- 
+        $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
+        $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+        
 
         $invoice = Invoice::create(
             array_merge(
                 $invoiceData,
                 [
-                    'invoice_status' => $request->isCredit ? 'credit' : 'completed',
                     'user_id' => $userID,
                     'organization_id' => $orgId,
                 
@@ -236,7 +241,6 @@ class InvoiceController extends Controller
             }
         }
 
-        //return response()->json(['message' => 'Invoice created successfully.', 'data' =>], 201);
         return new InvoiceResource($invoice);
     }
 
