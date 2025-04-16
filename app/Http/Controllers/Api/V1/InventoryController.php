@@ -179,6 +179,16 @@ class InventoryController extends Controller
      */
     public function destroy(Inventory $inventory)
     {
+
+        //validate if inventory has products
+        $inventoryDetails = InventoryDetail::where('inventory_id', $inventory->id)->get();
+        if ($inventoryDetails->count() > 0) {
+            return response(
+                'Inventory has products',
+                Response::HTTP_BAD_REQUEST
+            );
+        }
+
         $inventory->delete();
 
         return response(null, Response::HTTP_NO_CONTENT);
