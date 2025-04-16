@@ -27,7 +27,7 @@ class CreditController extends Controller
     public function indexByClient( Request $request)
     {
         $orgId = Auth::user()->organization_id;
-        $sort = $request->query('sort', 'created_at');
+        $sort = $request->query('sort_by', 'created_at');
         $order = $request->query('order', 'asc');
 
         $client_id = $request->query('client_id');
