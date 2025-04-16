@@ -30,12 +30,13 @@ class CreditController extends Controller
         $sort = $request->query('sort', 'created_at');
         $order = $request->query('order', 'asc');
 
+        $client_id = $request->query('client_id');
+        if ($client_id) {
+            $credits = Credit::where('client_id', $client_id)->where('organization_id', $orgId)->get();
+        } else {
+            $credits = Credit::where('organization_id', $orgId)->get();
+        }
 
-
-        // Obtener los créditos filtrados por la organización del usuario autenticado y que no estén pagados
-        $credits = Credit::whereHas('client', function ($query) use ($orgId) {
-            $query->where('organization_id', $orgId);
-        })->get();
 
      
 

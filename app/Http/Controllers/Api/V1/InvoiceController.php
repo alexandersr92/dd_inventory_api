@@ -35,6 +35,7 @@ class InvoiceController extends Controller
         $number_invoice_from = $request->query('number_invoice_from');
         $number_invoice_to = $request->query('number_invoice_to');
         $invoice_status = $request->query('invoice_status');
+        $client_name = $request->query('client_name');
         $method = $request->query('method');
 
         $search = $request->query('search');
@@ -82,6 +83,10 @@ class InvoiceController extends Controller
             $prefix = Store::where('id', $store_id)->first()->invoice_prefix;
             $number_invoice_to = $prefix . '-' . str_pad($number_invoice_to, 6, '0', STR_PAD_LEFT);
             $query->where('invoice_number', '<=', $number_invoice_to);
+        }
+
+        if($client_name) {
+            $query->where('client_name', 'like', '%' . $client_name . '%');
         }
         
         // Validar si falta el store_id cuando se filtra por número de factura
