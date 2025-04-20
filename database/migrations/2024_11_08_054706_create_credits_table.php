@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignUuid('client_id')->constrained();
             $table->foreignUuid('invoice_id')->constrained();
             $table->float('total')->default(0);
-            $table->float('debt')->default(0);
+            $table->float('current')->default(0);
             $table->string('credit_status')->default('active');
             $table->timestamps();
         });
