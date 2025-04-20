@@ -20,6 +20,15 @@ use App\Http\Controllers\Api\V1\PurchasesController;
 
 
 Route::prefix('v1')->group(function () {
+    Route::get('/test',
+        function (Request $request) {
+            return response()->json([
+                'message' => 'Hello World',
+                'env' => env('APP_ENV'),
+            ]);
+        }
+    );
+
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::middleware('auth:sanctum')->group(function () {
