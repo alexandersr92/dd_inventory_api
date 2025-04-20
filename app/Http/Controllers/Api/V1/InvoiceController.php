@@ -124,7 +124,7 @@ class InvoiceController extends Controller
         $orgId = Auth::user()->organization_id;
         $userID = Auth::user()->id;
         $store =  Store::where('id', $request->store_id)->first();
-
+        $allowNegativeStock = true;
 
         $clientID = $request->client_id ? $request->client_id : null;
      
@@ -137,7 +137,7 @@ class InvoiceController extends Controller
             $productID = $product['product_id'];
             $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
        
-            if($productObjs->quantity < $product['quantity']){
+            if($productObjs->quantity < $product['quantity'] && !$allowNegativeStock){
                //return a error message which product is out of stock and return quantity available in stock and product name
                 return response()->json(
                     [
