@@ -23,7 +23,7 @@ Route::prefix('v1')->group(function () {
     Route::get('/test',
         function (Request $request) {
             return response()->json([
-                'message' => 'Its working',
+                'message' => 'Its working good',
                 'url' => $request->url(),
                 'env' => env('APP_ENV'),
             ]);
