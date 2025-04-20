@@ -25,7 +25,7 @@ Route::prefix('v1')->group(function () {
             return response()->json([
                 'message' => 'Its working good',
                 'url' => $request->url(),
-                'env' => env('APP_ENV'),
+                'env' => config('app.env')
             ]);
         }
     );
