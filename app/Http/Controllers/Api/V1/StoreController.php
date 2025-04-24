@@ -108,4 +108,36 @@ class StoreController extends Controller
 
         return response(null, Response::HTTP_NO_CONTENT);
     }
+
+
+    public function removeImage( Store $store)
+    {
+        if ($store->print_logo) {
+            \Storage::disk('public')->delete($store->print_logo);
+        }
+
+        $store->print_logo = null;
+        $store->save();
+
+        return response(
+            new StoreResource($store),
+            Response::HTTP_OK
+        );
+    }
+        
+    public function addImageToStore(Request $request, Store $store)
+    {
+
+
+        if ($request->hasFile('print_logo')) {
+            $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
+        }
+        $store->save();
+
+        return response(
+            new StoreResource($store),
+            Response::HTTP_OK
+        );
+    }
+
 }

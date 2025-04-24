@@ -13,6 +13,7 @@ class CreditDetail extends Model
 
     protected $fillable = [
         'credit_id',
+        'seller_id',
         'amount',
         'date',
         'note',
@@ -23,5 +24,10 @@ class CreditDetail extends Model
         return $this->belongsTo(Credit::class);
     }
 
+
+    public function seller()
+    {
+        return $this->belongsTo(Seller::class);
+    }
     
 }

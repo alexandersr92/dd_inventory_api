@@ -11,9 +11,10 @@ use App\Models\Store;
 use Illuminate\Http\Request;
 use App\Http\Resources\InvoiceCollection;
 use App\Http\Resources\InvoiceResource;
-
-use App\Http\Requests\StoreInvoiceRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Http\JsonResponse;
+use App\Http\Requests\StoreInvoiceRequest;
 
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InvoiceExport;
@@ -37,6 +38,7 @@ class InvoiceController extends Controller
         $invoice_status = $request->query('invoice_status');
         $client_name = $request->query('client_name');
         $method = $request->query('method');
+        $seller_id = $request->query('seller_id');
 
         $search = $request->query('search');
 
@@ -97,6 +99,14 @@ class InvoiceController extends Controller
         if($invoice_status) {
             $query->where('invoice_status', $invoice_status);
         }
+
+     
+        if($seller_id) {
+          
+            $query->where('seller_id', $seller_id);
+        }
+
+
     
         // Agregar opción de ordenamiento
         $sort_by = $request->query('sort_by', 'created_at'); // Valor por defecto: created_at
@@ -120,133 +130,135 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
-
-        $orgId = Auth::user()->organization_id;
-        $userID = Auth::user()->id;
-        $store =  Store::where('id', $request->store_id)->first();
-        $allowNegativeStock = true;
-
-        $clientID = $request->client_id ? $request->client_id : null;
-     
-        
-        $productArray = is_array($request->products) ? $request->products : json_decode($request->products, true);
-        $totalItems = 0;
-        foreach($productArray as $product){
-            $totalItems += $product['quantity'];
-            $inventoryID = $product['inventory_id'];
-            $productID = $product['product_id'];
-            $productObjs = InventoryDetail::where('product_id', $productID)->where('inventory_id', $inventoryID)->first();
-       
-            if($productObjs->quantity < $product['quantity'] && !$allowNegativeStock){
-               //return a error message which product is out of stock and return quantity available in stock and product name
-                return response()->json(
-                    [
-                        'message' => 'Product is out of stock.',
-                        'product_name' => $productObjs->product->name,
-                        'quantity_available' => $productObjs->quantity,
-                        'quantity_requested' => $product['quantity']
-
-                ], 400);
-
-            }   
-
-
-
-        }   
-
-        $invoiceNumber = $store->invoice_prefix ? $store->invoice_prefix . '-' . str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT) : str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
-
-        $invoiceData = $request->only([
-            'client_id',
-            'store_id',
-            'invoice_number',
-            'invoice_date',
-            'invoice_note',
-            'client_name',
-            'discount',
-            'tax',
-            'grand_total',
-            'payment_method',
-            'payment_date'
-        ]);
-        $invoiceData['invoice_number'] = $invoiceNumber;
-        $invoiceData['total'] = $totalItems;
-
-
-        $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
-        $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
-        
-
-        $invoice = Invoice::create(
-            array_merge(
-                $invoiceData,
-                [
+        DB::beginTransaction();
+    
+        try {
+            $orgId = Auth::user()->organization_id;
+            $userID = Auth::id();
+            $store = Store::findOrFail($request->store_id);
+            $allowNegativeStock = true;
+      
+    
+            $productArray = is_array($request->products)
+                ? $request->products
+                : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
+    
+            $totalItems = 0;
+    
+            foreach ($productArray as $product) {
+                $quantity = $product['quantity'];
+                $totalItems += abs($quantity); // opcional, si querés contar total de unidades sin importar si son devoluciones
+            
+                $productObj = InventoryDetail::with('product')
+                    ->where('product_id', $product['product_id'])
+                    ->where('inventory_id', $product['inventory_id'])
+                    ->first();
+            
+                if (!$productObj) {
+                    return response()->json(['message' => 'Producto no encontrado en el inventario.'], 404);
+                }
+            
+                if ($quantity > 0 && $productObj->quantity < $quantity && !$allowNegativeStock) {
+                    return response()->json([
+                        'message' => 'Producto sin stock suficiente.',
+                        'product_name' => $productObj->product->name ?? 'N/A',
+                        'quantity_available' => $productObj->quantity,
+                        'quantity_requested' => $quantity
+                    ], 400);
+                }
+            }
+    
+            $invoiceNumber = $store->invoice_prefix
+                ? $store->invoice_prefix . '-' . str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT)
+                : str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
+    
+            $invoiceData = $request->only([
+                'client_id',
+                'seller_id',
+                'store_id',
+                'invoice_date',
+                'invoice_note',
+                'client_name',
+                'discount',
+                'tax',
+                'grand_total',
+                'payment_method',
+                'payment_date'
+            ]);
+    
+            $invoiceData['invoice_number'] = $invoiceNumber;
+            $invoiceData['total'] = $totalItems;
+            $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
+            $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+            $invoiceData['user_id'] = $userID;
+            $invoiceData['organization_id'] = $orgId;
+    
+            $invoice = Invoice::create($invoiceData);
+    
+            if (!$invoice) {
+                return response()->json(['message' => 'No se pudo crear la factura.'], 400);
+            }
+    
+            // Actualizar número de factura
+            $store->increment('invoice_number');
+    
+            // Detalles y actualización de inventario
+            foreach ($productArray as $product) {
+                $invoice->invoiceDetails()->create([
+                    'product_id' => $product['product_id'],
+                    'inventory_id' => $product['inventory_id'],
+                    'quantity' => $product['quantity'],
+                    'price' => $product['price'],
+                    'total' => $product['total']
+                ]);
+                
+                $quantity = (float) $product['quantity'];
+                $operator = $quantity >= 0 ? '-' : '+';
+                
+                InventoryDetail::where('product_id', $product['product_id'])
+                    ->where('inventory_id', $product['inventory_id'])
+                    ->update([
+                        'quantity' => DB::raw("quantity $operator " . abs($quantity))
+                    ]);
+            }
+    
+            // Si es crédito
+            if ($request->isCredit && $request->client_id) {
+                $credit = $invoice->credit()->create([
                     'user_id' => $userID,
                     'organization_id' => $orgId,
-                
-                ]
-            )
-        );
-
-        //validate if the invoice is created
-        if(!$invoice){
-            return response()->json(['message' => 'Invoice could not be created.'], 400);
-        }
-
-        $store->invoice_number = $store->invoice_number + 1;
-        $store->save();
-
-        foreach($productArray as $product){
-            $invoice->invoiceDetails()->create([
-                'product_id' => $product['product_id'],
-                'inventory_id' => $product['inventory_id'],
-                'quantity' => $product['quantity'],
-                'price' => $product['price'],
-                'total' => $product['total']
-            ]);
-
-            $productObjs = InventoryDetail::where('product_id', $product['product_id'])->where('inventory_id', $product['inventory_id'])->first();
-            $productObjs->quantity = $productObjs->quantity - $product['quantity'];
-
-            $productObjs->save();
-
-        }
-
-        if($request->isCredit && $request->client_id){
-         
-           $credit = $invoice->credit()->create([
-                'user_id' => $userID,
-                'organization_id' => $orgId,
-                'store_id' => $request->store_id,
-                'client_id' => $request->client_id,
-                'invoice_id' => $invoice->id,
-                'total' => $request->grand_total,
-                'debt' => $request->grand_total,
-                'credit_status' => 'active'
-             
-            ]);
-
-            
-
-            if($request->init_payment){
-                if($request->init_payment > $request->grand_total){
-                    return response()->json(['message' => 'Credit amount cannot be greater than grand total.'], 400);
-                }
-
-                $credit->creditDetails()->create([
-                    'credit_id' => $credit->id,
-                    'amount' => $request->init_payment,
-                    'date' => $request->payment_date,
-                    'note' => 'Initial payment'
+                    'store_id' => $request->store_id,
+                    'client_id' => $request->client_id,
+                    'invoice_id' => $invoice->id,
+                    'total' => $request->grand_total,
+                    'debt' => $request->grand_total,
+                    'credit_status' => 'active'
                 ]);
-
-                $credit->debt = $credit->debt - $request->init_payment;
-                $credit->save();
-                
+    
+                if ($request->init_payment) {
+                    if ($request->init_payment > $request->grand_total) {
+                        return response()->json(['message' => 'El abono inicial no puede ser mayor al total.'], 400);
+                    }
+    
+                    $credit->creditDetails()->create([
+                        'amount' => $request->init_payment,
+                        'date' => $request->payment_date,
+                        'note' => 'Pago inicial'
+                    ]);
+    
+                    $credit->debt -= $request->init_payment;
+                    $credit->save();
+                }
             }
+    
+            DB::commit();
+            return new InvoiceResource($invoice);
+    
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            report($e);
+            return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
         }
-
-        return new InvoiceResource($invoice);
     }
 
     /**

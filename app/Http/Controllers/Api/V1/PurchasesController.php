@@ -29,11 +29,17 @@ class PurchasesController extends Controller
     public function index(Request $request)
     {
         $orgId = Auth::user()->organization_id;
+        $storeId = $request->query('store_id');
         $purchases = Purchases::where('organization_id', $orgId)->get();
-        return new PurchaseCollection($purchases);
+
+        if ($storeId) {
+            $purchases = Purchases::where('organization_id', $orgId)
+                ->where('store_id', $storeId)
+                ->get();
+        }
 
         return response(
-            new PurchaseCollection($inventories),
+            new PurchaseCollection($purchases),
             Response::HTTP_CREATED
         );
     }

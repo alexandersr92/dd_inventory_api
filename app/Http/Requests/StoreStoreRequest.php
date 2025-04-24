@@ -32,6 +32,7 @@ class StoreStoreRequest extends FormRequest
             'country' => ['required', 'string', 'max:255'],
             'zip' => ['nullable', 'string', 'max:255'],
             'ruc' => ['nullable', 'string', 'max:255'],
+            'store_currency' => ['required', 'string', 'max:3'],
 
 
 

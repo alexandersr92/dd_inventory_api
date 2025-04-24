@@ -29,12 +29,16 @@ class CreditController extends Controller
         $orgId = Auth::user()->organization_id;
         $sort = $request->query('sort_by', 'created_at');
         $order = $request->query('order', 'asc');
+        $credit_status = $request->query('credit_status', 'all');
 
         $client_id = $request->query('client_id');
         if ($client_id) {
             $credits = Credit::where('client_id', $client_id)->where('organization_id', $orgId)->get();
         } else {
             $credits = Credit::where('organization_id', $orgId)->get();
+        }
+        if ($credit_status !== 'all') {
+            $credits = $credits->where('credit_status', $credit_status);
         }
 
 
@@ -127,6 +131,7 @@ class CreditController extends Controller
 
         $amount = $request->amount; 
         $notes = $request->notes;
+
         
 
         foreach ($credits as $creditId) {
@@ -150,6 +155,7 @@ class CreditController extends Controller
                 $creditDetail->amount = $request->amount;
                 $creditDetail->date = date('Y-m-d');
                 $creditDetail->note = $notes;
+                $creditDetail->seller_id = $request->seller_id;
                 $creditDetail->save();
     
                 if ($amount == 0) {

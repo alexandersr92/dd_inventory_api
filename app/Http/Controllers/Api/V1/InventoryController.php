@@ -90,6 +90,20 @@ class InventoryController extends Controller
             $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($sku) {
                 $query->where('sku', $sku);
             })->get();
+        } else if ($request->has('search')){
+            $search = $request->query('search');
+            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($search) {
+                $query->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('sku', 'like', '%' . $search . '%')
+                    ->orWhere('barcode', 'like', '%' . $search . '%');
+            })->get();
+        } else if ($request->has('category')) {
+            $category = $request->query('category');
+
+            $inventoryDetails = InventoryDetail::whereHas('product.categories', function ($query) use ($category) {
+                $query->where('id', $category);
+            })->get();
+
         } else {
             $inventoryDetails = $inventory->inventoryDetails;
         }

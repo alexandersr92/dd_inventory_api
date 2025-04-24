@@ -16,6 +16,7 @@ class Invoice extends Model
         'organization_id',
         'client_id',
         'store_id',
+        'seller_id',
         'invoice_number',
         'invoice_date',
         'invoice_note',
@@ -62,6 +63,12 @@ class Invoice extends Model
     public function credit()
     {
         return $this->hasOne(Credit::class);
+    }
+
+
+    public function seller()
+    {
+        return $this->belongsTo(Seller::class);
     }
 
 }

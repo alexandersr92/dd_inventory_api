@@ -29,6 +29,7 @@ class InvoiceCollection extends ResourceCollection
                 'client' => $invoice->client,
                 'grand_total' => $invoice->grand_total,
                 'method' => $invoice->payment_method,
+                'seller' => $invoice->seller->name ?? null,
             ];
         })->toArray();
     }

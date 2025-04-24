@@ -27,6 +27,7 @@ class StoreResource extends JsonResource
             'status' => $this->status,
             'zip' => $this->zip,
             'status' => $this->status,
+            'store_currency' => $this->store_currency,
             'ruc' => $this->ruc,
             'print_logo' => $this->print_logo,
             'print_header' => $this->print_header,

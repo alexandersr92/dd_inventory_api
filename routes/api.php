@@ -17,7 +17,7 @@ use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\PurchasesController;
-
+use App\Http\Controllers\Api\V1\SellerController;
 
 Route::prefix('v1')->group(function () {
     Route::get('/test',
@@ -43,6 +43,8 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('organizations', OrganizationController::class);
         Route::apiResource('stores', StoreController::class);
+        Route::delete('stores/{store}/removeImage', [StoreController::class, 'removeImage']);
+        Route::post('stores/{store}/addImageToStore', [StoreController::class, 'addImageToStore']);
         Route::apiResource('clients', ClientController::class);
         Route::apiResource('suppliers', SupplierController::class);
         Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
@@ -71,6 +73,8 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('purchases', PurchasesController::class);
         Route::post('purchases/upload', [PurchasesController::class, 'upload']);
+
+        Route::apiResource('sellers', SellerController::class);
 
     });
 });

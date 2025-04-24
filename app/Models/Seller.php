@@ -13,6 +13,7 @@ class Seller extends Model
 
     protected $fillable = [
         'store_id',
+        'organization_id',
         'name',
         'code',
         'status',
@@ -21,5 +22,19 @@ class Seller extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function invoice()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+    public function credit()
+    {
+        return $this->hasMany(Credit::class);
+    }
+
+    public function creditDetails()
+    {
+        return $this->hasMany(CreditDetail::class);
     }
 }

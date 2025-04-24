@@ -22,6 +22,7 @@ class Store extends Model
         'country',
         'zip',
         'status',
+        'store_currency',
         'organization_id',
         'ruc',
         'print_logo',
