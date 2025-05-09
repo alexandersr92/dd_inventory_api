@@ -137,7 +137,7 @@ class InvoiceController extends Controller
             $userID = Auth::id();
             $store = Store::findOrFail($request->store_id);
             $allowNegativeStock = true;
-      
+           
     
             $productArray = is_array($request->products)
                 ? $request->products
@@ -185,7 +185,7 @@ class InvoiceController extends Controller
                 'payment_method',
                 'payment_date'
             ]);
-    
+            $invoiceData['seller_id'] = $request->seller_id ?? null;
             $invoiceData['invoice_number'] = $invoiceNumber;
             $invoiceData['total'] = $totalItems;
             $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
