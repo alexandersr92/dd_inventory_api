@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\PurchasesController;
 use App\Http\Controllers\Api\V1\SellerController;
+use App\Http\Controllers\Api\V1\SettingController;
 
 Route::prefix('v1')->group(function () {
     Route::get('/test',
@@ -75,6 +76,8 @@ Route::prefix('v1')->group(function () {
         Route::post('purchases/upload', [PurchasesController::class, 'upload']);
 
         Route::apiResource('sellers', SellerController::class);
+
+        Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
 
     });
 });

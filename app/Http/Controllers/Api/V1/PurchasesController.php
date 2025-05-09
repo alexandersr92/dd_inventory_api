@@ -154,8 +154,10 @@ class PurchasesController extends Controller
         $newTotalItems = 0;
 
         foreach ($purchaseDetails as $purchaseDetail) {
+            
+          //  dd($purchaseDetail);
             $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
-
+            //dd($inventoryID, $purchaseDetail->product_id);
             $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
             $inventoryDetail->save();
         }
