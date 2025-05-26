@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use App\Http\Resources\InventoryResource;
 use App\Http\Resources\InventoryCollection;
 use App\Http\Resources\InventoryDetailCollection;
+use App\Http\Resources\InventoryInvoiceCollection;
 use App\Http\Requests\StoreInventoryRequest;
 use App\Http\Requests\UpdateInventoryRequest;
 use Illuminate\Support\Facades\Auth;
@@ -226,7 +227,7 @@ class InventoryController extends Controller
 
         $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventories->pluck('id'))->get();
 
-        return new InventoryDetailCollection($inventoryDetails); 
+        return new InventoryInvoiceCollection($inventoryDetails); 
         
     }
 
