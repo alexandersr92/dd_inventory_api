@@ -222,18 +222,19 @@ class InventoryController extends Controller
     }
 
     public function getProductByStore(Store $store, Request $request){
-         
+            
         $search = $request->query('search');
 
         $inventoryIds = Inventory::where('store_id', $store->id)->pluck('id');
 
-        $inventoryDetailsQuery = InventoryDetail::whereIn('inventory_id', $inventoryIds);
-
-        if ($search) {
-            $inventoryDetailsQuery->where('sku', 'like', "%$search%");
-        }
-
-        $inventoryDetails = $inventoryDetailsQuery->get();
+        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventoryIds)
+            ->when($search, function ($query, $search) {
+                $query->whereHas('product', function ($q) use ($search) {
+                    $q->where('sku', 'like', "%$search%");
+                });
+            })
+            ->with('product') // Carga la relación para evitar N+1
+            ->get();
 
         return new InventoryInvoiceCollection($inventoryDetails);
     }
