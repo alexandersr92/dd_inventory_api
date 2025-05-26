@@ -221,14 +221,21 @@ class InventoryController extends Controller
         );
     }
 
-    public function getProductByStore(Store $store){
+    public function getProductByStore(Store $store, Request $request){
          
-        $inventories = Inventory::where('store_id', $store->id)->get();
+        $search = $request->query('search');
 
-        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventories->pluck('id'))->get();
+        $inventoryIds = Inventory::where('store_id', $store->id)->pluck('id');
 
-        return new InventoryInvoiceCollection($inventoryDetails); 
-        
+        $inventoryDetailsQuery = InventoryDetail::whereIn('inventory_id', $inventoryIds);
+
+        if ($search) {
+            $inventoryDetailsQuery->where('sku', 'like', "%$search%");
+        }
+
+        $inventoryDetails = $inventoryDetailsQuery->get();
+
+        return new InventoryInvoiceCollection($inventoryDetails);
     }
 
     public function exportInventory(Request $request)
