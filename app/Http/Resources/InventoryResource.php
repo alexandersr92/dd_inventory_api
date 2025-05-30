@@ -22,7 +22,7 @@ class InventoryResource extends JsonResource
             'store_id' => $this->store->id,
             'address' => $this->address,
             'description' => $this->description,
-            'details' => new InventoryDetailCollection($this->inventoryDetails),
+
         ];
     }
 }

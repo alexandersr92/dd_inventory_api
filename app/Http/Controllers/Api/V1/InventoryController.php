@@ -24,6 +24,9 @@ use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InventoryExport;
 
 
+use Illuminate\Support\Collection;
+
+
 class InventoryController extends Controller
 {
     /**
@@ -71,12 +74,67 @@ class InventoryController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Inventory $inventory)
+    public function show(Inventory $inventory, Request $request)
     {
-        return response(
-            new InventoryResource($inventory),
-            Response::HTTP_OK
-        );
+         $inventory->load('store');
+
+        $perPage = $request->query('per_page', 50);
+        $search = $request->query('search');
+        $categoryId = $request->query('category_id');
+        $tagId = $request->query('tag_id');
+        $sortBy = $request->query('sort', 'name'); 
+        $sortOrder = $request->query('order', 'asc'); 
+        $page = $request->query('page', 1);
+
+        $query = $inventory->inventoryDetails()
+            ->with(['product.categories', 'product.tags']);
+
+        if ($search) {
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                ->orWhere('sku', 'like', "%$search%")
+                ->orWhere('barcode', 'like', "%$search%");
+            });
+        }
+
+     
+        if ($categoryId) {
+            $query->whereHas('product.categories', function ($q) use ($categoryId) {
+                $q->where('id', $categoryId);
+            });
+        }
+
+        if ($tagId) {
+            $query->whereHas('product.tags', function ($q) use ($tagId) {
+                $q->where('id', $tagId);
+            });
+        }
+
+        if (in_array($sortBy, ['name', 'sku', 'price', 'quantity', 'status'])) {
+            if (in_array($sortBy, ['name', 'sku'])) {
+                $query->join('products', 'inventory_details.product_id', '=', 'products.id')
+                    ->orderBy("products.$sortBy", $sortOrder)
+                    ->select('inventory_details.*');
+            } else {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+        }
+
+      
+        $details = $query->paginate($perPage);
+
+        return response()->json([
+            'inventory' => new InventoryResource($inventory),
+            'details' => new InventoryDetailCollection($details),
+            'pagination' => [
+                'current_page' => $details->currentPage(),
+                'per_page' => $details->perPage(),
+                'total' => $details->total(),
+                'last_page' => $details->lastPage(),
+                'next_page_url' => $details->nextPageUrl(),
+                'prev_page_url' => $details->previousPageUrl(),
+            ],
+        ]);
     }
 
     public function showProducts(Inventory $inventory, Request $request)
