@@ -12,6 +12,8 @@ use App\Http\Resources\StoreCollection;
 
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+
 
 class StoreController extends Controller
 {
@@ -138,6 +140,27 @@ class StoreController extends Controller
             new StoreResource($store),
             Response::HTTP_OK
         );
+    }
+
+    public function printLogo(Store $store)
+    {
+     
+
+        if (!$store || !$store->print_logo) {
+            return response()->json(['message' => 'Store or logo not found.'], Response::HTTP_NOT_FOUND);
+        }
+        $path = 'public/' . $store->print_logo;
+
+        if (!Storage::exists($path)) {
+            return response()->json(['message' => 'Logo file not found.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $file = Storage::get($path);
+        $mime = Storage::mimeType($path);
+
+        $base64 = 'data:' . $mime . ';base64,' . base64_encode($file);
+
+        return response()->json(['base64' => $base64]);
     }
 
 }

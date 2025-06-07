@@ -34,7 +34,7 @@ class StoreResource extends JsonResource
             'store_currency' => $this->store_currency,
             'ruc' => $this->ruc,
             'print_logo' => $this->print_logo ? $apiUrl . '/storage/' . $this->print_logo : null,
-            'print_logo_base64' => $this->print_logo ? base64_encode(file_get_contents(public_path('storage/' . $this->print_logo))) : null,
+         
             'print_header' => $this->print_header,
             'print_footer' => $this->print_footer,
             'print_note' => $this->print_note,

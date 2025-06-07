@@ -46,6 +46,7 @@ Route::prefix('v1')->group(function () {
         Route::apiResource('stores', StoreController::class);
         Route::delete('stores/{store}/removeImage', [StoreController::class, 'removeImage']);
         Route::post('stores/{store}/addImageToStore', [StoreController::class, 'addImageToStore']);
+        Route::get('stores/{store}/printLogo', [StoreController::class, 'printLogo']);
         Route::apiResource('clients', ClientController::class);
         Route::apiResource('suppliers', SupplierController::class);
         Route::get('suppliers/{supplier}/contacts', [SupplierController::class, 'contactIndex']);
