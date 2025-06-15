@@ -27,6 +27,7 @@ class StoreSettingRequest extends FormRequest
             'entity_id' => 'nullable|uuid',
             'key'       => 'required|string|max:255',
             'value'     => 'nullable|string',
+            'options'   => 'string'
         ];
     }
 }

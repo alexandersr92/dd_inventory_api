@@ -23,6 +23,7 @@ class UpdateSettingRequest extends FormRequest
     {
        return [
             'value' => 'nullable|string',
+            'options' => 'string'
         ];
     }
 }

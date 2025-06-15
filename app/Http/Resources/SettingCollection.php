@@ -21,6 +21,7 @@ class SettingCollection extends ResourceCollection
                 'entity_id'      => $setting->entity_id,
                 'key'            => $setting->key,
                 'value'          => $setting->value,
+                'options'        => $setting->options
               
             ];
         })->toArray();

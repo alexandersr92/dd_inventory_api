@@ -67,27 +67,31 @@ public function index(Request $request)
             'entity_id' => $data['entity_id'],
             'key' => $data['key'],
             'value' => $data['value'],
+            'options' => $data['options']
         ]);
         //sync the settings
 
         return response()->json(['message' => 'Setting created', 'setting' => $setting], 201);
     }
-
     public function update(UpdateSettingRequest $request, Setting $setting)
     {
         $this->authorizeAccess($setting);
-        $setting->update($request->validated());
 
-        // Check if the setting already exists
-        $existingSetting = Setting::where('organization_id', $setting->organization_id)
-            ->where('type', $setting->type)
-            ->where('entity_id', $setting->entity_id)
-            ->where('key', $setting->key)
-            ->where('value', $setting->value)
-            ->first();
-        if ($existingSetting) {
+        $validated = $request->validated();
+
+        $exists = Setting::where('organization_id', $setting->organization_id)
+            ->where('type', $validated['type'] ?? $setting->type)
+            ->where('entity_id', $validated['entity_id'] ?? $setting->entity_id)
+            ->where('key', $validated['key'] ?? $setting->key)
+            ->where('value', $validated['value'] ?? $setting->value)
+            ->where('id', '!=', $setting->id) // importante: excluir el mismo setting
+            ->exists();
+
+        if ($exists) {
             return response()->json(['message' => 'Setting already exists'], 409);
         }
+
+        $setting->update($validated);
 
         return response()->json(['message' => 'Setting updated', 'setting' => $setting], 200);
     }

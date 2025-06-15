@@ -10,7 +10,7 @@ class Setting extends Model
     use Uuids;
     use HasFactory;
 
-    protected $fillable = ['organization_id', 'type', 'entity_id', 'key', 'value'];
+    protected $fillable = ['organization_id', 'type', 'entity_id', 'key', 'value', 'options'];
 
     public function organization()
     {
