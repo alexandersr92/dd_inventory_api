@@ -77,6 +77,9 @@ Route::prefix('v1')->group(function () {
         Route::post('purchases/upload', [PurchasesController::class, 'upload']);
 
         Route::apiResource('sellers', SellerController::class);
+        Route::post('/sellers/{seller}/assign-stores', [SellerController::class, 'assignStores']);
+        Route::delete('/sellers/{seller}/remove-stores', [SellerController::class, 'removeStores']);
+        Route::post('/sellers/seller-login', [SellerController::class, 'sellerLogin']);
 
         Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
 

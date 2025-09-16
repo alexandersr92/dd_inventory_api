@@ -22,10 +22,15 @@ class UpdateSellerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:8'],
-            'status' => ['required', 'string', 'in:active,inactive'],
-            'store_id' => ['required', 'uuid', 'exists:stores,id'],
+            // Todos los campos son opcionales en update
+            'name'   => ['sometimes', 'string', 'max:255'],
+            'code'   => ['sometimes', 'string', 'max:8'],
+            'status' => ['sometimes', 'string', 'in:active,inactive,blocked'],
+            // Permitir cambiar el PIN
+            'pin'    => ['sometimes', 'nullable', 'string', 'min:4', 'max:10'],
+            // Manejar relación muchos-a-muchos con stores
+            'stores'   => ['sometimes', 'array'],
+            'stores.*' => ['uuid', 'exists:stores,id'],
         ];
     }
 }

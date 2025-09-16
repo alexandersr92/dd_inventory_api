@@ -39,9 +39,11 @@ class Store extends Model
         return $this->belongsTo(Organization::class);
     }
 
-    public function sellers()
+  public function sellers()
     {
-        return $this->hasMany(Seller::class);
+        return $this->belongsToMany(Seller::class, 'seller_store')
+            ->withPivot(['status', 'assigned_at', 'revoked_at'])
+            ->withTimestamps();
     }
 
     public function clients()

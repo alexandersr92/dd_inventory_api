@@ -42,6 +42,7 @@ class LoginController extends Controller
                     'organization_id' => $user->organization_id,
                     'device_name' => $request->device_name,
                     'role' => $user->role_id,
+                    'seller_id' => $user->seller_id,
 
                 ],
                 'token' => $user->createToken($request->device_name)->plainTextToken,

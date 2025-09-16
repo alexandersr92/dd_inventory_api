@@ -22,10 +22,15 @@ class StoreSellerRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:255'],
-            'code' => ['required', 'string', 'max:8'],
-            'status' => ['required', 'string', 'in:active,inactive'],
-            'store_id' => ['required', 'uuid', 'exists:stores,id'],
+            'name'            => ['required', 'string', 'max:255'],
+            'code'            => ['required', 'string', 'max:8'],
+            'pin'             => ['required', 'string', 'min:4', 'max:10'],
+            // status opcional; por defecto 'active' en el controlador
+            'status'          => ['sometimes', 'string', 'in:active,inactive,blocked'],
+
+            // Relación muchos-a-muchos con stores
+            'stores'          => ['required', 'array', 'min:1'],
+            'stores.*'        => ['uuid', 'exists:stores,id'],
         ];
     }
 }
