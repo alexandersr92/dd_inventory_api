@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use App\Http\Resources\InventoryResource;
 use App\Http\Resources\InventoryCollection;
 use App\Http\Resources\InventoryDetailCollection;
+use App\Http\Resources\InventoryInvoiceCollection;
 use App\Http\Requests\StoreInventoryRequest;
 use App\Http\Requests\UpdateInventoryRequest;
 use Illuminate\Support\Facades\Auth;
@@ -21,6 +22,9 @@ use App\Http\Resources\InventoryExportCollection;
 
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InventoryExport;
+
+
+use Illuminate\Support\Collection;
 
 
 class InventoryController extends Controller
@@ -70,12 +74,67 @@ class InventoryController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Inventory $inventory)
+    public function show(Inventory $inventory, Request $request)
     {
-        return response(
-            new InventoryResource($inventory),
-            Response::HTTP_OK
-        );
+         $inventory->load('store');
+
+        $perPage = $request->query('per_page', 50);
+        $search = $request->query('search');
+        $categoryId = $request->query('category_id');
+        $tagId = $request->query('tag_id');
+        $sortBy = $request->query('sort', 'name'); 
+        $sortOrder = $request->query('order', 'asc'); 
+        $page = $request->query('page', 1);
+
+        $query = $inventory->inventoryDetails()
+            ->with(['product.categories', 'product.tags']);
+
+        if ($search) {
+            $query->whereHas('product', function ($q) use ($search) {
+                $q->where('name', 'like', "%$search%")
+                ->orWhere('sku', 'like', "%$search%")
+                ->orWhere('barcode', 'like', "%$search%");
+            });
+        }
+
+     
+        if ($categoryId) {
+            $query->whereHas('product.categories', function ($q) use ($categoryId) {
+                $q->where('id', $categoryId);
+            });
+        }
+
+        if ($tagId) {
+            $query->whereHas('product.tags', function ($q) use ($tagId) {
+                $q->where('id', $tagId);
+            });
+        }
+
+        if (in_array($sortBy, ['name', 'sku', 'price', 'quantity', 'status'])) {
+            if (in_array($sortBy, ['name', 'sku'])) {
+                $query->join('products', 'inventory_details.product_id', '=', 'products.id')
+                    ->orderBy("products.$sortBy", $sortOrder)
+                    ->select('inventory_details.*');
+            } else {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+        }
+
+      
+        $details = $query->paginate($perPage);
+
+        return response()->json([
+            'inventory' => new InventoryResource($inventory),
+            'details' => new InventoryDetailCollection($details),
+            'pagination' => [
+                'current_page' => $details->currentPage(),
+                'per_page' => $details->perPage(),
+                'total' => $details->total(),
+                'last_page' => $details->lastPage(),
+                'next_page_url' => $details->nextPageUrl(),
+                'prev_page_url' => $details->previousPageUrl(),
+            ],
+        ]);
     }
 
     public function showProducts(Inventory $inventory, Request $request)
@@ -90,6 +149,20 @@ class InventoryController extends Controller
             $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($sku) {
                 $query->where('sku', $sku);
             })->get();
+        } else if ($request->has('search')){
+            $search = $request->query('search');
+            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($search) {
+                $query->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('sku', 'like', '%' . $search . '%')
+                    ->orWhere('barcode', 'like', '%' . $search . '%');
+            })->get();
+        } else if ($request->has('category')) {
+            $category = $request->query('category');
+
+            $inventoryDetails = InventoryDetail::whereHas('product.categories', function ($query) use ($category) {
+                $query->where('id', $category);
+            })->get();
+
         } else {
             $inventoryDetails = $inventory->inventoryDetails;
         }
@@ -206,14 +279,22 @@ class InventoryController extends Controller
         );
     }
 
-    public function getProductByStore(Store $store){
-         
-        $inventories = Inventory::where('store_id', $store->id)->get();
+    public function getProductByStore(Store $store, Request $request){
+            
+        $search = $request->query('search');
 
-        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventories->pluck('id'))->get();
+        $inventoryIds = Inventory::where('store_id', $store->id)->pluck('id');
 
-        return new InventoryDetailCollection($inventoryDetails); 
-        
+        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventoryIds)
+            ->when($search, function ($query, $search) {
+                $query->whereHas('product', function ($q) use ($search) {
+                    $q->where('sku', 'like', "%$search%");
+                });
+            })
+            ->with('product') // Carga la relación para evitar N+1
+            ->get();
+
+        return new InventoryInvoiceCollection($inventoryDetails);
     }
 
     public function exportInventory(Request $request)

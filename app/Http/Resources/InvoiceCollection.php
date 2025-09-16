@@ -16,8 +16,10 @@ class InvoiceCollection extends ResourceCollection
     {
         return $this->collection->map(function ($invoice) {
 
-            $totalItems = $invoice->invoiceDetails->count();
-
+    
+            $totalItems = $invoice->invoiceDetails->sum(function ($detail) {
+                return $detail->quantity;
+            });
             return [
                 'id' => $invoice->id,
                 'client_name' => $invoice->client_name,
@@ -29,6 +31,7 @@ class InvoiceCollection extends ResourceCollection
                 'client' => $invoice->client,
                 'grand_total' => $invoice->grand_total,
                 'method' => $invoice->payment_method,
+                'seller' => $invoice->seller->name ?? null,
             ];
         })->toArray();
     }

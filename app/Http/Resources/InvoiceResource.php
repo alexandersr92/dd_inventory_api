@@ -30,6 +30,8 @@ class InvoiceResource extends JsonResource
             'method' => $this->payment_method,
             'invoice_note' => $this->invoice_note,
             'invoice_type' => $this->invoice_type,
+            'seller_id' => $this->seller_id ?? null,
+            'seller' => $this->seller->name ?? null,
             'invoice_details' => $this->invoiceDetails->map(function($invoiceDetail) {
                 return [
                     'id' => $invoiceDetail->id,

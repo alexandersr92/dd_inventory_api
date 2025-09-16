@@ -58,9 +58,10 @@ class ClientController extends Controller
                 ->paginate($perPage);
         }
 
-        if ($request->has('store')) {
+        if ($request->has('store_id')) {
             $order = $request->query('order', 'asc');
-            $store = $request->query('store');
+            $store = $request->query('store_id');
+    
 
             //get clients for a specific store, store and client are related many to many
             $clients = Client::whereHas('stores', function ($query) use ($store) {
@@ -70,6 +71,7 @@ class ClientController extends Controller
                 ->paginate($perPage);
         }
 
+      
 
         return new ClientCollection($clients);
     }

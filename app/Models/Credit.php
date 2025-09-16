@@ -53,5 +53,10 @@ class Credit extends Model
     {
         return $this->hasMany(CreditDetail::class);
     }
+
+    public function seller()
+    {
+        return $this->belongsTo(Seller::class);
+    }
 }
 

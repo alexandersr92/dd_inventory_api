@@ -12,6 +12,8 @@ use App\Http\Resources\StoreCollection;
 
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+
 
 class StoreController extends Controller
 {
@@ -108,4 +110,57 @@ class StoreController extends Controller
 
         return response(null, Response::HTTP_NO_CONTENT);
     }
+
+
+    public function removeImage( Store $store)
+    {
+        if ($store->print_logo) {
+            \Storage::disk('public')->delete($store->print_logo);
+        }
+
+        $store->print_logo = null;
+        $store->save();
+
+        return response(
+            new StoreResource($store),
+            Response::HTTP_OK
+        );
+    }
+        
+    public function addImageToStore(Request $request, Store $store)
+    {
+
+
+        if ($request->hasFile('print_logo')) {
+            $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
+        }
+        $store->save();
+
+        return response(
+            new StoreResource($store),
+            Response::HTTP_OK
+        );
+    }
+
+    public function printLogo(Store $store)
+    {
+     
+
+        if (!$store || !$store->print_logo) {
+            return response()->json(['message' => 'Store or logo not found.'], Response::HTTP_NOT_FOUND);
+        }
+        $path = 'public/' . $store->print_logo;
+
+        if (!Storage::exists($path)) {
+            return response()->json(['message' => 'Logo file not found.'], Response::HTTP_NOT_FOUND);
+        }
+
+        $file = Storage::get($path);
+        $mime = Storage::mimeType($path);
+
+        $base64 = 'data:' . $mime . ';base64,' . base64_encode($file);
+
+        return response()->json(['base64' => $base64]);
+    }
+
 }
