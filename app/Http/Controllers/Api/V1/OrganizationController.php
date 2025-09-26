@@ -5,13 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\Seller;
 
 use App\Http\Requests\StoreOrganizationRequest;
 use App\Http\Requests\UpdateOrganizationRequest;
 use App\Http\Resources\OrganizationResource;
 use App\Http\Resources\OrganizationCollection;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Support\Facades\Hash;
 
 use Illuminate\Support\Facades\Auth;
 
@@ -63,7 +64,20 @@ class OrganizationController extends Controller
 
         $user->save();
 
+       
+        $user->organization_id = $organization->id;
 
+        $seller = Seller::create([
+            'organization_id' => $organization->id,
+            'name'            => $user->name,
+            'code'            => 'OWNER-' . strtoupper(substr($user->id, 0, 6)), 
+            'status'          => 'active',
+            'is_owner'        => true,
+            'pin_hash'        => Hash::make('1234'), 
+        ]);
+
+        $user->seller_id = $seller->id;
+        $user->save();
 
         return response(new OrganizationResource($organization), Response::HTTP_CREATED);
     }
