@@ -8,8 +8,7 @@ use App\Traits\Uuids;
 
 class Organization extends Model
 {
-    use Uuids;
-    use HasFactory;
+    use Uuids, HasFactory;
 
     protected $fillable = [
         'name',
@@ -20,14 +19,12 @@ class Organization extends Model
         'description',
         'status',
         'owner_id',
-
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
-
 
     public function modules()
     {
@@ -47,5 +44,10 @@ class Organization extends Model
     public function stores()
     {
         return $this->hasMany(Store::class);
+    }
+
+    public function users()
+    {
+        return $this->hasMany(User::class);
     }
 }

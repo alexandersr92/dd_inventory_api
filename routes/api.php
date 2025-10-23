@@ -21,6 +21,9 @@ use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
 
 Route::prefix('v1')->group(function () {
+    // TODO: Crear endpoint dedicado para upload de archivos
+    // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
+    
     Route::get('/test',
         function (Request $request) {
             return response()->json([
@@ -41,8 +44,9 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
+        Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
 
-        Route::apiResource('organizations', OrganizationController::class);
+        Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
         Route::apiResource('stores', StoreController::class);
         Route::delete('stores/{store}/removeImage', [StoreController::class, 'removeImage']);
         Route::post('stores/{store}/addImageToStore', [StoreController::class, 'addImageToStore']);

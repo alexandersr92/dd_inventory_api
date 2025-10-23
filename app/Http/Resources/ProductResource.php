@@ -15,6 +15,7 @@ class ProductResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // FIXME: N+1 Query problem - debería usar eager loading con with(['tags', 'categories', 'inventoryDetails'])
         $tags = $this->tags->map(function ($tag) {
             return [
                 'id' => $tag->id,

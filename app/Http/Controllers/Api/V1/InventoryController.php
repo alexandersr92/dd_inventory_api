@@ -43,6 +43,7 @@ class InventoryController extends Controller
             $inventories = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
         }
 
+        // FIXME: Retorna HTTP_CREATED en lugar de HTTP_OK para GET request
         return response(
             new InventoryCollection($inventories),
             Response::HTTP_CREATED
@@ -123,6 +124,8 @@ class InventoryController extends Controller
       
         $details = $query->paginate($perPage);
 
+        // FIXME: Estructura de respuesta muy compleja - debería ser más simple
+        // TODO: Considerar retornar solo el array de detalles con paginación estándar
         return response()->json([
             'inventory' => new InventoryResource($inventory),
             'details' => new InventoryDetailCollection($details),
