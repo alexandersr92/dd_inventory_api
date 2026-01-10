@@ -286,12 +286,13 @@ class InventoryController extends Controller
             
         $search = $request->query('search');
 
-        $inventoryIds = Inventory::where('store_id', $store->id)->pluck('id');
-
-        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventoryIds)
+        $inventoryDetails = InventoryDetail::whereHas('inventory', function ($q) use ($store) {
+                $q->where('store_id', $store->id);
+            })
             ->when($search, function ($query, $search) {
                 $query->whereHas('product', function ($q) use ($search) {
-                    $q->where('sku', 'like', "%$search%");
+                    $q->where('sku', 'like', "%$search%")
+                      ->orWhere('name', 'like', "%$search%");
                 });
             })
             ->with('product') // Carga la relación para evitar N+1
