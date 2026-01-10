@@ -43,6 +43,7 @@ class InventoryController extends Controller
             $inventories = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
         }
 
+        // FIXME: Retorna HTTP_CREATED en lugar de HTTP_OK para GET request
         return response(
             new InventoryCollection($inventories),
             Response::HTTP_CREATED
@@ -123,6 +124,8 @@ class InventoryController extends Controller
       
         $details = $query->paginate($perPage);
 
+        // FIXME: Estructura de respuesta muy compleja - debería ser más simple
+        // TODO: Considerar retornar solo el array de detalles con paginación estándar
         return response()->json([
             'inventory' => new InventoryResource($inventory),
             'details' => new InventoryDetailCollection($details),
@@ -283,12 +286,13 @@ class InventoryController extends Controller
             
         $search = $request->query('search');
 
-        $inventoryIds = Inventory::where('store_id', $store->id)->pluck('id');
-
-        $inventoryDetails = InventoryDetail::whereIn('inventory_id', $inventoryIds)
+        $inventoryDetails = InventoryDetail::whereHas('inventory', function ($q) use ($store) {
+                $q->where('store_id', $store->id);
+            })
             ->when($search, function ($query, $search) {
                 $query->whereHas('product', function ($q) use ($search) {
-                    $q->where('sku', 'like', "%$search%");
+                    $q->where('sku', 'like', "%$search%")
+                      ->orWhere('name', 'like', "%$search%");
                 });
             })
             ->with('product') // Carga la relación para evitar N+1

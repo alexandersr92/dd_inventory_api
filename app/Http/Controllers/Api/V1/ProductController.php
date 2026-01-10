@@ -118,6 +118,7 @@ class ProductController extends Controller
             }
         }
 
+        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('image')) {
             $product->image = $request->file('image')->store('productsImages', 'public');
         }
@@ -255,7 +256,7 @@ class ProductController extends Controller
     public function addImageToProduct(Request $request, Product $product)
     {
 
-
+        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('image')) {
             $product->image = $request->file('image')->store('productsImages', 'public');
         }

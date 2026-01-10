@@ -56,7 +56,7 @@ class StoreController extends Controller
 
         $store = Store::create($request->all());
 
-
+        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('print_logo')) {
             $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
         }
@@ -130,7 +130,7 @@ class StoreController extends Controller
     public function addImageToStore(Request $request, Store $store)
     {
 
-
+        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('print_logo')) {
             $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
         }
