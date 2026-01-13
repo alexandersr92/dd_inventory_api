@@ -56,9 +56,26 @@ class StoreController extends Controller
 
         $store = Store::create($request->all());
 
+        // Asignar automáticamente esta tienda al Seller del Owner (si existe)
+        $user = Auth::user();
+        if ($user->seller_id) {
+             // Ojo: Asegurarse de importar App\Models\Seller o usar la ruta completa
+             $seller = \App\Models\Seller::find($user->seller_id);
+             if ($seller) {
+                 $seller->stores()->attach($store->id, [
+                     'organization_id' => $orgID,
+                     'status'          => 'active',
+                     'assigned_at'     => now(),
+                     'created_at'      => now(),
+                     'updated_at'      => now(),
+                 ]);
+             }
+        }
+
         // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('print_logo')) {
             $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
+            $store->save(); 
         }
 
 

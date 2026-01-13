@@ -10,6 +10,7 @@ use App\Http\Requests\UpdateSellerRequest;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 use App\Http\Resources\SellerResource;
 use App\Http\Resources\SellerCollection;
@@ -284,5 +285,75 @@ class SellerController extends Controller
                 'id' => $data['store_id'],
             ],
         ], Response::HTTP_OK);
+    }
+    public function generateOwnerSeller(Request $request)
+    {
+        $user = Auth::user();
+        $orgId = $user->organization_id;
+
+        DB::beginTransaction();
+
+        try {
+            // 1. Crear o recuperar el Seller del Owner
+            if (!$user->seller_id) {
+                // Verificar si ya existe un seller con este código (por si acaso se desincronizó)
+                $code = 'OWNER-' . strtoupper(substr($user->id, 0, 6));
+                
+                $seller = Seller::where('organization_id', $orgId)
+                    ->where('code', $code)
+                    ->first();
+
+                if (!$seller) {
+                    $seller = Seller::create([
+                        'organization_id' => $orgId,
+                        'name'            => $user->name,
+                        'code'            => $code,
+                        'status'          => 'active',
+                        'is_owner'        => true,
+                        'pin_hash'        => Hash::make('1234'), // PIN por defecto
+                    ]);
+                }
+
+                // Vincular al usuario
+                $user->seller_id = $seller->id;
+                $user->save();
+            } else {
+                $seller = Seller::find($user->seller_id);
+            }
+
+            // 2. Buscar todas las tiendas de la organización
+            $stores = \App\Models\Store::where('organization_id', $orgId)->get();
+
+            // 3. Asignar el seller a TODAS las tiendas
+            $syncPayload = [];
+            foreach ($stores as $store) {
+                $syncPayload[$store->id] = [
+                    'organization_id' => $orgId,
+                    'status'          => 'active',
+                    'assigned_at'     => now(),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ];
+            }
+
+            // Usamos syncWithoutDetaching para asegurar que esté en todas sin borrar nada previo si hubiera
+            if (!empty($syncPayload)) {
+                $seller->stores()->syncWithoutDetaching($syncPayload);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Owner seller generated and assigned to all stores successfully',
+                'seller'  => new SellerResource($seller->load('stores')),
+            ], Response::HTTP_OK);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Error generating owner seller',
+                'error'   => $e->getMessage(),
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 }

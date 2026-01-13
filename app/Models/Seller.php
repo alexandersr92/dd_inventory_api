@@ -19,6 +19,7 @@ class Seller extends Model
         'code',
         'status',
         'pin_hash',
+        'is_owner',
     ];
 
     protected $hidden = [

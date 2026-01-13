@@ -32,6 +32,7 @@ class User extends Authenticatable
         'status',
         'organization_id',
         'role_id',
+        'seller_id',
     ];
 
     /**
