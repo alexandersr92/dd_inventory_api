@@ -185,7 +185,7 @@ class InvoiceController extends Controller
                 'payment_method',
                 'payment_date'
             ]);
-            $invoiceData['seller_id'] = $request->seller_id ?? null;
+            $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
             $invoiceData['invoice_number'] = $invoiceNumber;
             $invoiceData['total'] = $totalItems;
             $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';

@@ -84,6 +84,7 @@ Route::prefix('v1')->group(function () {
         Route::post('/sellers/{seller}/assign-stores', [SellerController::class, 'assignStores']);
         Route::delete('/sellers/{seller}/remove-stores', [SellerController::class, 'removeStores']);
         Route::post('/sellers/seller-login', [SellerController::class, 'sellerLogin']);
+        Route::post('/sellers/generate-owner', [SellerController::class, 'generateOwnerSeller']);
 
         Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
 
