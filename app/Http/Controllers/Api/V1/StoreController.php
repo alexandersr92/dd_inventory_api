@@ -180,4 +180,14 @@ class StoreController extends Controller
         return response()->json(['base64' => $base64]);
     }
 
+    public function updatePrintJson(Request $request, Store $store)
+    {
+        $store->update($request->all());
+
+        return response(
+            new StoreResource($store),
+            Response::HTTP_ACCEPTED
+        );
+    }
+
 }

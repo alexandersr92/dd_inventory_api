@@ -48,6 +48,7 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
         Route::apiResource('stores', StoreController::class);
+        Route::patch('stores/{store}', [StoreController::class, 'updatePrintJson']);
         Route::delete('stores/{store}/removeImage', [StoreController::class, 'removeImage']);
         Route::post('stores/{store}/addImageToStore', [StoreController::class, 'addImageToStore']);
         Route::get('stores/{store}/printLogo', [StoreController::class, 'printLogo']);
