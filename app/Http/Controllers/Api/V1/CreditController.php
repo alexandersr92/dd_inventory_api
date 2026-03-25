@@ -24,46 +24,55 @@ class CreditController extends Controller
         return new CreditCollection($credits);
     }
 
-    public function indexByClient( Request $request)
+    public function indexByClient(Request $request)
     {
         $orgId = Auth::user()->organization_id;
         $sort = $request->query('sort_by', 'created_at');
+        $storeId = $request->query('store_id');
+        $clientId = $request->query('client_id');
         $order = $request->query('order', 'asc');
+        $creditStatus = $request->query('credit_status', 'all');
 
-        $client_id = $request->query('client_id');
-        if ($client_id) {
-            $credits = Credit::where('client_id', $client_id)->where('organization_id', $orgId)->get();
-        } else {
-            $credits = Credit::where('organization_id', $orgId)->get();
+        // Base query
+        $query = Credit::where('organization_id', $orgId);
+
+        if ($storeId) {
+            $query->where('store_id', $storeId);
         }
 
+        if ($clientId) {
+            $query->where('client_id', $clientId);
+        }
 
-     
+        if ($creditStatus !== 'all') {
+            $query->where('credit_status', $creditStatus);
+        }
+
+        // Cargar relaciones necesarias
+        $credits = $query->with('client')->get();
 
         if ($credits->isEmpty()) {
-            return response()->json(['message' => 'No credits found for the specified organization.'], Response::HTTP_NOT_FOUND);
+            return response()->json(['message' => 'No credits found for the specified filters.'], Response::HTTP_NOT_FOUND);
         }
 
-
-
+        // Agrupar por cliente
         $groupedCredits = $credits->groupBy('client_id')->map(function ($clientCredits) {
             $firstCredit = $clientCredits->first();
             return (object) [
-                'client_id' => $firstCredit->client->id,
-                'client_name' => $firstCredit->client->name,
-                'invoices_qty' => $clientCredits->count(),
-                'total_debt' => $clientCredits->where('credit_status', '!=', 'paid')->sum('debt'),
-                'total_paid' => $clientCredits->where('credit_status', 'paid')->count(),
-                'total_unpaid' => $clientCredits->where('credit_status', '!=', 'paid')->count(),
-                'created_at' => $firstCredit->created_at,
-                'updated_at' => $firstCredit->updated_at,
+                'client_id'     => $firstCredit->client->id,
+                'client_name'   => $firstCredit->client->name,
+                'invoices_qty'  => $clientCredits->count(),
+                'total_debt'    => $clientCredits->where('credit_status', '!=', 'paid')->sum('debt'),
+                'total_paid'    => $clientCredits->where('credit_status', 'paid')->count(),
+                'total_unpaid'  => $clientCredits->where('credit_status', '!=', 'paid')->count(),
+                'created_at'    => $firstCredit->created_at,
+                'updated_at'    => $firstCredit->updated_at,
             ];
         })->values();
-     //   dd($sortBy);
-        // Ordenar los créditos agrupados por la fecha de creación
+
+        // Ordenar
         $groupedCredits = $groupedCredits->sortBy($sort, SORT_REGULAR, $order === 'desc')->values();
 
-        
         return new CreditByClientCollection($groupedCredits);
     }
 
@@ -127,6 +136,7 @@ class CreditController extends Controller
 
         $amount = $request->amount; 
         $notes = $request->notes;
+
         
 
         foreach ($credits as $creditId) {
@@ -150,6 +160,7 @@ class CreditController extends Controller
                 $creditDetail->amount = $request->amount;
                 $creditDetail->date = date('Y-m-d');
                 $creditDetail->note = $notes;
+                $creditDetail->seller_id = $request->seller_id;
                 $creditDetail->save();
     
                 if ($amount == 0) {

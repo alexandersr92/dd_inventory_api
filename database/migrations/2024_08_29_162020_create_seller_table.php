@@ -11,13 +11,17 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('seller', function (Blueprint $table) {
-            $table->id();
+        Schema::create('sellers', function (Blueprint $table) {
+            $table->uuid('id')->primary();
+            $table->foreignUuid('organization_id')->constrained()->onDelete('cascade');
             $table->foreignUuid('store_id')->constrained()->onDelete('cascade');
             $table->string('name');
-            $table->string('code')->unique();
+            $table->string('code');
             $table->string('status')->default('active');
             $table->timestamps();
+
+            // Índice único compuesto
+            $table->unique(['organization_id', 'code']);
         });
     }
 

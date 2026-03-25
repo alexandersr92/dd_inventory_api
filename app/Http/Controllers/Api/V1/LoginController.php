@@ -35,17 +35,16 @@ class LoginController extends Controller
 
 
         return response()->json([
-            'data' => [
-                'attributes' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'organization_id' => $user->organization_id,
-                    'device_name' => $request->device_name,
-                    'role' => $user->role_id,
+            'attributes' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'organization_id' => $user->organization_id,
+                'device_name' => $request->device_name,
+                'role' => $user->role_id,
+                'seller_id' => $user->seller_id,
 
-                ],
-                'token' => $user->createToken($request->device_name)->plainTextToken,
-            ]
+            ],
+            'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK); //200
     }
 
@@ -119,12 +118,15 @@ class LoginController extends Controller
             return response()->json(['valid' => true, 'message' => 'Token is valid.', 'user' => [
                 'id' => $user->id,
                 'email' => $user->email,
-                'organization_id' => $user->organization_id
+                'organization_id' => $user->organization_id,
+                'seller_id' => $user->seller_id
             ]], 200);
         } else {
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
         }
     }
+
+
 
     public function registerMember(Request $request) {}
 }

@@ -32,6 +32,7 @@ class User extends Authenticatable
         'status',
         'organization_id',
         'role_id',
+        'seller_id',
     ];
 
     /**
@@ -73,4 +74,9 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Role::class);
     }
+
+    public function seller()
+{
+    return $this->belongsTo(Seller::class);
+}
 }

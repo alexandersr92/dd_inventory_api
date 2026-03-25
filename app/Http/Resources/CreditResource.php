@@ -20,6 +20,7 @@ class CreditResource extends JsonResource
                 'amount' => $payment->amount,
                 'date' => $payment->date,
                 'note' => $payment->note,
+                'seller' => $payment->seller->name ?? null,
                 'created_at' => $payment->created_at,
                 'updated_at' => $payment->updated_at,
             ];

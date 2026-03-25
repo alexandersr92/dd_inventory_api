@@ -29,11 +29,17 @@ class PurchasesController extends Controller
     public function index(Request $request)
     {
         $orgId = Auth::user()->organization_id;
+        $storeId = $request->query('store_id');
         $purchases = Purchases::where('organization_id', $orgId)->get();
-        return new PurchaseCollection($purchases);
+
+        if ($storeId) {
+            $purchases = Purchases::where('organization_id', $orgId)
+                ->where('store_id', $storeId)
+                ->get();
+        }
 
         return response(
-            new PurchaseCollection($inventories),
+            new PurchaseCollection($purchases),
             Response::HTTP_CREATED
         );
     }
@@ -62,11 +68,20 @@ class PurchasesController extends Controller
         $purchase->total_items = $request->total_items;
         $purchase->save();
     
-        $products = json_decode($request->products, true);
+        $products = $request->products;
+   
 
+     
         foreach ($products as $product) {
             //if product id is null, create a new product
-            if($product['product_id'] == null){
+
+            //find product if exists by sku or barcode
+            $productExists = Product::where('sku', $product['sku'])->orWhere('barcode', $product['barcode'])->first();
+            if($productExists){
+                $product['product_id'] = $productExists->id;
+            }
+
+            if($product['product_id'] === null){
                 $newProduct = new Product();
                 $newProduct->organization_id = $orgId;
                 $newProduct->sku = $product['sku'];
@@ -80,6 +95,7 @@ class PurchasesController extends Controller
                 $newProduct->save();
                 $product['product_id'] = $newProduct->id;
             }
+            
             $purchaseDetail = new PurchaseDetail();
             $purchaseDetail->purchase_id = $purchase->id;
             $purchaseDetail->product_id = $product['product_id'];
@@ -118,7 +134,11 @@ class PurchasesController extends Controller
             }
         }
         //responder con los resultados
-        return response()->json(['message' => 'Purchase created successfully.'], 201);
+        return response(
+            new PurchaseResource($purchase),
+            Response::HTTP_CREATED
+        );
+        
 
 
     }
@@ -148,8 +168,10 @@ class PurchasesController extends Controller
         $newTotalItems = 0;
 
         foreach ($purchaseDetails as $purchaseDetail) {
+            
+          //  dd($purchaseDetail);
             $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
-
+            //dd($inventoryID, $purchaseDetail->product_id);
             $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
             $inventoryDetail->save();
         }

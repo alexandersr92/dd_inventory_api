@@ -14,6 +14,7 @@ class ProductCollection extends ResourceCollection
      */
     public function toArray(Request $request): array
     {
+        // FIXME: N+1 Query problem - debería usar eager loading con with(['tags', 'categories', 'inventoryDetails'])
         return $this->collection->map(function ($product) {
 
             $tags = $product->tags->map(function ($tag) {
