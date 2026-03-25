@@ -31,7 +31,15 @@ class Store extends Model
         'print_width',
         'invoice_number',
         'invoice_prefix',
+        'print_json',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'print_json' => 'array',
+        ];
+    }
 
     public function organization()
     {
