@@ -29,7 +29,8 @@ Route::prefix('v1')->group(function () {
             return response()->json([
                 'message' => 'Its working good',
                 'url' => $request->url(),
-                'env' => config('app.env')
+                'env' => config('app.env'),
+                'time' => date('Y-m-d H:i:s')
             ]);
         }
     );
