@@ -175,5 +175,53 @@ class DatabaseSeeder extends Seeder
                 'product_id' => $product->id,
             ]);
         }
+
+        // --- SEED INVOICES (VENTAS) ---
+        $clientsAdidas = \App\Models\Client::where('organization_id', $adidas->id)->get();
+        if ($clientsAdidas->count() > 0 && $products->count() > 0) {
+            for ($i = 0; $i < 300; $i++) {
+                $client = $clientsAdidas->random();
+                $invoice = \App\Models\Invoice::factory()->create([
+                    'user_id' => $ownerAdidas->id,
+                    'organization_id' => $adidas->id,
+                    'client_id' => $client->id,
+                    'store_id' => $adidasStore->id,
+                ]);
+
+                $numDetails = rand(1, 5);
+                for ($j = 0; $j < $numDetails; $j++) {
+                    $product = $products->random();
+                    \App\Models\InvoiceDetail::factory()->create([
+                        'invoice_id' => $invoice->id,
+                        'product_id' => $product->id,
+                        'inventory_id' => $inventory->id,
+                    ]);
+                }
+            }
+        }
+
+        // --- SEED PURCHASES (GASTOS/COMPRAS) ---
+        $suppliersAdidas = \App\Models\Supplier::where('organization_id', $adidas->id)->get();
+        if ($suppliersAdidas->count() > 0 && $products->count() > 0) {
+            for ($i = 0; $i < 50; $i++) {
+                $supplier = $suppliersAdidas->random();
+                $purchase = \App\Models\Purchases::factory()->create([
+                    'user_id' => $ownerAdidas->id,
+                    'organization_id' => $adidas->id,
+                    'store_id' => $adidasStore->id,
+                    'supplier_id' => $supplier->id,
+                    'inventory_id' => $inventory->id,
+                ]);
+
+                $numDetails = rand(1, 5);
+                for ($j = 0; $j < $numDetails; $j++) {
+                    $product = $products->random();
+                    \App\Models\PurchaseDetail::factory()->create([
+                        'purchase_id' => $purchase->id,
+                        'product_id' => $product->id,
+                    ]);
+                }
+            }
+        }
     }
 }

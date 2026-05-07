@@ -19,7 +19,7 @@ use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\PurchasesController;
 use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
-
+use App\Http\Controllers\Api\V1\ReportController;
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
     // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
@@ -90,5 +90,8 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
 
+        Route::get('reports/types', [ReportController::class, 'types']);
+        Route::apiResource('reports', ReportController::class)->only(['index', 'store', 'destroy']);
+        Route::get('reports/{report}/download', [ReportController::class, 'download']);
     });
 });
