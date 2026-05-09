@@ -18,10 +18,12 @@ class ReportController extends Controller
     public function index(Request $request)
     {
         $orgId = Auth::user()->organization_id;
+        $storeID = $request->query('store_id');
         $per_page = $request->query('per_page', 20);
         $order = $request->query('order', 'desc');
 
         $reports = Report::where('organization_id', $orgId)
+            ->where('store_id', $storeID)
             ->orderBy('created_at', $order)
             ->paginate($per_page);
 
