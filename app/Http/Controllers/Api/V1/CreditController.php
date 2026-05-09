@@ -79,7 +79,7 @@ class CreditController extends Controller
     public function indexByClientID($client_id)
     {
         $orgId = Auth::user()->organization_id;
-        $show = request()->query('show', 'active');
+        $show = request()->query('show', 'all');
         $per_page = request()->query('per_page', 20);
         $sort = request()->query('sort', 'created_at');
         $order = request()->query('order', 'asc');
@@ -121,66 +121,68 @@ class CreditController extends Controller
     public function payment(Request $request)
     {
         $orgID = Auth::user()->organization_id;
-        $credits =json_decode( $request->credits_id);
+        $creditsIds = is_array($request->credits_id) ? $request->credits_id : json_decode($request->credits_id);
 
-        if (!$request->amount || !$credits) {
+        if (!$request->amount || !$creditsIds) {
             return response()->json(['message' => 'Amount and credits_id are required.'], 400);
         }
 
-        if ($request->amoun > 0) {
-            return response()->json(['message' => 'The amount exceeds the total debt of the selected credits.'], 400);
+        if ($request->amount <= 0) {
+            return response()->json(['message' => 'The amount must be greater than 0.'], 400);
         }
-        if (count($credits) == 0) {
+
+        if (count($creditsIds) == 0) {
             return response()->json(['message' => 'No credits selected.'], 400);
         }
 
-        $amount = $request->amount; 
+        $remainingAmount = $request->amount; 
         $notes = $request->notes;
 
-        
+        foreach ($creditsIds as $creditId) {
+            if ($remainingAmount <= 0) break;
 
-        foreach ($credits as $creditId) {
             $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first(); 
     
             if ($credit) {
-                if ($amount >= $credit->debt) {
-                  
-                    $amount -= $credit->debt; 
+                $appliedToThisCredit = 0;
+
+                if ($remainingAmount >= $credit->debt) {
+                    $appliedToThisCredit = $credit->debt;
+                    $remainingAmount -= $credit->debt; 
                     $credit->debt = 0; 
                     $credit->credit_status = 'paid'; 
                 } else {
-                    $credit->debt -= $amount; 
-                    $amount = 0; 
+                    $appliedToThisCredit = $remainingAmount;
+                    $credit->debt -= $remainingAmount; 
+                    $remainingAmount = 0; 
                 }
     
                 $credit->save(); 
     
-                $creditDetail = new CreditDetail();
-                $creditDetail->credit_id = $credit->id;
-                $creditDetail->amount = $request->amount;
-                $creditDetail->date = date('Y-m-d');
-                $creditDetail->note = $notes;
-                $creditDetail->seller_id = $request->seller_id;
-                $creditDetail->save();
-    
-                if ($amount == 0) {
-                    break;
+                // Solo crear el detalle si realmente se aplicó un pago
+                if ($appliedToThisCredit > 0) {
+                    $creditDetail = new CreditDetail();
+                    $creditDetail->credit_id = $credit->id;
+                    $creditDetail->amount = $appliedToThisCredit; // Monto real aplicado a ESTE crédito
+                    $creditDetail->date = date('Y-m-d');
+                    $creditDetail->note = $notes;
+                    $creditDetail->seller_id = $request->seller_id;
+                    $creditDetail->save();
                 }
-            }else{
-                return response()->json(['message' => 'Credit not found or does not belong to the organization.'], 404);
+            } else {
+                return response()->json(['message' => "Credit $creditId not found or does not belong to the organization."], 404);
             }
         }
 
-        $allCredistsList = [];
-        foreach ($credits as $creditId) {
+        $updatedCredits = [];
+        foreach ($creditsIds as $creditId) {
             $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first();
             if ($credit) {
-                $allCredistsList[] =new  CreditResource($credit);
+                $updatedCredits[] = new CreditResource($credit);
             }
         }
      
-
-        return response()->json( $allCredistsList, 200);
+        return response()->json($updatedCredits, 200);
     }
 
 }

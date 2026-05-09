@@ -14,6 +14,10 @@ class InvoiceFactory extends Factory
         $total = $grandTotal - $tax;
 
         return [
+            'user_id' => \App\Models\User::factory(),
+            'organization_id' => \App\Models\Organization::factory(),
+            'client_id' => \App\Models\Client::factory(),
+            'store_id' => \App\Models\Store::factory(),
             'invoice_number' => 'INV-' . $this->faker->unique()->numberBetween(100000, 999999),
             'invoice_date' => $date->format('Y-m-d'),
             'invoice_note' => $this->faker->sentence(),
