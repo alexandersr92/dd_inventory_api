@@ -13,6 +13,7 @@ class Report extends Model
 
     protected $fillable = [
         'organization_id',
+        'store_id',
         'user_id',
         'name',
         'type',
@@ -28,6 +29,11 @@ class Report extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
+    }
+
+    public function store(): BelongsTo
+    {
+        return $this->belongsTo(Store::class);
     }
 
     public function user(): BelongsTo

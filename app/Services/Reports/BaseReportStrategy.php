@@ -37,6 +37,7 @@ abstract class BaseReportStrategy
         // 1. Crear el registro en la base de datos
         $report = Report::create([
             'organization_id' => $organizationId,
+            'store_id' => $filters['store_id'] ?? null,
             'user_id' => $userId,
             'name' => 'Reporte - ' . $this->getReportName() . ' - ' . date('Y-m-d H:i:s'),
             'type' => $this->getReportType(),

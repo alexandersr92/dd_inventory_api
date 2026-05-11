@@ -22,9 +22,13 @@ class ReportController extends Controller
         $per_page = $request->query('per_page', 20);
         $order = $request->query('order', 'desc');
 
-        $reports = Report::where('organization_id', $orgId)
-            ->where('store_id', $storeID)
-            ->orderBy('created_at', $order)
+        $reportsQuery = Report::where('organization_id', $orgId);
+
+        if ($storeID) {
+            $reportsQuery->where('store_id', $storeID);
+        }
+
+        $reports = $reportsQuery->orderBy('created_at', $order)
             ->paginate($per_page);
 
         return response()->json($reports);
