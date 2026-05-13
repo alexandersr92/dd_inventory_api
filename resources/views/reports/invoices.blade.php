@@ -7,7 +7,6 @@
             <tr>
                 <th>Folio / Fecha</th>
                 <th>Cliente</th>
-                <th>Subtotal</th>
                 <th>Tipo de Pago</th>
                 <th>Total</th>
                 <th>Estado</th>
@@ -24,7 +23,6 @@
                     <td>
                         {{ $invoice['client_name'] ?? 'N/A' }}
                     </td>
-                    <td>{{ $currency }}{{ number_format($invoice['total'] ?? 0, 2) }}</td>
                     <td>{{ $invoice['payment_method'] ?? 'N/A' }}</td>
                     <td>{{ $currency }}{{ number_format($invoice['grand_total'] ?? 0, 2) }}</td>
                     <td>{{ ucfirst($invoice['invoice_status'] ?? 'N/A') }}</td>
@@ -37,7 +35,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="7" style="text-align: center;">No hay facturas en este periodo.</td>
+                    <td colspan="6" style="text-align: center;">No hay facturas en este periodo.</td>
                 </tr>
             @endforelse
         </tbody>
