@@ -11,9 +11,9 @@
             <th>Cartera por Cobrar (Deuda)</th>
         </tr>
         <tr>
-            <td>${{ number_format($items['resumen']['total_otorgado'], 2) }}</td>
-            <td><span style="color: green;">${{ number_format($items['resumen']['total_recuperado'], 2) }}</span></td>
-            <td><span style="color: red; font-weight: bold;">${{ number_format($items['resumen']['total_deuda'], 2) }}</span></td>
+            <td>{{ $currency }}{{ number_format($items['resumen']['total_otorgado'], 2) }}</td>
+            <td><span style="color: green;">{{ $currency }}{{ number_format($items['resumen']['total_recuperado'], 2) }}</span></td>
+            <td><span style="color: red; font-weight: bold;">{{ $currency }}{{ number_format($items['resumen']['total_deuda'], 2) }}</span></td>
         </tr>
     </table>
 
@@ -27,10 +27,10 @@
             <th>Más de 90 días</th>
         </tr>
         <tr>
-            <td>${{ number_format($items['tramos']['0_30'], 2) }}</td>
-            <td>${{ number_format($items['tramos']['31_60'], 2) }}</td>
-            <td style="color: darkorange;">${{ number_format($items['tramos']['61_90'], 2) }}</td>
-            <td style="color: red; font-weight: bold;">${{ number_format($items['tramos']['mas_90'], 2) }}</td>
+            <td>{{ $currency }}{{ number_format($items['tramos']['0_30'], 2) }}</td>
+            <td>{{ $currency }}{{ number_format($items['tramos']['31_60'], 2) }}</td>
+            <td style="color: darkorange;">{{ $currency }}{{ number_format($items['tramos']['61_90'], 2) }}</td>
+            <td style="color: red; font-weight: bold;">{{ $currency }}{{ number_format($items['tramos']['mas_90'], 2) }}</td>
         </tr>
     </table>
 
@@ -58,9 +58,9 @@
                         {{ $cred['fecha'] }}<br>
                         <small>Antigüedad: {{ $cred['dias_antiguedad'] }} días</small>
                     </td>
-                    <td>${{ number_format($cred['total'], 2) }}</td>
-                    <td style="color: green;">${{ number_format($cred['pagado'], 2) }}</td>
-                    <td style="color: red; font-weight: bold;">${{ number_format($cred['deuda'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($cred['total'], 2) }}</td>
+                    <td style="color: green;">{{ $currency }}{{ number_format($cred['pagado'], 2) }}</td>
+                    <td style="color: red; font-weight: bold;">{{ $currency }}{{ number_format($cred['deuda'], 2) }}</td>
                     <td>{{ ucfirst($cred['estado']) }}</td>
                 </tr>
             @empty

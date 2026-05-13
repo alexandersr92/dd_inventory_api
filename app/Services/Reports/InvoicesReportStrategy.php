@@ -53,6 +53,7 @@ class InvoicesReportStrategy extends BaseReportStrategy
                 'total' => $invoice->total, // Subtotal usually
                 'tax' => $invoice->tax,
                 'grand_total' => $invoice->grand_total,
+                'payment_method' => $invoice->payment_method,
                 'invoice_status' => $invoice->invoice_status,
                 'dias_mora' => $diasMora,
             ];

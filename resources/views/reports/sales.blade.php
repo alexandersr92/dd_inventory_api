@@ -12,9 +12,9 @@
             <th>Margen Bruto (%)</th>
         </tr>
         <tr>
-            <td>${{ number_format($items['rentabilidad']['ingresos'], 2) }}</td>
-            <td>${{ number_format($items['rentabilidad']['costo'], 2) }}</td>
-            <td>${{ number_format($items['rentabilidad']['margen_dinero'], 2) }}</td>
+            <td>{{ $currency }}{{ number_format($items['rentabilidad']['ingresos'], 2) }}</td>
+            <td>{{ $currency }}{{ number_format($items['rentabilidad']['costo'], 2) }}</td>
+            <td>{{ $currency }}{{ number_format($items['rentabilidad']['margen_dinero'], 2) }}</td>
             <td>{{ number_format($items['rentabilidad']['margen_porcentaje'], 2) }}%</td>
         </tr>
     </table>
@@ -34,7 +34,7 @@
                 <tr>
                     <td>{{ $venta['mes'] }}</td>
                     <td>{{ $venta['total_facturas'] }}</td>
-                    <td>${{ number_format($venta['ingresos_totales'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($venta['ingresos_totales'], 2) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" style="text-align: center;">Sin ventas</td></tr>
@@ -57,7 +57,7 @@
                 <tr>
                     <td>{{ $prod['name'] }}</td>
                     <td>{{ $prod['total_vendido'] }} uds</td>
-                    <td>${{ number_format($prod['ingresos'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($prod['ingresos'], 2) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="3" style="text-align: center;">Sin datos</td></tr>
@@ -82,7 +82,7 @@
                     <td>{{ $ven['vendedor'] }}</td>
                     <td>Físico (Tienda)</td>
                     <td>{{ $ven['total_ventas'] }}</td>
-                    <td>${{ number_format($ven['ingresos'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($ven['ingresos'], 2) }}</td>
                 </tr>
             @empty
                 <tr><td colspan="4" style="text-align: center;">Sin datos</td></tr>

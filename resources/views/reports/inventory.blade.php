@@ -29,10 +29,10 @@
                         / {{ $item['min_stock'] }}
                     </td>
                     <td>
-                        C: ${{ number_format($item['cost'], 2) }}<br>
-                        V: ${{ number_format($item['price'], 2) }}
+                        C: {{ $currency }}{{ number_format($item['cost'], 2) }}<br>
+                        V: {{ $currency }}{{ number_format($item['price'], 2) }}
                     </td>
-                    <td>${{ number_format($item['total_value'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($item['total_value'], 2) }}</td>
                     <td>{{ $item['last_movement'] ?? 'N/A' }}</td>
                     <td>
                         @if($item['is_low_stock'])

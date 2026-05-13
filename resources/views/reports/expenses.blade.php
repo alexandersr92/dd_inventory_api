@@ -24,7 +24,7 @@
                         <small style="color: #666;">Categoría: N/A</small><br>
                         <small style="color: #666;">C. Costos: N/A</small>
                     </td>
-                    <td>${{ number_format($item['total'], 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($item['total'], 2) }}</td>
                     <td>
                         @if($item['status'] === 'completed')
                             <span style="color: green; font-weight: bold;">Pagado (Completado)</span>

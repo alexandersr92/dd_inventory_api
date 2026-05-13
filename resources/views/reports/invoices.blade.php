@@ -6,9 +6,9 @@
         <thead>
             <tr>
                 <th>Folio / Fecha</th>
-                <th>Cliente / ID Fiscal</th>
+                <th>Cliente</th>
                 <th>Subtotal</th>
-                <th>Impuestos</th>
+                <th>Tipo de Pago</th>
                 <th>Total</th>
                 <th>Estado</th>
                 <th>Vencimiento / Mora</th>
@@ -22,12 +22,11 @@
                         <small style="color: #666;">{{ substr($invoice['created_at'], 0, 10) }}</small>
                     </td>
                     <td>
-                        {{ $invoice['client_name'] ?? 'N/A' }}<br>
-                        <small style="color: #666;">ID Fiscal: N/A</small>
+                        {{ $invoice['client_name'] ?? 'N/A' }}
                     </td>
-                    <td>${{ number_format($invoice['total'] ?? 0, 2) }}</td>
-                    <td>${{ number_format($invoice['tax'] ?? 0, 2) }}</td>
-                    <td>${{ number_format($invoice['grand_total'] ?? 0, 2) }}</td>
+                    <td>{{ $currency }}{{ number_format($invoice['total'] ?? 0, 2) }}</td>
+                    <td>{{ $invoice['payment_method'] ?? 'N/A' }}</td>
+                    <td>{{ $currency }}{{ number_format($invoice['grand_total'] ?? 0, 2) }}</td>
                     <td>{{ ucfirst($invoice['invoice_status'] ?? 'N/A') }}</td>
                     <td>
                         Vence: N/A<br>

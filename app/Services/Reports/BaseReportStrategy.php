@@ -3,6 +3,7 @@
 namespace App\Services\Reports;
 
 use App\Models\Report;
+use App\Models\Store;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Exception;
@@ -51,10 +52,20 @@ abstract class BaseReportStrategy
             // 2. Obtener los datos específicos del reporte
             $items = $this->fetchData($organizationId, $filters);
 
+            // Obtener moneda de la tienda
+            $currency = '$';
+            if (!empty($filters['store_id'])) {
+                $store = Store::find($filters['store_id']);
+                if ($store && $store->store_currency) {
+                    $currency = $store->store_currency;
+                }
+            }
+
             $data = [
                 'report' => $report,
                 'filters' => $filters,
                 'items' => $items,
+                'currency' => $currency,
             ];
             
             // 3. Generar el PDF
