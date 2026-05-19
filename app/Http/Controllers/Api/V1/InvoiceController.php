@@ -130,6 +130,10 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
+        if ($request->isCredit && empty($request->client_id)) {
+            return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
+        }
+
         DB::beginTransaction();
     
         try {
