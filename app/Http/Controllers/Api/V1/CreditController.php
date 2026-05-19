@@ -91,10 +91,8 @@ class CreditController extends Controller
         $sort = request()->query('sort', 'created_at');
         $order = request()->query('order', 'asc');
     
-        $credits = Credit::whereHas('client', function ($query) use ($orgId, $client_id) {
-                $query->where('organization_id', $orgId)
-                      ->where('id', $client_id);
-            })
+        $credits = Credit::where('organization_id', $orgId)
+            ->where('client_id', $client_id)
             ->when($show, function ($query) use ($show) {
                 if ($show === 'all') {
                     return $query;
