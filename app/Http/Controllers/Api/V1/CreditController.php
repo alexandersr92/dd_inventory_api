@@ -32,6 +32,7 @@ class CreditController extends Controller
         $clientId = $request->query('client_id');
         $order = $request->query('order', 'asc');
         $creditStatus = $request->query('credit_status', 'all');
+        $search = $request->query('search');
 
         // Base query
         $query = Credit::where('organization_id', $orgId);
@@ -46,6 +47,12 @@ class CreditController extends Controller
 
         if ($creditStatus !== 'all') {
             $query->where('credit_status', $creditStatus);
+        }
+
+        if ($search) {
+            $query->whereHas('client', function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%');
+            });
         }
 
         // Cargar relaciones necesarias
