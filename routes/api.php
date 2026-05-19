@@ -74,6 +74,7 @@ Route::prefix('v1')->group(function () {
 
         Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);
         Route::delete('invoices/{invoice}', [InvoiceController::class, 'cancel']);
+        Route::post('invoices/{invoice}/replace', [InvoiceController::class, 'replace']);
         Route::post('credits/payment', [CreditController::class, 'payment']);
         Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
         Route::get('credits-by-client', [CreditController::class, 'indexByClient']);

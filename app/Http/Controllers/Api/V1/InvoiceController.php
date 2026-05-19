@@ -130,14 +130,29 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
+        DB::beginTransaction();
+        try {
+            $result = $this->storeInternal($request);
+            if ($result instanceof \Illuminate\Http\JsonResponse) {
+                DB::rollBack();
+                return $result;
+            }
+            DB::commit();
+            return $result;
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            report($e);
+            return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    protected function storeInternal(StoreInvoiceRequest $request)
+    {
         if ($request->isCredit && empty($request->client_id)) {
             return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
         }
 
-        DB::beginTransaction();
-    
-        try {
-            $orgId = Auth::user()->organization_id;
+        $orgId = Auth::user()->organization_id;
             $userID = Auth::id();
             $store = Store::findOrFail($request->store_id);
             $allowNegativeStock = true;
@@ -255,14 +270,7 @@ class InvoiceController extends Controller
                 }
             }
     
-            DB::commit();
             return new InvoiceResource($invoice);
-    
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            report($e);
-            return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
-        }
     }
 
     /**
@@ -278,18 +286,85 @@ class InvoiceController extends Controller
      */
     public function cancel(Invoice $invoice)
     {
+        DB::beginTransaction();
+        try {
+            $this->cancelInternal($invoice);
+            DB::commit();
+            return response()->json(['message' => 'Invoice cancelled successfully.']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            report($e);
+            return response()->json(['message' => 'Error canceling invoice.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    protected function cancelInternal(Invoice $invoice)
+    {
         $invoice->invoice_status = 'canceled';
         $invoice->save();
 
-        $invoiceDetails = $invoice->invoiceDetails;
+            // Si la factura tiene un crédito asociado, lo anulamos también
+            if ($invoice->credit) {
+                $invoice->credit->credit_status = 'canceled';
+                $invoice->credit->debt = 0; // Se elimina la deuda
+                $invoice->credit->save();
+            }
 
-        foreach($invoiceDetails as $invoiceDetail){
-            $productObjs = InventoryDetail::where('product_id', $invoiceDetail->product_id)->where('inventory_id', $invoiceDetail->inventory_id)->first();
-            $productObjs->quantity = $productObjs->quantity + $invoiceDetail->quantity;
-            $productObjs->save();
+            $invoiceDetails = $invoice->invoiceDetails;
+
+            foreach($invoiceDetails as $invoiceDetail){
+                $productObjs = InventoryDetail::where('product_id', $invoiceDetail->product_id)
+                    ->where('inventory_id', $invoiceDetail->inventory_id)
+                    ->first();
+                
+                if ($productObjs) {
+                    $productObjs->quantity = $productObjs->quantity + $invoiceDetail->quantity;
+                    $productObjs->save();
+                }
+            }
+    }
+
+    public function replace(StoreInvoiceRequest $request, Invoice $invoice)
+    {
+        if ($invoice->invoice_status === 'canceled') {
+            return response()->json(['message' => 'La factura original ya está anulada.'], 400);
         }
 
-        return response()->json(['message' => 'Invoice cancelled successfully.']);
+        DB::beginTransaction();
+
+        try {
+            // 1. Anular la factura vieja
+            $this->cancelInternal($invoice);
+
+            // 2. Crear la nueva factura
+            $newInvoiceResponse = $this->storeInternal($request);
+            
+            if ($newInvoiceResponse instanceof \Illuminate\Http\JsonResponse) {
+                DB::rollBack();
+                return $newInvoiceResponse; // Propagar el error
+            }
+
+            $newInvoice = $newInvoiceResponse->resource;
+
+            // 3. Establecer trazabilidad bidireccional
+            $invoice->replaced_by_invoice_id = $newInvoice->id;
+            $invoice->save();
+
+            $newInvoice->replaces_invoice_id = $invoice->id;
+            $newInvoice->save();
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Factura reemplazada exitosamente.',
+                'invoice' => new InvoiceResource($newInvoice)
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            report($e);
+            return response()->json(['message' => 'Error al reemplazar factura.', 'error' => $e->getMessage()], 500);
+        }
     }
 
     
