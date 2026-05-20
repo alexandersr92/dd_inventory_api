@@ -238,7 +238,10 @@ class InvoiceController extends Controller
                     'inventory_id' => $product['inventory_id'],
                     'quantity' => $product['quantity'],
                     'price' => $product['price'],
-                    'total' => $product['total']
+                    'total' => $product['total'],
+                    'discount' => $product['discount'] ?? 0,
+                    'tax' => $product['tax'] ?? 0,
+                    'grand_total' => $product['grand_total'] ?? $product['total']
                 ]);
                 
                 $quantity = (float) $product['quantity'];

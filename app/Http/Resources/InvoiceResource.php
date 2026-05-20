@@ -36,12 +36,16 @@ class InvoiceResource extends JsonResource
                 return [
                     'id' => $invoiceDetail->id,
                     'product_id' => $invoiceDetail->product_id,
-                    'sku' => $invoiceDetail->product->sku,
-                    'product_name' => $invoiceDetail->product->name,
+                    'sku' => $invoiceDetail->product->sku ?? null,
+                    'barcode' => $invoiceDetail->product->barcode ?? null,
+                    'product_name' => $invoiceDetail->product->name ?? null,
                     'inventory_id' => $invoiceDetail->inventory_id,
                     'quantity' => $invoiceDetail->quantity,
                     'price' => $invoiceDetail->price,
                     'total' => $invoiceDetail->total,
+                    'discount' => $invoiceDetail->discount,
+                    'tax' => $invoiceDetail->tax,
+                    'grand_total' => $invoiceDetail->grand_total,
                 ];
             })->toArray(),
         ];
