@@ -13,6 +13,7 @@ use App\Http\Resources\InvoiceCollection;
 use App\Http\Resources\InvoiceResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use App\Http\Requests\StoreInvoiceRequest;
 
@@ -130,17 +131,26 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
+        $lockKey = 'create_invoice_' . Auth::id() . '_' . md5(json_encode($request->all()));
+        $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos para evitar doble envío
+
+        if (!$lock->get()) {
+            return response()->json(['message' => 'Esta factura ya está siendo procesada o ya fue enviada.'], 422);
+        }
+
         DB::beginTransaction();
         try {
             $result = $this->storeInternal($request);
             if ($result instanceof \Illuminate\Http\JsonResponse) {
                 DB::rollBack();
+                $lock->release();
                 return $result;
             }
             DB::commit();
             return $result;
         } catch (\Throwable $e) {
             DB::rollBack();
+            $lock->release();
             report($e);
             return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
         }
@@ -154,7 +164,7 @@ class InvoiceController extends Controller
 
         $orgId = Auth::user()->organization_id;
             $userID = Auth::id();
-            $store = Store::findOrFail($request->store_id);
+            $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
             $allowNegativeStock = true;
            
     
@@ -330,6 +340,13 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'La factura original ya está anulada.'], 400);
         }
 
+        $lockKey = 'replace_invoice_' . Auth::id() . '_' . $invoice->id . '_' . md5(json_encode($request->all()));
+        $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos
+
+        if (!$lock->get()) {
+            return response()->json(['message' => 'Esta factura ya está siendo reemplazada.'], 422);
+        }
+
         DB::beginTransaction();
 
         try {
@@ -341,6 +358,7 @@ class InvoiceController extends Controller
             
             if ($newInvoiceResponse instanceof \Illuminate\Http\JsonResponse) {
                 DB::rollBack();
+                $lock->release();
                 return $newInvoiceResponse; // Propagar el error
             }
 
@@ -354,6 +372,7 @@ class InvoiceController extends Controller
             $newInvoice->save();
 
             DB::commit();
+            $lock->release();
 
             return response()->json([
                 'message' => 'Factura reemplazada exitosamente.',
@@ -362,8 +381,9 @@ class InvoiceController extends Controller
 
         } catch (\Throwable $e) {
             DB::rollBack();
+            $lock->release();
             report($e);
-            return response()->json(['message' => 'Error al reemplazar factura.', 'error' => $e->getMessage()], 500);
+            return response()->json(['message' => 'Error al reemplazar la factura.', 'error' => $e->getMessage()], 500);
         }
     }
 
