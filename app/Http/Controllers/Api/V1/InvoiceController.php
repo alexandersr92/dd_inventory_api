@@ -197,9 +197,20 @@ class InvoiceController extends Controller
                 }
             }
     
-            $invoiceNumber = $store->invoice_prefix
-                ? $store->invoice_prefix . '-' . str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT)
-                : str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
+            $nextInvoiceNumber = $store->invoice_number + 1;
+            do {
+                $invoiceNumber = $store->invoice_prefix
+                    ? $store->invoice_prefix . '-' . str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT)
+                    : str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT);
+
+                $exists = Invoice::where('store_id', $request->store_id)
+                    ->where('invoice_number', $invoiceNumber)
+                    ->exists();
+
+                if ($exists) {
+                    $nextInvoiceNumber++;
+                }
+            } while ($exists);
     
             $invoiceData = $request->only([
                 'client_id',
@@ -228,8 +239,9 @@ class InvoiceController extends Controller
                 return response()->json(['message' => 'No se pudo crear la factura.'], 400);
             }
     
-            // Actualizar número de factura
-            $store->increment('invoice_number');
+            // Actualizar número de factura al consecutivo utilizado
+            $store->invoice_number = $nextInvoiceNumber;
+            $store->save();
     
             // Detalles y actualización de inventario
             foreach ($productArray as $product) {
