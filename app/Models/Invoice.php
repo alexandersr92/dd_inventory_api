@@ -56,7 +56,7 @@ class Invoice extends Model
 
     public function invoiceDetails()
     {
-        return $this->hasMany(InvoiceDetail::class);
+        return $this->hasMany(InvoiceDetail::class)->orderBy('sort_order', 'asc');
     }
 
 

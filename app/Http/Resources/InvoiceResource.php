@@ -46,6 +46,7 @@ class InvoiceResource extends JsonResource
                     'discount' => $invoiceDetail->discount,
                     'tax' => $invoiceDetail->tax,
                     'grand_total' => $invoiceDetail->grand_total,
+                    'sort_order' => $invoiceDetail->sort_order,
                 ];
             })->toArray(),
         ];

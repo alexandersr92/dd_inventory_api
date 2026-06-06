@@ -244,7 +244,7 @@ class InvoiceController extends Controller
             $store->save();
     
             // Detalles y actualización de inventario
-            foreach ($productArray as $product) {
+            foreach ($productArray as $index => $product) {
                 $invoice->invoiceDetails()->create([
                     'product_id' => $product['product_id'],
                     'inventory_id' => $product['inventory_id'],
@@ -253,7 +253,8 @@ class InvoiceController extends Controller
                     'total' => $product['total'],
                     'discount' => $product['discount'] ?? 0,
                     'tax' => $product['tax'] ?? 0,
-                    'grand_total' => $product['grand_total'] ?? $product['total']
+                    'grand_total' => $product['grand_total'] ?? $product['total'],
+                    'sort_order' => $index
                 ]);
                 
                 $quantity = (float) $product['quantity'];
