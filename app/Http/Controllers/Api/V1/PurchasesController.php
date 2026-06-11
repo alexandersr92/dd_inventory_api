@@ -30,13 +30,29 @@ class PurchasesController extends Controller
     {
         $orgId = Auth::user()->organization_id;
         $storeId = $request->query('store_id');
-        $purchases = Purchases::where('organization_id', $orgId)->get();
+        
+        $query = Purchases::where('organization_id', $orgId);
 
         if ($storeId) {
-            $purchases = Purchases::where('organization_id', $orgId)
-                ->where('store_id', $storeId)
-                ->get();
+            $query->where('store_id', $storeId);
         }
+
+        $sortBy = $request->query('sort_by') ?? $request->query('sort');
+        $order = $request->query('order') ?? $request->query('direction');
+
+        $allowedSortFields = [
+            'id', 'total', 'purchase_date', 'total_items', 'status', 
+            'created_at', 'updated_at', 'store_id', 'supplier_id', 'inventory_id'
+        ];
+
+        if ($sortBy && in_array($sortBy, $allowedSortFields)) {
+            $order = in_array(strtolower($order), ['asc', 'desc']) ? $order : 'asc';
+            $query->orderBy($sortBy, $order);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $purchases = $query->get();
 
         return response(
             new PurchaseCollection($purchases),
