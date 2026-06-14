@@ -92,7 +92,13 @@ class PurchasesController extends Controller
             //if product id is null, create a new product
 
             //find product if exists by sku or barcode
-            $productExists = Product::where('sku', $product['sku'])->orWhere('barcode', $product['barcode'])->first();
+            $productExists = Product::where('organization_id', $orgId)
+                ->where(function ($query) use ($product) {
+                    $query->where('sku', $product['sku']);
+                    if (!empty($product['barcode'])) {
+                        $query->orWhere('barcode', $product['barcode']);
+                    }
+                })->first();
             if($productExists){
                 $product['product_id'] = $productExists->id;
             }
