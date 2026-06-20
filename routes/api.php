@@ -46,6 +46,8 @@ Route::prefix('v1')->group(function () {
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
         Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
+        Route::put('/user/password', [LoginController::class, 'updatePassword']);
+
 
         Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
         Route::apiResource('stores', StoreController::class);

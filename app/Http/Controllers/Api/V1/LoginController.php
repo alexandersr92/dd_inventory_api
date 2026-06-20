@@ -129,4 +129,29 @@ class LoginController extends Controller
 
 
     public function registerMember(Request $request) {}
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'password' => 'required|min:6|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual no es correcta.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password)
+        ]);
+
+        return response()->json([
+            'message' => 'Contraseña actualizada correctamente.'
+        ], Response::HTTP_OK);
+    }
 }
+
