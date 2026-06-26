@@ -89,6 +89,8 @@ class InvoiceSortOrderTest extends TestCase
         $org = Organization::factory()->create(['owner_id' => $user->id]);
         $user->update(['organization_id' => $org->id]);
         
+        $this->setupTenantUser($user, $org);
+        
         $store = Store::factory()->create(['organization_id' => $org->id]);
         $inventory = Inventory::factory()->create([
             'organization_id' => $org->id,

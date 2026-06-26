@@ -22,11 +22,14 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Product::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
 
@@ -77,6 +80,8 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
+        $this->authorize('create', Product::class);
+
         $orgId = Auth::user()->organization_id;
 
         $request->merge(['organization_id' => $orgId]);
@@ -169,6 +174,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
+        $this->authorize('view', $product);
 
         return response(
             new ProductResource($product),
@@ -181,6 +187,7 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
+        $this->authorize('update', $product);
 
         $data = $request->all();
 
@@ -275,6 +282,8 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
+        $this->authorize('delete', $product);
+
         $product->delete();
 
         return response(

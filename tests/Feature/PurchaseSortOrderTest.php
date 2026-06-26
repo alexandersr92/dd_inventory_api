@@ -30,6 +30,8 @@ class PurchaseSortOrderTest extends TestCase
         $this->org = Organization::factory()->create(['owner_id' => $this->user->id]);
         $this->user->update(['organization_id' => $this->org->id]);
 
+        $this->setupTenantUser($this->user, $this->org);
+
         $this->store = Store::factory()->create(['organization_id' => $this->org->id]);
         $this->supplier = Supplier::factory()->create(['organization_id' => $this->org->id]);
         $this->inventory = Inventory::factory()->create([

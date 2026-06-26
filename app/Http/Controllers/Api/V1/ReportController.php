@@ -12,11 +12,14 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class ReportController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Get a list of the reports generated.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Report::class);
         $orgId = Auth::user()->organization_id;
         $storeID = $request->query('store_id');
         $per_page = $request->query('per_page', 20);
@@ -39,6 +42,8 @@ class ReportController extends Controller
      */
     public function types()
     {
+        $this->authorize('viewAny', Report::class);
+
         return response()->json([
             'types' => ReportType::cases()
         ]);
@@ -49,6 +54,8 @@ class ReportController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Report::class);
+
         $request->validate([
             'type' => 'required|string',
             'date_from' => 'nullable|date',
@@ -81,6 +88,8 @@ class ReportController extends Controller
      */
     public function download(Report $report)
     {
+        $this->authorize('download', $report);
+
         if ($report->organization_id !== Auth::user()->organization_id) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -97,6 +106,8 @@ class ReportController extends Controller
      */
     public function destroy(Report $report)
     {
+        $this->authorize('delete', $report);
+
         $orgId = Auth::user()->organization_id;
 
         if ($report->organization_id !== $orgId) {

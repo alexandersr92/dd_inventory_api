@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Store extends Model
 {
     use HasFactory;
     use Uuids;
+    use Multitenantable;
 
     protected $fillable = [
         'name',
@@ -61,6 +63,6 @@ class Store extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(User::class, 'user_store')->using(UserStore::class);
     }
 }

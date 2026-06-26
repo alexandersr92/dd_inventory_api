@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Report extends Model
 {
-    use HasFactory, Uuids;
+    use HasFactory, Uuids, Multitenantable;
 
     protected $fillable = [
         'organization_id',

@@ -29,11 +29,14 @@ use Illuminate\Support\Collection;
 
 class InventoryController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Inventory::class);
         $orgId = Auth::user()->organization_id;
 
         $inventories = Inventory::where('organization_id', $orgId)->get();
@@ -55,6 +58,8 @@ class InventoryController extends Controller
      */
     public function store(StoreInventoryRequest $request)
     {
+        $this->authorize('create', Inventory::class);
+
         $orgId = Auth::user()->organization_id;
 
         //create inventory and assign to organization and store
@@ -77,6 +82,8 @@ class InventoryController extends Controller
      */
     public function show(Inventory $inventory, Request $request)
     {
+        $this->authorize('view', $inventory);
+
          $inventory->load('store');
 
         $perPage = $request->query('per_page', 50);
@@ -142,6 +149,7 @@ class InventoryController extends Controller
 
     public function showProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('view', $inventory);
         if ($request->has('barcode')) {
             $barcode = $request->query('barcode');
             $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($barcode) {
@@ -176,6 +184,7 @@ class InventoryController extends Controller
 
     public function addProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('update', $inventory);
         $listOfProducts = explode(',', $request->products);
 
         foreach ($listOfProducts as $product) {
@@ -208,6 +217,7 @@ class InventoryController extends Controller
 
     public function removeProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('update', $inventory);
         $listOfProducts = explode(',', $request->products);
 
         foreach ($listOfProducts as $product) {
@@ -242,6 +252,8 @@ class InventoryController extends Controller
      */
     public function update(UpdateInventoryRequest $request, Inventory $inventory)
     {
+        $this->authorize('update', $inventory);
+
         $inventory->update($request->all());
 
         return response(
@@ -255,6 +267,7 @@ class InventoryController extends Controller
      */
     public function destroy(Inventory $inventory)
     {
+        $this->authorize('delete', $inventory);
 
         //validate if inventory has products
         $inventoryDetails = InventoryDetail::where('inventory_id', $inventory->id)->get();
@@ -272,6 +285,7 @@ class InventoryController extends Controller
 
     public function getProductInventory(Inventory $inventory, Product $product)
     {
+        $this->authorize('view', $inventory);
         $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)
             ->where('product_id', $product->id)
             ->first();
@@ -283,6 +297,7 @@ class InventoryController extends Controller
     }
 
     public function getProductByStore(Store $store, Request $request){
+        $this->authorize('viewAny', Inventory::class);
             
         $search = $request->query('search');
 
@@ -303,6 +318,7 @@ class InventoryController extends Controller
 
     public function exportInventory(Request $request)
     {
+        $this->authorize('viewAny', Inventory::class);
 
         $orgId = Auth::user()->organization_id;
         $inventory = InventoryDetail::where('inventory_id', $request->inventory_id)

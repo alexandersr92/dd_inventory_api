@@ -22,11 +22,14 @@ use App\Exports\InvoiceExport;
 
 class InvoiceController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Invoice::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
         $order = $request->query('order', 'asc');
@@ -131,6 +134,8 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
+        $this->authorize('create', Invoice::class);
+
         $lockKey = 'create_invoice_' . Auth::id() . '_' . md5(json_encode($request->all()));
         $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos para evitar doble envío
 
@@ -304,6 +309,8 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
+        $this->authorize('view', $invoice);
+
         return new InvoiceResource($invoice);
     }
 
@@ -312,6 +319,8 @@ class InvoiceController extends Controller
      */
     public function cancel(Invoice $invoice)
     {
+        $this->authorize('delete', $invoice);
+
         DB::beginTransaction();
         try {
             $this->cancelInternal($invoice);
@@ -352,6 +361,8 @@ class InvoiceController extends Controller
 
     public function replace(StoreInvoiceRequest $request, Invoice $invoice)
     {
+        $this->authorize('create', Invoice::class);
+
         if ($invoice->invoice_status === 'canceled') {
             return response()->json(['message' => 'La factura original ya está anulada.'], 400);
         }
@@ -406,6 +417,7 @@ class InvoiceController extends Controller
     
     public function exportInvoices(Request $request)
     {
+        $this->authorize('viewAny', Invoice::class);
 
         $orgId = Auth::user()->organization_id;
         $invoices = Invoice::where('organization_id', $orgId)

@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Client extends Model
 {
     use Uuids;
     use HasFactory;
+    use Multitenantable;
 
     protected $fillable = [
         'organization_id',

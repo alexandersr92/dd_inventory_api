@@ -17,16 +17,26 @@ use Illuminate\Support\Facades\Storage;
 
 class StoreController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $userLoggedIn = Auth::user()->organization_id;
+        $this->authorize('viewAny', Store::class);
+        $user = Auth::user();
+        $organizationId = $user->organization_id;
 
-        $store = Store::where('organization_id', $userLoggedIn)->get();
+        // If the user has specific assigned stores, restrict to those
+        if ($user->stores()->exists()) {
+            $stores = $user->stores;
+        } else {
+            // Otherwise return all organization stores
+            $stores = Store::where('organization_id', $organizationId)->get();
+        }
 
-        return new StoreCollection($store);
+        return new StoreCollection($stores);
     }
 
 
@@ -35,6 +45,8 @@ class StoreController extends Controller
      */
     public function store(StoreStoreRequest $request)
     {
+        $this->authorize('create', Store::class);
+
         $orgID = Auth::user()->organization_id;
 
         //validate name unique
@@ -90,6 +102,8 @@ class StoreController extends Controller
      */
     public function show(Store $store)
     {
+        $this->authorize('view', $store);
+
         return new StoreResource($store);
     }
 
@@ -98,6 +112,8 @@ class StoreController extends Controller
      */
     public function update(UpdateStoreRequest $request, Store $store)
     {
+        $this->authorize('update', $store);
+
         $orgID = Auth::user()->organization_id;
 
         //validate name unique but exclude the current store
@@ -123,6 +139,8 @@ class StoreController extends Controller
      */
     public function destroy(Store $store)
     {
+        $this->authorize('delete', $store);
+
         $store->delete();
 
         return response(null, Response::HTTP_NO_CONTENT);
@@ -131,6 +149,8 @@ class StoreController extends Controller
 
     public function removeImage( Store $store)
     {
+        $this->authorize('update', $store);
+
         if ($store->print_logo) {
             \Storage::disk('public')->delete($store->print_logo);
         }
@@ -146,6 +166,7 @@ class StoreController extends Controller
         
     public function addImageToStore(Request $request, Store $store)
     {
+        $this->authorize('update', $store);
 
         // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
         if ($request->hasFile('print_logo')) {
@@ -161,7 +182,7 @@ class StoreController extends Controller
 
     public function printLogo(Store $store)
     {
-     
+        $this->authorize('view', $store);
 
         if (!$store || !$store->print_logo) {
             return response()->json(['message' => 'Store or logo not found.'], Response::HTTP_NOT_FOUND);
@@ -182,6 +203,8 @@ class StoreController extends Controller
 
     public function updatePrintJson(Request $request, Store $store)
     {
+        $this->authorize('update', $store);
+
         $store->update($request->all());
 
         return response(

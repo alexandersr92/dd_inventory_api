@@ -34,6 +34,35 @@ class LoginController extends Controller
 
 
 
+        $user->load(['roles.permissions', 'organization.modules', 'stores']);
+
+        $orgData = null;
+        if ($user->organization) {
+            $orgData = [
+                'id' => $user->organization->id,
+                'name' => $user->organization->name,
+                'modules' => $user->organization->modules->map(function($module) {
+                    return [
+                        'slug' => $module->slug,
+                        'status' => $module->pivot->status ?? 'active',
+                    ];
+                }),
+            ];
+        }
+
+        $rolesData = $user->roles->map(function($role) {
+            return [
+                'uuid' => $role->uuid,
+                'name' => $role->name,
+                'permissions' => $role->permissions->map(function($perm) {
+                    return [
+                        'name' => $perm->name,
+                        'display_name' => $perm->display_name ?? $perm->name,
+                    ];
+                }),
+            ];
+        });
+
         return response()->json([
             'attributes' => [
                 'id' => $user->id,
@@ -42,7 +71,8 @@ class LoginController extends Controller
                 'device_name' => $request->device_name,
                 'role' => $user->role_id,
                 'seller_id' => $user->seller_id,
-
+                'roles' => $rolesData,
+                'organization' => $orgData
             ],
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK); //200
@@ -114,12 +144,43 @@ class LoginController extends Controller
     {
         $user = Auth::user();
 
-        if (Auth::guard('sanctum')->check()) {
+        if (Auth::guard('sanctum')->check() && $user) {
+            $user->load(['roles.permissions', 'organization.modules', 'stores']);
+
+            $orgData = null;
+            if ($user->organization) {
+                $orgData = [
+                    'id' => $user->organization->id,
+                    'name' => $user->organization->name,
+                    'modules' => $user->organization->modules->map(function($module) {
+                        return [
+                            'slug' => $module->slug,
+                            'status' => $module->pivot->status ?? 'active',
+                        ];
+                    }),
+                ];
+            }
+
+            $rolesData = $user->roles->map(function($role) {
+                return [
+                    'uuid' => $role->uuid,
+                    'name' => $role->name,
+                    'permissions' => $role->permissions->map(function($perm) {
+                        return [
+                            'name' => $perm->name,
+                            'display_name' => $perm->display_name ?? $perm->name,
+                        ];
+                    }),
+                ];
+            });
+
             return response()->json(['valid' => true, 'message' => 'Token is valid.', 'user' => [
                 'id' => $user->id,
                 'email' => $user->email,
                 'organization_id' => $user->organization_id,
-                'seller_id' => $user->seller_id
+                'seller_id' => $user->seller_id,
+                'roles' => $rolesData,
+                'organization' => $orgData
             ]], 200);
         } else {
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);

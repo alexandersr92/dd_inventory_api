@@ -13,11 +13,14 @@ use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 class CreditController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request) 
     {
+        $this->authorize('viewAny', Credit::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
         $credits = Credit::where('organization_id', $orgId)->paginate($per_page);
@@ -26,6 +29,8 @@ class CreditController extends Controller
 
     public function indexByClient(Request $request)
     {
+        $this->authorize('viewAny', Credit::class);
+
         $orgId = Auth::user()->organization_id;
         $sort = $request->query('sort_by', 'created_at');
         $storeId = $request->query('store_id');
@@ -85,6 +90,8 @@ class CreditController extends Controller
 
     public function indexByClientID($client_id)
     {
+        $this->authorize('viewAny', Credit::class);
+
         $orgId = Auth::user()->organization_id;
         $show = request()->query('show', 'all');
         $per_page = request()->query('per_page', 20);
@@ -117,6 +124,8 @@ class CreditController extends Controller
      */
     public function show(Credit $credit)
     {
+        $this->authorize('view', $credit);
+
         return new CreditResource($credit);
     }
 
@@ -125,6 +134,8 @@ class CreditController extends Controller
      */
     public function payment(Request $request)
     {
+        $this->authorize('payment', Credit::class);
+
         $orgID = Auth::user()->organization_id;
         $creditsIds = is_array($request->credits_id) ? $request->credits_id : json_decode($request->credits_id);
 

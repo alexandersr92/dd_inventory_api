@@ -23,11 +23,14 @@ use App\Http\Resources\PurchaseCollection;
 
 class PurchasesController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Purchases::class);
         $orgId = Auth::user()->organization_id;
         $storeId = $request->query('store_id');
         
@@ -66,6 +69,7 @@ class PurchasesController extends Controller
      */
     public function store(StorePurchaseRequest $request)
     {
+        $this->authorize('create', Purchases::class);
         //
 
         $orgId = Auth::user()->organization_id;
@@ -170,6 +174,7 @@ class PurchasesController extends Controller
      */
     public function show(Purchases $purchase)
     {
+        $this->authorize('view', $purchase);
         return response(
             new PurchaseResource($purchase),
             Response::HTTP_OK
@@ -181,6 +186,7 @@ class PurchasesController extends Controller
      */
     public function update(Request $request, Purchases $purchase)
     {
+        $this->authorize('update', $purchase);
         $orgId = Auth::user()->organization_id;
         //obtener la compra actual 
         $inventoryID = $purchase->inventory_id;
@@ -277,6 +283,7 @@ class PurchasesController extends Controller
      */
     public function destroy(Purchases $purchase)
     {
+        $this->authorize('delete', $purchase);
         $purchaseID = $purchase->id;
         //find purchase
         $purchase = Purchases::find($purchaseID);
@@ -300,6 +307,7 @@ class PurchasesController extends Controller
     
     public function upload(Request $request)
     {
+        $this->authorize('create', Purchases::class);
      
         $request->validate([
             'file' => 'required|file|mimes:xlsx',

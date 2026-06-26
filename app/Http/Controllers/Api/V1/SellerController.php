@@ -17,11 +17,14 @@ use App\Http\Resources\SellerCollection;
 
 class SellerController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Listado con filtros por status y store(s).
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Seller::class);
         $orgId = Auth::user()->organization_id;
 
         $query = Seller::with(['stores' => function ($q) {
@@ -52,6 +55,8 @@ class SellerController extends Controller
      */
     public function store(StoreSellerRequest $request)
     {
+        $this->authorize('create', Seller::class);
+
         $orgId     = Auth::user()->organization_id;
         $validated = $request->validated();
 
@@ -99,6 +104,8 @@ class SellerController extends Controller
      */
     public function show(Seller $seller)
     {
+        $this->authorize('view', $seller);
+
         // Asegurar que pertenece a la org del usuario
         $this->authorizeSeller($seller);
 
@@ -112,6 +119,8 @@ class SellerController extends Controller
      */
     public function update(UpdateSellerRequest $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
+
         $this->authorizeSeller($seller);
 
         $orgId     = Auth::user()->organization_id;
@@ -168,6 +177,8 @@ class SellerController extends Controller
      */
     public function destroy(Seller $seller)
     {
+        $this->authorize('delete', $seller);
+
         $this->authorizeSeller($seller);
 
         $seller->delete();
@@ -184,6 +195,7 @@ class SellerController extends Controller
      */
     public function assignStores(Request $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
         $this->authorizeSeller($seller);
 
         $validated = $request->validate([
@@ -221,6 +233,7 @@ class SellerController extends Controller
 
     public function removeStores(Request $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
         $this->authorizeSeller($seller);
 
         $validated = $request->validate([
@@ -235,6 +248,8 @@ class SellerController extends Controller
 
         public function sellerLogin(Request $request)
     {
+        $this->authorize('viewAny', Seller::class);
+
         $orgId = Auth::user()->organization_id;
 
         $data = $request->validate([
@@ -288,6 +303,8 @@ class SellerController extends Controller
     }
     public function generateOwnerSeller(Request $request)
     {
+        $this->authorize('create', Seller::class);
+
         $user = Auth::user();
         $orgId = $user->organization_id;
 

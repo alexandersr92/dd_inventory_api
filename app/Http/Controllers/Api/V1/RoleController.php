@@ -17,21 +17,27 @@ use Illuminate\Support\Facades\Auth;
 
 class RoleController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
     public function index()
     {
+        $this->authorize('viewAny', Role::class);
         $orgId = Auth::user()->organization_id;
         return new RoleCollection(Role::where('organization_id', $orgId)->get());
     }
 
     public function premmisionIndex()
     {
+        $this->authorize('viewAny', Role::class);
+
         $permissions = Permission::all();
         return response()->json($permissions, Response::HTTP_OK);
     }
 
     public function show(Role $role)
     {
+        $this->authorize('view', $role);
+
         $orgId = Auth::user()->organization_id;
         if ($role->organization_id != $orgId) {
             return response()->json(['message' => 'Role not found'], Response::HTTP_NOT_FOUND);
@@ -42,6 +48,8 @@ class RoleController extends Controller
 
     public function store(StoreRoleRequest $request)
     {
+        $this->authorize('create', Role::class);
+
         //validate unique name
 
         if (Role::where('name', $request->name)->where('organization_id', Auth::user()->organization_id)->exists()) {
@@ -62,6 +70,8 @@ class RoleController extends Controller
 
     public function update(UpdateRoleRequest $request, Role $role)
     {
+        $this->authorize('update', $role);
+
         if ($role->organization_id != Auth::user()->organization_id) {
             return response()->json(['message' => 'Role not found'], Response::HTTP_NOT_FOUND);
         }
@@ -76,6 +86,8 @@ class RoleController extends Controller
 
     public function destroy(Role $role)
     {
+        $this->authorize('delete', $role);
+
         $role->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
     }

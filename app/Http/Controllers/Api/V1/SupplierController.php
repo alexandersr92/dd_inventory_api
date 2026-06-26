@@ -20,11 +20,14 @@ use Illuminate\Support\Facades\Auth;
 
 class SupplierController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Supplier::class);
         $perPage = $request->query('per_page', 20);
         //get organization id from the authenticated user and get all clients for that organization
         $userLoggedIn = Auth::user()->organization_id;
@@ -67,6 +70,8 @@ class SupplierController extends Controller
      */
     public function store(StoreSupplierRequest $request)
     {
+        $this->authorize('create', Supplier::class);
+
         $orgId = Auth::user()->organization_id;
 
         $request->merge(['organization_id' => $orgId]);
@@ -93,6 +98,8 @@ class SupplierController extends Controller
      */
     public function show(Supplier $supplier)
     {
+        $this->authorize('view', $supplier);
+
         $userLoggedIn = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $userLoggedIn) {
@@ -112,6 +119,8 @@ class SupplierController extends Controller
      */
     public function update(UpdateSupplierRequest $request, Supplier $supplier)
     {
+        $this->authorize('update', $supplier);
+
         $userLoggedIn = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $userLoggedIn) {
@@ -131,6 +140,8 @@ class SupplierController extends Controller
      */
     public function destroy(Supplier $supplier)
     {
+        $this->authorize('delete', $supplier);
+
         $authUser = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $authUser) {
@@ -155,6 +166,8 @@ class SupplierController extends Controller
     //get all contact
     public function contactIndex(Supplier $supplier)
     {
+        $this->authorize('view', $supplier);
+
         $userLoggedIn = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $userLoggedIn) {
@@ -173,6 +186,8 @@ class SupplierController extends Controller
     public function contactStore(StoreSupplierContactRequest $contact, Supplier $supplier)
 
     {
+        $this->authorize('update', $supplier);
+
         $userLoggedIn = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $userLoggedIn) {
@@ -193,6 +208,8 @@ class SupplierController extends Controller
     //update contact
     public function contactUpdate(UpdateSupplierContactRequest $contactRequest, Supplier $supplier, SupplierContact $contact)
     {
+        $this->authorize('update', $supplier);
+
         $userLoggedIn = Auth::user()->organization_id;
 
         if ($supplier->organization_id != $userLoggedIn) {
@@ -211,6 +228,7 @@ class SupplierController extends Controller
     //delete contact
     public function contactDestroy(Supplier $supplier, SupplierContact $contact)
     {
+        $this->authorize('update', $supplier);
 
         $userLoggedIn = Auth::user()->organization_id;
 

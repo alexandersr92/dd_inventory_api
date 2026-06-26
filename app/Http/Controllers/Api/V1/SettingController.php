@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\Auth;
 
 class SettingController extends Controller
 {
-       protected SettingService $settings;
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
+    protected SettingService $settings;
 
     public function __construct(SettingService $settings)
     {
@@ -21,6 +23,8 @@ class SettingController extends Controller
     }
 public function index(Request $request)
 {
+    $this->authorize('viewAny', Setting::class);
+
     $orgId = Auth::user()->organization_id;
 
     $type      = $request->type;
@@ -46,6 +50,8 @@ public function index(Request $request)
 
     public function store(StoreSettingRequest $request)
     {
+        $this->authorize('create', Setting::class);
+
         $orgId = auth()->user()->organization_id;
         $data = $request->validated();
 
@@ -75,6 +81,8 @@ public function index(Request $request)
     }
     public function update(UpdateSettingRequest $request, Setting $setting)
     {
+        $this->authorize('update', $setting);
+
         $this->authorizeAccess($setting);
 
         $validated = $request->validated();
@@ -98,6 +106,8 @@ public function index(Request $request)
 
     public function destroy(Setting $setting)
     {
+        $this->authorize('delete', $setting);
+
         $this->authorizeAccess($setting);
         $setting->delete();
 

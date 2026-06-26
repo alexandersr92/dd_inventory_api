@@ -10,6 +10,8 @@ class Organization extends Model
 {
     use Uuids, HasFactory;
 
+    protected $connection = 'central';
+
     protected $fillable = [
         'name',
         'email',
@@ -28,7 +30,9 @@ class Organization extends Model
 
     public function modules()
     {
-        return $this->belongsToMany(Module::class);
+        return $this->belongsToMany(Module::class, 'organization_modules')
+            ->using(OrganizationModule::class)
+            ->withPivot('status');
     }
 
     public function roles()
