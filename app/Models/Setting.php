@@ -14,8 +14,13 @@ class Setting extends Model
 
     protected $fillable = ['organization_id', 'type', 'entity_id', 'key', 'value', 'options'];
 
+    protected $casts = [
+        'options' => 'array',
+    ];
+
     public function organization()
     {
         return $this->belongsTo(Organization::class);
     }
 }
+

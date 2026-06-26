@@ -35,5 +35,14 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Gate::policy(\App\Models\User::class, \App\Policies\UserPolicy::class);
         \Illuminate\Support\Facades\Gate::policy(\App\Models\Client::class, \App\Policies\ClientPolicy::class);
         \Illuminate\Support\Facades\Gate::policy(\App\Models\Credit::class, \App\Policies\CreditPolicy::class);
+
+
+        // Registro del dispatcher dinámico de notificaciones para los eventos del sistema
+        \Illuminate\Support\Facades\Event::listen([
+            \App\Events\ClientRegistered::class,
+            \App\Events\BoxClosed::class,
+            \App\Events\UserCreated::class,
+        ], \App\Listeners\NotificationDispatcher::class);
     }
 }
+

@@ -73,7 +73,12 @@ Route::prefix('v1')->group(function () {
             Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactDestroy']);
 
             Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
+            
+            // Notification Settings
+            Route::get('notifications/settings', [\App\Http\Controllers\Api\V1\TenantNotificationSettingsController::class, 'index']);
+            Route::put('notifications/settings/{key}', [\App\Http\Controllers\Api\V1\TenantNotificationSettingsController::class, 'update']);
         });
+
 
         // Module: products
         Route::middleware('module:products')->group(function () {

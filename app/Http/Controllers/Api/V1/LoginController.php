@@ -36,6 +36,12 @@ class LoginController extends Controller
 
         $user->load(['roles.permissions', 'organization.modules', 'stores']);
 
+        if ($user->organization && $user->organization->status !== 'active') {
+            return response([
+                'message' => 'La organización de este usuario está inactiva o suspendida.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         $orgData = null;
         if ($user->organization) {
             $orgData = [
@@ -146,6 +152,10 @@ class LoginController extends Controller
 
         if (Auth::guard('sanctum')->check() && $user) {
             $user->load(['roles.permissions', 'organization.modules', 'stores']);
+
+            if ($user->organization && $user->organization->status !== 'active') {
+                return response()->json(['valid' => false, 'message' => 'La organización está inactiva.'], 401);
+            }
 
             $orgData = null;
             if ($user->organization) {

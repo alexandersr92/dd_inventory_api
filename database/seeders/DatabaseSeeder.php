@@ -223,5 +223,8 @@ class DatabaseSeeder extends Seeder
                 }
             }
         }
+
+        $this->call(NotificationEventsSeeder::class);
     }
 }
+

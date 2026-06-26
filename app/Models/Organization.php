@@ -54,4 +54,19 @@ class Organization extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function credits()
+    {
+        return $this->hasMany(Credit::class);
+    }
+
+    public function sellers()
+    {
+        return $this->hasMany(Seller::class);
+    }
 }

@@ -23,6 +23,12 @@ class TenantDatabaseSwitcher
             $organization = $user->organization;
 
             if ($organization) {
+                if ($organization->status !== 'active') {
+                    return response()->json([
+                        'message' => 'La organización está inactiva o suspendida.'
+                    ], Response::HTTP_FORBIDDEN);
+                }
+
                 TenantManager::setTenant($organization);
 
                 if ($organization->tenancy_type === 'dedicated' && $organization->db_database) {
