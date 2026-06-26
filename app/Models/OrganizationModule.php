@@ -9,5 +9,6 @@ class OrganizationModule extends Pivot
 {
     use Uuids;
 
+    protected $connection = 'central';
     protected $table = 'organization_modules';
 }
