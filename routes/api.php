@@ -36,6 +36,19 @@ Route::prefix('v1')->group(function () {
         }
     );
 
+    Route::get('/debug-permissions', function () {
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        $permissions = \App\Models\Permission::all();
+        $roles = \App\Models\Role::all();
+        return response()->json([
+            'cache_cleared' => true,
+            'permissions_count' => $permissions->count(),
+            'permissions' => $permissions->pluck('name'),
+            'roles_count' => $roles->count(),
+            'roles' => $roles->map(fn($r) => ['name' => $r->name, 'org' => $r->organization_id]),
+        ]);
+    });
+
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::middleware(['auth:sanctum', 'tenant.switch'])->group(function () {
