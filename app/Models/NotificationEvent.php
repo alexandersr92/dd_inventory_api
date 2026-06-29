@@ -21,9 +21,11 @@ class NotificationEvent extends Model
         'name',
         'description',
         'default_channels',
+        'conditions_schema',
     ];
 
     protected $casts = [
         'default_channels' => 'array',
+        'conditions_schema' => 'array',
     ];
 }

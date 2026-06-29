@@ -48,6 +48,8 @@ class AppServiceProvider extends ServiceProvider
             \App\Events\ClientRegistered::class,
             \App\Events\BoxClosed::class,
             \App\Events\UserCreated::class,
+            \App\Events\InvoiceCreated::class,
+            \App\Events\CreditCreated::class,
         ], \App\Listeners\NotificationDispatcher::class);
     }
 }

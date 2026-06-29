@@ -50,6 +50,69 @@ class NotificationDispatcher
                 return;
             }
 
+            // Si existen reglas dinámicas personalizadas
+            if ($setting && is_array($setting->options) && !empty($setting->options['rules'])) {
+                $rules = $setting->options['rules'];
+
+                foreach ($rules as $rule) {
+                    $conditions = $rule['conditions'] ?? [];
+                    
+                    // Si hay condiciones, evaluarlas. Todas deben cumplirse (AND)
+                    $isMatch = true;
+                    foreach ($conditions as $condition) {
+                        if (!$this->evaluateCondition($condition, $data)) {
+                            $isMatch = false;
+                            break;
+                        }
+                    }
+
+                    if ($isMatch) {
+                        $ruleChannels = $rule['channels'] ?? $defaultChannels;
+                        $ruleRecipients = $rule['recipients'] ?? [];
+                        
+                        $ruleUsers = collect();
+                        $ruleEmails = collect();
+
+                        if (!empty($ruleRecipients['user_ids'])) {
+                            $ruleUsers = User::whereIn('id', $ruleRecipients['user_ids'])->get();
+                        }
+                        if (!empty($ruleRecipients['emails'])) {
+                            $ruleEmails = collect($ruleRecipients['emails']);
+                        }
+
+                        // Si no hay destinatarios específicos en la regla, usar los del evento por defecto
+                        if ($ruleUsers->isEmpty() && $ruleEmails->isEmpty()) {
+                            $defaultNotifiables = collect($meta['notifiables'] ?? []);
+                            foreach ($defaultNotifiables as $notifiable) {
+                                if ($notifiable instanceof User) {
+                                    $ruleUsers->push($notifiable);
+                                } elseif (is_string($notifiable) && filter_var($notifiable, FILTER_VALIDATE_EMAIL)) {
+                                    $ruleEmails->push($notifiable);
+                                }
+                            }
+                        }
+
+                        // Despachar para esta regla
+                        if ($ruleUsers->isNotEmpty()) {
+                            Notification::send(
+                                $ruleUsers,
+                                new DynamicSystemNotification($eventKey, $data, $organizationId, $ruleChannels)
+                            );
+                        }
+                        if ($ruleEmails->isNotEmpty()) {
+                            foreach ($ruleEmails as $email) {
+                                Notification::route('mail', $email)->notify(
+                                    new DynamicSystemNotification($eventKey, $data, $organizationId, $ruleChannels)
+                                );
+                            }
+                        }
+                    }
+                }
+
+                // Salir ya que procesamos las notificaciones mediante reglas
+                return;
+            }
+
             if ($setting && is_array($setting->options)) {
                 $options = $setting->options;
                 
@@ -116,5 +179,30 @@ class NotificationDispatcher
                 );
             }
         }
+    }
+
+    /**
+     * Evaluar una condición individual de una regla contra la data del evento.
+     */
+    private function evaluateCondition(array $condition, array $data): bool
+    {
+        $field = $condition['field'] ?? null;
+        $operator = $condition['operator'] ?? '=';
+        $expected = $condition['value'] ?? null;
+        $actual = $data[$field] ?? null;
+
+        if ($actual === null) {
+            return false;
+        }
+
+        return match ($operator) {
+            '=' => $actual == $expected,
+            '!=' => $actual != $expected,
+            '>' => (float)$actual > (float)$expected,
+            '>=' => (float)$actual >= (float)$expected,
+            '<' => (float)$actual < (float)$expected,
+            '<=' => (float)$actual <= (float)$expected,
+            default => false,
+        };
     }
 }

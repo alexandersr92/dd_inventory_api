@@ -79,6 +79,26 @@ class NotificationEventsSeeder extends Seeder
                 'description' => 'Notificación enviada cuando un cajero realiza el cierre de una caja registradora.',
                 'default_channels' => json_encode(['mail']),
             ],
+            [
+                'id' => 'tenant.invoice_created',
+                'scope' => 'tenant',
+                'name' => 'Factura Creada',
+                'description' => 'Configura reglas para recibir notificaciones al crear facturas (por monto, método de pago, etc.).',
+                'default_channels' => json_encode(['mail']),
+                'conditions_schema' => json_encode([
+                    ['field' => 'grand_total', 'label' => 'Monto Total', 'type' => 'number'],
+                    ['field' => 'payment_method', 'label' => 'Método de Pago', 'type' => 'text'],
+                    ['field' => 'client_name', 'label' => 'Nombre del Cliente', 'type' => 'text'],
+                    ['field' => 'invoice_type', 'label' => 'Tipo de Venta', 'type' => 'select', 'options' => ['cash', 'credit']],
+                ]),
+            ],
+            [
+                'id' => 'tenant.credit_created',
+                'scope' => 'tenant',
+                'name' => 'Crédito Registrado',
+                'description' => 'Enviado cada vez que se registra una nueva venta a crédito.',
+                'default_channels' => json_encode(['mail']),
+            ],
         ];
 
         foreach ($events as $event) {
@@ -89,6 +109,7 @@ class NotificationEventsSeeder extends Seeder
                     'name' => $event['name'],
                     'description' => $event['description'],
                     'default_channels' => $event['default_channels'],
+                    'conditions_schema' => $event['conditions_schema'] ?? null,
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]

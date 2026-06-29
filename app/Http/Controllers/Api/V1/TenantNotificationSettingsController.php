@@ -47,7 +47,11 @@ class TenantNotificationSettingsController extends Controller
                     : [
                         'user_ids' => [],
                         'emails' => []
-                    ]
+                    ],
+                'rules' => ($saved && isset($saved->options['rules']))
+                    ? $saved->options['rules']
+                    : [],
+                'conditions_schema' => $event->conditions_schema
             ];
         });
 
@@ -84,16 +88,39 @@ class TenantNotificationSettingsController extends Controller
         // 2. Validar Request
         $request->validate([
             'value' => 'required|in:enabled,disabled',
-            'channels' => 'required|array',
+            'channels' => 'required_without:rules|array',
             'channels.*' => 'required|string|in:mail,database',
-            'recipients' => 'nullable|array',
+            'recipients' => 'required_without:rules|array',
             'recipients.user_ids' => 'nullable|array',
             'recipients.user_ids.*' => 'required|string',
             'recipients.emails' => 'nullable|array',
             'recipients.emails.*' => 'required|email',
+            'rules' => 'nullable|array',
+            'rules.*.id' => 'required|string',
+            'rules.*.name' => 'required|string',
+            'rules.*.channels' => 'required|array',
+            'rules.*.channels.*' => 'required|string|in:mail,database',
+            'rules.*.conditions' => 'required|array',
+            'rules.*.conditions.*.field' => 'required|string',
+            'rules.*.conditions.*.operator' => 'required|string|in:=,!=,>,>=,<,<=',
+            'rules.*.conditions.*.value' => 'required',
+            'rules.*.recipients' => 'required|array',
+            'rules.*.recipients.user_ids' => 'nullable|array',
+            'rules.*.recipients.emails' => 'nullable|array',
+            'rules.*.recipients.emails.*' => 'required|email',
         ]);
 
         $userIds = $request->input('recipients.user_ids', []);
+
+        // Recolectar todos los user_ids definidos en las reglas para validar que pertenecen al tenant
+        $rules = $request->input('rules', []);
+        foreach ($rules as $rule) {
+            $ruleUserIds = $rule['recipients']['user_ids'] ?? [];
+            if (!empty($ruleUserIds)) {
+                $userIds = array_merge($userIds, $ruleUserIds);
+            }
+        }
+        $userIds = array_unique($userIds);
 
         // 3. Validar que los user_ids pertenezcan a la misma organización del tenant para seguridad
         if (!empty($userIds)) {
@@ -109,6 +136,18 @@ class TenantNotificationSettingsController extends Controller
         }
 
         // 4. Guardar o Actualizar el setting de preferencia
+        $options = [
+            'channels' => $request->input('channels', $event->default_channels),
+            'recipients' => [
+                'user_ids' => $request->input('recipients.user_ids', []),
+                'emails' => $request->input('recipients.emails', [])
+            ]
+        ];
+
+        if ($request->has('rules')) {
+            $options['rules'] = $request->input('rules');
+        }
+
         $setting = Setting::updateOrCreate(
             [
                 'organization_id' => $orgId,
@@ -117,13 +156,7 @@ class TenantNotificationSettingsController extends Controller
             ],
             [
                 'value' => $request->value,
-                'options' => [
-                    'channels' => $request->channels,
-                    'recipients' => [
-                        'user_ids' => $userIds,
-                        'emails' => $request->input('recipients.emails', [])
-                    ]
-                ]
+                'options' => $options
             ]
         );
 

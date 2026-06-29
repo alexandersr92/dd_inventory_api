@@ -223,4 +223,182 @@ class NotificationSystemTest extends TestCase
         // No se debió enviar nada
         Notification::assertNothingSent();
     }
+
+    /**
+     * Test que valida la actualización de las preferencias de notificación de un Tenant con reglas dinámicas.
+     */
+    public function test_update_notification_settings_with_rules(): void
+    {
+        $owner = User::factory()->create();
+        $org = Organization::factory()->create([
+            'tenancy_type' => 'shared',
+            'owner_id' => $owner->id
+        ]);
+        $owner->update(['organization_id' => $org->id]);
+        $this->setupTenantUser($owner, $org);
+
+        $recipientUser = User::factory()->create(['organization_id' => $org->id]);
+
+        Sanctum::actingAs($owner);
+
+        // Guardar configuración personalizada con reglas condicionales
+        $response = $this->putJson('/api/v1/notifications/settings/tenant.invoice_created', [
+            'value' => 'enabled',
+            'rules' => [
+                [
+                    'id' => 'rule-1',
+                    'name' => 'Ventas mayores a 500',
+                    'channels' => ['mail'],
+                    'conditions' => [
+                        ['field' => 'grand_total', 'operator' => '>=', 'value' => 500]
+                    ],
+                    'recipients' => [
+                        'user_ids' => [$recipientUser->id],
+                        'emails' => ['supervisor@externo.com']
+                    ]
+                ]
+            ]
+        ]);
+
+        $response->assertStatus(200);
+
+        // Verificar persistencia en base de datos
+        $this->assertDatabaseHas('settings', [
+            'organization_id' => $org->id,
+            'type' => 'notification_preference',
+            'key' => 'tenant.invoice_created',
+            'value' => 'enabled'
+        ]);
+
+        $setting = Setting::where('organization_id', $org->id)
+            ->where('key', 'tenant.invoice_created')
+            ->first();
+            
+        $this->assertNotEmpty($setting->options['rules']);
+        $this->assertEquals('rule-1', $setting->options['rules'][0]['id']);
+    }
+
+    /**
+     * Test de integración del Dispatcher para reglas dinámicas en facturas.
+     */
+    public function test_invoice_notification_rules_evaluation(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->create();
+        $org = Organization::factory()->create([
+            'tenancy_type' => 'shared',
+            'owner_id' => $owner->id
+        ]);
+        $owner->update(['organization_id' => $org->id]);
+        $this->setupTenantUser($owner, $org);
+
+        $recipientUser = User::factory()->create(['organization_id' => $org->id]);
+
+        // Simular que el cliente configuró una regla: grand_total >= 500
+        Setting::create([
+            'organization_id' => $org->id,
+            'type' => 'notification_preference',
+            'key' => 'tenant.invoice_created',
+            'value' => 'enabled',
+            'options' => [
+                'rules' => [
+                    [
+                        'id' => 'rule-large-sales',
+                        'name' => 'Ventas Grandes',
+                        'channels' => ['mail'],
+                        'conditions' => [
+                            ['field' => 'grand_total', 'operator' => '>=', 'value' => 500]
+                        ],
+                        'recipients' => [
+                            'user_ids' => [$recipientUser->id],
+                            'emails' => ['alerta@empresa.com']
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+
+        // 1. Disparar factura que NO cumple la condición (total: 300)
+        $invoiceSmall = \App\Models\Invoice::factory()->create([
+            'organization_id' => $org->id,
+            'grand_total' => 300
+        ]);
+        event(new \App\Events\InvoiceCreated($invoiceSmall));
+        Notification::assertNothingSent();
+
+        // 2. Disparar factura que SI cumple la condición (total: 600)
+        $invoiceLarge = \App\Models\Invoice::factory()->create([
+            'organization_id' => $org->id,
+            'grand_total' => 600
+        ]);
+        event(new \App\Events\InvoiceCreated($invoiceLarge));
+
+        // Se debió enviar al usuario de la regla
+        Notification::assertSentTo(
+            $recipientUser,
+            DynamicSystemNotification::class,
+            function ($notification) {
+                return $notification->eventKey === 'tenant.invoice_created' &&
+                       $notification->data['grand_total'] == 600;
+            }
+        );
+
+        // Se debió enviar al correo de la regla
+        Notification::assertSentOnDemand(
+            DynamicSystemNotification::class,
+            function ($notification, $channels, $notifiable) {
+                return $notifiable->routes['mail'] === 'alerta@empresa.com' &&
+                       $notification->eventKey === 'tenant.invoice_created';
+            }
+        );
+    }
+
+    /**
+     * Test de integración para evento de Crédito Registrado.
+     */
+    public function test_credit_notification_dispatches_correctly(): void
+    {
+        Notification::fake();
+
+        $owner = User::factory()->create();
+        $org = Organization::factory()->create([
+            'tenancy_type' => 'shared',
+            'owner_id' => $owner->id
+        ]);
+        $owner->update(['organization_id' => $org->id]);
+        $this->setupTenantUser($owner, $org);
+
+        // Simular que el cliente configuró recibir notificaciones de crédito
+        Setting::create([
+            'organization_id' => $org->id,
+            'type' => 'notification_preference',
+            'key' => 'tenant.credit_created',
+            'value' => 'enabled',
+            'options' => [
+                'channels' => ['mail'],
+                'recipients' => [
+                    'user_ids' => [$owner->id],
+                    'emails' => []
+                ]
+            ]
+        ]);
+
+        $credit = \App\Models\Credit::factory()->create([
+            'organization_id' => $org->id,
+            'total' => 450,
+            'debt' => 450
+        ]);
+
+        event(new \App\Events\CreditCreated($credit));
+
+        Notification::assertSentTo(
+            $owner,
+            DynamicSystemNotification::class,
+            function ($notification) {
+                return $notification->eventKey === 'tenant.credit_created' &&
+                       $notification->data['total'] == 450;
+            }
+        );
+    }
 }

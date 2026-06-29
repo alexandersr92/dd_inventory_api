@@ -66,11 +66,56 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
         $template = EmailTemplate::where('key', $this->eventKey)->first();
         if (!$template) {
             $subject = 'Notificación: ' . ucwords(str_replace(['.', '_'], ' ', $this->eventKey));
+            
+            // Traducción del asunto por defecto
+            if ($this->eventKey === 'tenant.invoice_created') {
+                $subject = 'Nueva Factura Registrada';
+            } elseif ($this->eventKey === 'tenant.credit_created') {
+                $subject = 'Nuevo Crédito Registrado';
+            }
+
             $body = '<p>Se ha generado una notificación del sistema.</p>';
             if (!empty($this->data)) {
                 $body .= '<p><strong>Detalles:</strong></p><ul>';
+                
+                $translations = [
+                    'invoice_number' => 'Número de Factura',
+                    'client_name' => 'Cliente',
+                    'grand_total' => 'Total Facturado',
+                    'payment_method' => 'Método de Pago',
+                    'invoice_type' => 'Tipo de Venta',
+                    'store_name' => 'Sucursal / Tienda',
+                    'invoice_date' => 'Fecha de Emisión',
+                    'total_items' => 'Artículos Totales',
+                    'discount' => 'Descuento',
+                    'tax' => 'Impuesto (IVA)',
+                    'total' => 'Total Neto',
+                    'debt' => 'Saldo Pendiente',
+                    'created_at' => 'Fecha de Creación',
+                ];
+
+                $valueTranslations = [
+                    'cash' => 'Efectivo',
+                    'credit' => 'Crédito',
+                    'transfer' => 'Transferencia Bancaria',
+                    'credit_card' => 'Tarjeta de Crédito',
+                    'bacs' => 'Transferencia',
+                ];
+
                 foreach ($this->data as $key => $val) {
-                    $body .= '<li><strong>' . e($key) . ':</strong> ' . e((string)$val) . '</li>';
+                    $label = $translations[$key] ?? ucwords(str_replace('_', ' ', $key));
+                    
+                    // Traducir valores específicos si son de tipo string
+                    $displayVal = (is_string($val) && isset($valueTranslations[strtolower($val)]))
+                        ? $valueTranslations[strtolower($val)]
+                        : $val;
+
+                    // Formatear montos numéricos de dinero
+                    if (in_array($key, ['grand_total', 'total', 'debt', 'tax', 'discount']) && is_numeric($displayVal)) {
+                        $displayVal = '$' . number_format((float)$displayVal, 2);
+                    }
+
+                    $body .= '<li><strong>' . e($label) . ':</strong> ' . e((string)$displayVal) . '</li>';
                 }
                 $body .= '</ul>';
             }

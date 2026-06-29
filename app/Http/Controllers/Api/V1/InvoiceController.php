@@ -152,6 +152,15 @@ class InvoiceController extends Controller
                 return $result;
             }
             DB::commit();
+
+            // Disparar eventos de notificación después del commit exitoso
+            $invoice = $result->resource;
+            event(new \App\Events\InvoiceCreated($invoice));
+
+            if ($invoice->credit) {
+                event(new \App\Events\CreditCreated($invoice->credit));
+            }
+
             return $result;
         } catch (\Throwable $e) {
             DB::rollBack();
