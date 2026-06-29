@@ -189,8 +189,6 @@ class ProductController extends Controller
     {
         $this->authorize('update', $product);
 
-        $data = $request->all();
-
         $orgId = Auth::user()->organization_id;
 
         $request->validate([
@@ -198,9 +196,47 @@ class ProductController extends Controller
             'barcode' => 'unique:products,barcode,' . $product->id . ',id,organization_id,' . $orgId,
         ]);
 
+        $oldPrice = $product->price;
+        $data = $request->all();
+
+        // Si se edita para una sucursal, no modificamos el precio base global
+        if ($request->filled('inventory')) {
+            unset($data['price']);
+        }
 
         // Actualizar producto
         $product->update($data);
+
+        // Lógica condicional de actualización de precios en sucursales
+        if ($request->has('price')) {
+            if ($request->filled('inventory')) {
+                // Caso 1: Edición local en una sucursal específica
+                $inventoryDetail = InventoryDetail::where('product_id', $product->id)
+                    ->where('inventory_id', $request->inventory)
+                    ->first();
+
+                if ($inventoryDetail) {
+                    $inventoryDetail->update(['price' => $request->price]);
+                } else {
+                    InventoryDetail::create([
+                        'inventory_id' => $request->inventory,
+                        'product_id' => $product->id,
+                        'quantity' => 0,
+                        'price' => $request->price,
+                    ]);
+                }
+            } else {
+                // Caso 2: Edición global desde catálogo
+                $query = InventoryDetail::where('product_id', $product->id);
+
+                if (!$request->input('update_all_inventories', false)) {
+                    // Opción B (Default): Solo sobreescribir los que tenían el precio base anterior
+                    $query->where('price', $oldPrice);
+                }
+
+                $query->update(['price' => $request->price]);
+            }
+        }
 
 
         if ($request->has('categories')) {
