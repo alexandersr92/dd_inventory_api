@@ -307,7 +307,8 @@ class InventoryController extends Controller
             ->when($search, function ($query, $search) {
                 $query->whereHas('product', function ($q) use ($search) {
                     $q->where('sku', 'like', "%$search%")
-                      ->orWhere('name', 'like', "%$search%");
+                      ->orWhere('name', 'like', "%$search%")
+                      ->orWhere('barcode', 'like', "%$search%");
                 });
             })
             ->with('product') // Carga la relación para evitar N+1

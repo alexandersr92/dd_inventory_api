@@ -31,9 +31,11 @@ class Invoice extends Model
         'payment_date',
         'invoice_status',
         'invoice_type', 
-  
+        'payment_metadata',
+    ];
 
-
+    protected $casts = [
+        'payment_metadata' => 'array',
     ];
 
     public function user()

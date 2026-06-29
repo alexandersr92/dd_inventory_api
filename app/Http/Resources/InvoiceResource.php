@@ -28,6 +28,7 @@ class InvoiceResource extends JsonResource
             'tax' => $this->tax,
             'grand_total' => $this->grand_total,
             'method' => $this->payment_method,
+            'payment_metadata' => $this->payment_metadata,
             'invoice_note' => $this->invoice_note,
             'invoice_type' => $this->invoice_type,
             'seller_id' => $this->seller_id ?? null,

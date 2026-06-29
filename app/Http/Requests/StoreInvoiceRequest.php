@@ -33,6 +33,7 @@ class StoreInvoiceRequest extends FormRequest
             'grand_total' => 'required',
             'payment_method' => 'required',
             'payment_date' => 'required|date',
+            'payment_metadata' => 'nullable|array',
             'products' => 'required',
         ];
     }

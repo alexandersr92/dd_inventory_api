@@ -237,7 +237,8 @@ class InvoiceController extends Controller
                 'tax',
                 'grand_total',
                 'payment_method',
-                'payment_date'
+                'payment_date',
+                'payment_metadata'
             ]);
             $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
             $invoiceData['invoice_number'] = $invoiceNumber;
