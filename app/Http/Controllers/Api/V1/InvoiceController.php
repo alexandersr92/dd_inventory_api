@@ -176,6 +176,38 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
         }
 
+        if ($request->payment_method === 'MULTIPLE') {
+            $metadata = $request->payment_metadata;
+            if (!is_array($metadata) || !isset($metadata['payments']) || !is_array($metadata['payments'])) {
+                return response()->json(['message' => 'Los metadatos de pago múltiple son requeridos y deben ser válidos.'], 400);
+            }
+
+            $totalPayments = 0.0;
+            foreach ($metadata['payments'] as $pay) {
+                if (!isset($pay['amount']) || !is_numeric($pay['amount']) || $pay['amount'] < 0) {
+                    return response()->json(['message' => 'Cada método de pago debe especificar un monto numérico positivo.'], 400);
+                }
+                $totalPayments += (float) $pay['amount'];
+
+                if (($pay['method'] ?? '') === 'TRANSFER') {
+                    if (empty($pay['bank']) || empty($pay['reference'])) {
+                        return response()->json(['message' => 'Los pagos por transferencia deben incluir el banco de origen y la referencia.'], 400);
+                    }
+                }
+
+                if (($pay['method'] ?? '') === 'CARD') {
+                    if (empty($pay['card_last_four']) || empty($pay['reference'])) {
+                        return response()->json(['message' => 'Los pagos con tarjeta deben incluir los últimos 4 dígitos y la referencia.'], 400);
+                    }
+                }
+            }
+
+            $grandTotal = (float) $request->grand_total;
+            if ($totalPayments < $grandTotal - 0.05) {
+                return response()->json(['message' => 'La suma de los métodos de pago (C$ ' . number_format($totalPayments, 2) . ') es menor al total de la factura (C$ ' . number_format($grandTotal, 2) . ').'], 400);
+            }
+        }
+
         $orgId = Auth::user()->organization_id;
             $userID = Auth::id();
             $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
