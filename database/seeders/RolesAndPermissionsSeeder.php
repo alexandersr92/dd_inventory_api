@@ -137,6 +137,10 @@ class RolesAndPermissionsSeeder extends Seeder
             ['name' => 'inventory.store', 'display_name' => 'Crear Inventario', 'guard_name' => 'web'],
             ['name' => 'inventory.update', 'display_name' => 'Editar Inventario', 'guard_name' => 'web'],
             ['name' => 'inventory.delete', 'display_name' => 'Eliminar Inventario', 'guard_name' => 'web'],
+            ['name' => 'inventory.movement', 'display_name' => 'Movimientos de Inventario', 'guard_name' => 'web'],
+            ['name' => 'movement.index', 'display_name' => 'Listar Movimientos', 'guard_name' => 'web'],
+            ['name' => 'movement.store', 'display_name' => 'Crear Movimiento', 'guard_name' => 'web'],
+            ['name' => 'movement.delete', 'display_name' => 'Reversar/Anular Movimiento', 'guard_name' => 'web'],
 
             // Facturas
             ['name' => 'invoice.index', 'display_name' => 'Listar Facturas', 'guard_name' => 'web'],

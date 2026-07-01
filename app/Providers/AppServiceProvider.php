@@ -41,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
         \Illuminate\Support\Facades\Gate::policy(\App\Models\User::class, \App\Policies\UserPolicy::class);
         \Illuminate\Support\Facades\Gate::policy(\App\Models\Client::class, \App\Policies\ClientPolicy::class);
         \Illuminate\Support\Facades\Gate::policy(\App\Models\Credit::class, \App\Policies\CreditPolicy::class);
+        \Illuminate\Support\Facades\Gate::policy(\App\Models\InventoryMovement::class, \App\Policies\InventoryMovementPolicy::class);
 
 
         // Registro del dispatcher dinámico de notificaciones para los eventos del sistema

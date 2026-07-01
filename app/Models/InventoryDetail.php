@@ -31,4 +31,9 @@ class InventoryDetail extends Model
     {
         return $this->belongsTo(Product::class);
     }
+
+    public function movements()
+    {
+        return $this->hasMany(InventoryMovement::class);
+    }
 }

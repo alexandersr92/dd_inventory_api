@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\MovementController;
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
     // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
@@ -97,6 +98,12 @@ Route::prefix('v1')->group(function () {
             Route::post('inventories/{inventory}/addProducts', [InventoryController::class, 'addProducts']);
             Route::post('inventories/{inventory}/removeProducts', [InventoryController::class, 'removeProducts']);
             Route::get('inventories/stores/{store}', [InventoryController::class, 'getProductByStore']);
+
+            // Movimientos de inventario
+            Route::get('inventories/{inventory}/movements', [MovementController::class, 'index']);
+            Route::post('inventories/movements', [MovementController::class, 'store']);
+            Route::get('inventories/movements/{movement}', [MovementController::class, 'show']);
+            Route::delete('inventories/movements/{movement}', [MovementController::class, 'destroy']);
         });
 
         // Cash Session Control

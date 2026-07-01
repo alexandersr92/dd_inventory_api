@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use App\Http\Requests\StoreInvoiceRequest;
+use App\Services\InventoryMovementService;
 
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InvoiceExport;
@@ -291,6 +292,8 @@ class InvoiceController extends Controller
             $store->invoice_number = $nextInvoiceNumber;
             $store->save();
     
+            $movementService = app(InventoryMovementService::class);
+
             // Detalles y actualización de inventario
             foreach ($productArray as $index => $product) {
                 $invoice->invoiceDetails()->create([
@@ -306,13 +309,24 @@ class InvoiceController extends Controller
                 ]);
                 
                 $quantity = (float) $product['quantity'];
-                $operator = $quantity >= 0 ? '-' : '+';
                 
-                InventoryDetail::where('product_id', $product['product_id'])
+                $detail = InventoryDetail::where('product_id', $product['product_id'])
                     ->where('inventory_id', $product['inventory_id'])
-                    ->update([
-                        'quantity' => DB::raw("quantity $operator " . abs($quantity))
+                    ->lockForUpdate()
+                    ->first();
+                
+                if ($detail) {
+                    $movementService->recordMovement([
+                        'inventory_detail_id' => $detail->id,
+                        'type' => $quantity >= 0 ? 'sale' : 'return',
+                        'quantity' => abs($quantity),
+                        'reason' => "Venta en Factura N° {$invoice->invoice_number}",
+                        'user_id' => $userID,
+                        'seller_id' => $invoiceData['seller_id'],
+                        'reference_id' => $invoice->id,
+                        'reference_type' => Invoice::class,
                     ]);
+                }
             }
     
             // Si es crédito
@@ -389,15 +403,28 @@ class InvoiceController extends Controller
             }
 
             $invoiceDetails = $invoice->invoiceDetails;
+            $movementService = app(InventoryMovementService::class);
 
             foreach($invoiceDetails as $invoiceDetail){
-                $productObjs = InventoryDetail::where('product_id', $invoiceDetail->product_id)
+                $detail = InventoryDetail::where('product_id', $invoiceDetail->product_id)
                     ->where('inventory_id', $invoiceDetail->inventory_id)
+                    ->lockForUpdate()
                     ->first();
                 
-                if ($productObjs) {
-                    $productObjs->quantity = $productObjs->quantity + $invoiceDetail->quantity;
-                    $productObjs->save();
+                if ($detail) {
+                    $qty = (float) $invoiceDetail->quantity;
+                    $type = $qty >= 0 ? 'sale_cancel' : 'manual_out';
+                    
+                    $movementService->recordMovement([
+                        'inventory_detail_id' => $detail->id,
+                        'type' => $type,
+                        'quantity' => abs($qty),
+                        'reason' => "Cancelación de Factura N° {$invoice->invoice_number}",
+                        'user_id' => Auth::id(),
+                        'seller_id' => $invoice->seller_id,
+                        'reference_id' => $invoice->id,
+                        'reference_type' => Invoice::class,
+                    ]);
                 }
             }
     }
