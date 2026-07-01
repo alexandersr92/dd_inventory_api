@@ -128,4 +128,34 @@ class MovementController extends Controller
             ], 400);
         }
     }
+
+    /**
+     * Transfer stock between inventories.
+     */
+    public function transfer(Request $request)
+    {
+        $this->authorize('create', InventoryMovement::class);
+
+        $validated = $request->validate([
+            'origin_inventory_id' => 'required|uuid|exists:inventories,id',
+            'destination_inventory_id' => 'required|uuid|exists:inventories,id|different:origin_inventory_id',
+            'products' => 'required|array|min:1',
+            'products.*.product_id' => 'required|uuid|exists:products,id',
+            'products.*.quantity' => 'required|numeric|min:0.01',
+            'reason' => 'nullable|string|max:500'
+        ]);
+
+        try {
+            $movements = $this->movementService->transfer($validated);
+            return response()->json([
+                'message' => 'Traslado de inventario realizado con éxito',
+                'origins' => MovementResource::collection($movements['origins']),
+                'destinations' => MovementResource::collection($movements['destinations'])
+            ], 201);
+        } catch (Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], 400);
+        }
+    }
 }

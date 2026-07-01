@@ -111,8 +111,121 @@ class InventoryMovementService
      */
     public function getMovementDirection(string $type): string
     {
-        $inTypes = ['return', 'adjustment_in', 'gift_in', 'manual_in', 'sale_cancel', 'purchase'];
+        $inTypes = ['return', 'adjustment_in', 'gift_in', 'manual_in', 'sale_cancel', 'purchase', 'transfer_in'];
         return in_array($type, $inTypes) ? 'in' : 'out';
+    }
+
+    /**
+     * Transfer stock from an origin inventory to a destination inventory (supports bulk).
+     */
+    public function transfer(array $data): array
+    {
+        return DB::transaction(function () use ($data) {
+            $originId = $data['origin_inventory_id'];
+            $destId = $data['destination_inventory_id'];
+            $reason = $data['reason'] ?? null;
+            $userId = $data['user_id'] ?? Auth::id();
+            $sellerId = $data['seller_id'] ?? (Auth::user() ? Auth::user()->sellerId : null);
+            $productsList = $data['products'] ?? [];
+
+            // Get inventories to verify existence
+            $originInventory = \App\Models\Inventory::findOrFail($originId);
+            $destInventory = \App\Models\Inventory::findOrFail($destId);
+
+            $orgId = $originInventory->organization_id;
+            $originStoreId = $originInventory->store_id;
+            $destStoreId = $destInventory->store_id;
+
+            $originLogs = [];
+            $destLogs = [];
+
+            foreach ($productsList as $item) {
+                $productId = $item['product_id'];
+                $quantity = (float) $item['quantity'];
+
+                // 1. Get origin detail locked for update
+                $originDetail = InventoryDetail::where('inventory_id', $originId)
+                    ->where('product_id', $productId)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                // 2. Validate stock in origin
+                $stockBeforeOrigin = (float) $originDetail->quantity;
+                $stockAfterOrigin = $stockBeforeOrigin - $quantity;
+
+                if ($stockAfterOrigin < 0 && !$this->allowsNegativeStock($originStoreId, $orgId)) {
+                    throw new Exception("El inventario de origen no tiene stock suficiente para trasladar el producto '{$originDetail->product->name}'. Disponible: {$stockBeforeOrigin}");
+                }
+
+                // 3. Find or create destination detail locked for update
+                $destDetail = InventoryDetail::where('inventory_id', $destId)
+                    ->where('product_id', $productId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (!$destDetail) {
+                    $destDetail = InventoryDetail::create([
+                        'inventory_id' => $destId,
+                        'product_id' => $productId,
+                        'quantity' => 0,
+                        'status' => 'active'
+                    ]);
+                    $destDetail = InventoryDetail::where('id', $destDetail->id)->lockForUpdate()->firstOrFail();
+                }
+
+                $stockBeforeDest = (float) $destDetail->quantity;
+                $stockAfterDest = $stockBeforeDest + $quantity;
+
+                // 4. Update quantities
+                $originDetail->quantity = $stockAfterOrigin;
+                $originDetail->save();
+
+                $destDetail->quantity = $stockAfterDest;
+                $destDetail->save();
+
+                // 5. Create logs
+                $originLogs[] = InventoryMovement::create([
+                    'organization_id' => $orgId,
+                    'inventory_id' => $originId,
+                    'inventory_detail_id' => $originDetail->id,
+                    'product_id' => $productId,
+                    'store_id' => $originStoreId,
+                    'user_id' => $userId,
+                    'seller_id' => $sellerId,
+                    'type' => 'transfer_out',
+                    'direction' => 'out',
+                    'quantity' => $quantity,
+                    'stock_before' => $stockBeforeOrigin,
+                    'stock_after' => $stockAfterOrigin,
+                    'reason' => $reason ?: "Traslado hacia el almacén '{$destInventory->name}'",
+                    'reference_type' => 'App\Models\Inventory',
+                    'reference_id' => $destId,
+                ]);
+
+                $destLogs[] = InventoryMovement::create([
+                    'organization_id' => $orgId,
+                    'inventory_id' => $destId,
+                    'inventory_detail_id' => $destDetail->id,
+                    'product_id' => $productId,
+                    'store_id' => $destStoreId,
+                    'user_id' => $userId,
+                    'seller_id' => $sellerId,
+                    'type' => 'transfer_in',
+                    'direction' => 'in',
+                    'quantity' => $quantity,
+                    'stock_before' => $stockBeforeDest,
+                    'stock_after' => $stockAfterDest,
+                    'reason' => $reason ?: "Traslado recibido desde el almacén '{$originInventory->name}'",
+                    'reference_type' => 'App\Models\Inventory',
+                    'reference_id' => $originId,
+                ]);
+            }
+
+            return [
+                'origins' => $originLogs,
+                'destinations' => $destLogs
+            ];
+        });
     }
 
     /**

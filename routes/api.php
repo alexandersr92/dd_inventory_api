@@ -102,6 +102,7 @@ Route::prefix('v1')->group(function () {
             // Movimientos de inventario
             Route::get('inventories/{inventory}/movements', [MovementController::class, 'index']);
             Route::post('inventories/movements', [MovementController::class, 'store']);
+            Route::post('inventories/transfer', [MovementController::class, 'transfer']);
             Route::get('inventories/movements/{movement}', [MovementController::class, 'show']);
             Route::delete('inventories/movements/{movement}', [MovementController::class, 'destroy']);
         });
