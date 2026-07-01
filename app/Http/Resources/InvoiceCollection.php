@@ -23,6 +23,7 @@ class InvoiceCollection extends ResourceCollection
             return [
                 'id' => $invoice->id,
                 'client_name' => $invoice->client_name,
+                'client_cedula_ruc' => $invoice->client->cedula_ruc ?? null,
                 'invoice_number' => $invoice->invoice_number,
                 'invoice_date' => $invoice->invoice_date,
                 'created_at' => $invoice->created_at,

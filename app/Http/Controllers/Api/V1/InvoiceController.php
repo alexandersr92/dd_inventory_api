@@ -358,6 +358,7 @@ class InvoiceController extends Controller
                 }
             }
     
+            $invoice->load('client');
             return new InvoiceResource($invoice);
     }
 
@@ -368,6 +369,7 @@ class InvoiceController extends Controller
     {
         $this->authorize('view', $invoice);
 
+        $invoice->load('client');
         return new InvoiceResource($invoice);
     }
 
@@ -471,6 +473,7 @@ class InvoiceController extends Controller
             DB::commit();
             $lock->release();
 
+            $newInvoice->load('client');
             return response()->json([
                 'message' => 'Factura reemplazada exitosamente.',
                 'invoice' => new InvoiceResource($newInvoice)

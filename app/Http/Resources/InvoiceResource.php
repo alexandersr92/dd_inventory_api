@@ -23,6 +23,7 @@ class InvoiceResource extends JsonResource
             'invoice_status' => $this->invoice_status,
             'client_id' => $this->client_id,
             'client_name' => $this->client_name,
+            'client_cedula_ruc' => $this->client->cedula_ruc ?? null,
             'total_items' => $this->total,
             'discount' => $this->discount,
             'tax' => $this->tax,
