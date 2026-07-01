@@ -17,6 +17,13 @@ class CreditDetail extends Model
         'amount',
         'date',
         'note',
+        'payment_method',
+        'payment_metadata',
+        'cash_session_id',
+    ];
+
+    protected $casts = [
+        'payment_metadata' => 'array',
     ];
 
     public function credit()

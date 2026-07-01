@@ -23,7 +23,16 @@ class Credit extends Model
         'debt',
         'current',
         'credit_status',
+        'credit_number',
     ];
+
+    protected static function booted()
+    {
+        static::creating(function ($credit) {
+            $count = static::where('organization_id', $credit->organization_id)->count() + 1;
+            $credit->credit_number = 'CR-' . str_pad($count, 6, '0', STR_PAD_LEFT);
+        });
+    }
 
 
     public function user()

@@ -27,6 +27,46 @@ class CreditController extends Controller
         return new CreditCollection($credits);
     }
 
+    public function searchActive(Request $request)
+    {
+        $this->authorize('viewAny', Credit::class);
+
+        $orgId = Auth::user()->organization_id;
+        $search = $request->query('search');
+
+        // Solo créditos activos
+        $query = Credit::where('organization_id', $orgId)
+            ->where('credit_status', '!=', 'paid');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('client', function ($qc) use ($search) {
+                    $qc->where('name', 'like', '%' . $search . '%');
+                })
+                ->orWhereHas('invoice', function ($qi) use ($search) {
+                    $qi->where('invoice_number', 'like', '%' . $search . '%');
+                })
+                ->orWhere('credit_number', 'like', '%' . $search . '%');
+            });
+        }
+
+        $credits = $query->with(['client', 'invoice'])->limit(20)->get();
+
+        $simplified = $credits->map(function ($credit) {
+            return [
+                'id' => $credit->id,
+                'credit_number' => $credit->credit_number ?? 'CR-PENDIENTE',
+                'client_name' => $credit->client->name ?? 'Cliente Desconocido',
+                'invoice_number' => $credit->invoice->invoice_number ?? 'N/A',
+                'total' => $credit->total,
+                'debt' => $credit->debt,
+                'created_at' => $credit->created_at ? $credit->created_at->toDateString() : '',
+            ];
+        });
+
+        return response()->json($simplified, 200);
+    }
+
     public function indexByClient(Request $request)
     {
         $this->authorize('viewAny', Credit::class);
@@ -151,6 +191,14 @@ class CreditController extends Controller
             return response()->json(['message' => 'No credits selected.'], 400);
         }
 
+        // Validar que el monto de abono no exceda la deuda pendiente total
+        $totalDebt = Credit::whereIn('id', $creditsIds)->where('organization_id', $orgID)->sum('debt');
+        if ($request->amount > $totalDebt) {
+            return response()->json([
+                'message' => 'El monto de pago excede el saldo pendiente total de los créditos seleccionados. El saldo máximo a pagar es C$ ' . number_format($totalDebt, 2)
+            ], 400);
+        }
+
         $remainingAmount = $request->amount; 
         $notes = $request->notes;
 
@@ -183,6 +231,9 @@ class CreditController extends Controller
                     $creditDetail->date = date('Y-m-d');
                     $creditDetail->note = $notes;
                     $creditDetail->seller_id = $request->seller_id;
+                    $creditDetail->payment_method = $request->payment_method ?? 'CASH';
+                    $creditDetail->payment_metadata = $request->payment_metadata;
+                    $creditDetail->cash_session_id = $request->cash_session_id;
                     $creditDetail->save();
                 }
             } else {

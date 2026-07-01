@@ -1,0 +1,277 @@
+<?php
+
+namespace App\Http\Controllers\Api\V1;
+
+use App\Http\Controllers\Controller;
+use App\Models\CashSession;
+use App\Models\CashTransaction;
+use App\Models\Invoice;
+use App\Models\CreditDetail;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Symfony\Component\HttpFoundation\Response;
+
+class CashSessionController extends Controller
+{
+    /**
+     * List all cash sessions for the organization.
+     */
+    public function index(Request $request)
+    {
+        $orgId = Auth::user()->organization_id;
+        
+        $query = CashSession::whereHas('store', function ($q) use ($orgId) {
+            $q->where('organization_id', $orgId);
+        });
+
+        if ($request->store_id) {
+            $query->where('store_id', $request->store_id);
+        }
+
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->user_id) {
+            $query->where('user_id', $request->user_id);
+        }
+
+        $sessions = $query->with(['store', 'user'])
+            ->orderBy('opened_at', 'desc')
+            ->paginate($request->pageSize ?? 15);
+
+        return response()->json($sessions);
+    }
+
+    /**
+     * Open a new cash session.
+     */
+    public function open(Request $request)
+    {
+        $request->validate([
+            'store_id' => 'required|uuid|exists:stores,id',
+            'opening_balance' => 'required|numeric|min:0',
+            'cash_register_name' => 'nullable|string|max:50',
+        ]);
+
+        $userId = Auth::user()->id;
+
+        // Check if user already has an active session in this store
+        $activeSession = CashSession::where('store_id', $request->store_id)
+            ->where('user_id', $userId)
+            ->where('status', 'open')
+            ->first();
+
+        if ($activeSession) {
+            return response()->json([
+                'message' => 'Ya tienes una sesión de caja abierta en esta sucursal.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $session = CashSession::create([
+            'store_id' => $request->store_id,
+            'user_id' => $userId,
+            'cash_register_name' => $request->cash_register_name,
+            'opening_balance' => $request->opening_balance,
+            'expected_balance' => $request->opening_balance,
+            'status' => 'open',
+            'opened_at' => now(),
+        ]);
+
+        return response()->json([
+            'message' => 'Caja abierta con éxito.',
+            'session' => $session
+        ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Get details of the active session including real-time totals.
+     */
+    public function active(Request $request)
+    {
+        $request->validate([
+            'store_id' => 'required|uuid|exists:stores,id',
+        ]);
+
+        $userId = Auth::user()->id;
+
+        $session = CashSession::where('store_id', $request->store_id)
+            ->where('user_id', $userId)
+            ->where('status', 'open')
+            ->first();
+
+        if (!$session) {
+            return response()->json([
+                'message' => 'No tienes ninguna sesión de caja activa.',
+                'is_open' => false
+            ], Response::HTTP_OK);
+        }
+
+        $totals = $this->computeSessionTotals($session);
+
+        return response()->json([
+            'is_open' => true,
+            'session' => $session,
+            'totals' => $totals
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Add manual cash transaction (income / expense).
+     */
+    public function addTransaction(Request $request)
+    {
+        $request->validate([
+            'cash_session_id' => 'required|uuid|exists:cash_sessions,id',
+            'type' => 'required|in:in,out',
+            'amount' => 'required|numeric|min:0.01',
+            'description' => 'required|string|max:255',
+        ]);
+
+        $session = CashSession::findOrFail($request->cash_session_id);
+
+        if ($session->status !== 'open') {
+            return response()->json([
+                'message' => 'La sesión de caja está cerrada.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $transaction = CashTransaction::create([
+            'cash_session_id' => $session->id,
+            'type' => $request->type,
+            'amount' => $request->amount,
+            'description' => $request->description,
+        ]);
+
+        // Update session expected balance
+        $totals = $this->computeSessionTotals($session);
+        $session->expected_balance = $totals['expected_cash'];
+        $session->save();
+
+        return response()->json([
+            'message' => 'Movimiento registrado con éxito.',
+            'transaction' => $transaction,
+            'expected_balance' => $session->expected_balance
+        ], Response::HTTP_CREATED);
+    }
+
+    /**
+     * Close the session and register count discrepancy.
+     */
+    public function close(Request $request)
+    {
+        $request->validate([
+            'cash_session_id' => 'required|uuid|exists:cash_sessions,id',
+            'actual_cash' => 'required|numeric|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        $session = CashSession::findOrFail($request->cash_session_id);
+
+        if ($session->status !== 'open') {
+            return response()->json([
+                'message' => 'La sesión de caja ya se encuentra cerrada.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        $totals = $this->computeSessionTotals($session);
+        $expected = $totals['expected_cash'];
+        $actual = $request->actual_cash;
+        $diff = $actual - $expected;
+
+        $session->update([
+            'status' => 'closed',
+            'expected_balance' => $expected,
+            'actual_cash' => $actual,
+            'difference' => $diff,
+            'closed_at' => now(),
+            'notes' => $request->notes,
+        ]);
+
+        return response()->json([
+            'message' => 'Caja cerrada y turnos auditados correctamente.',
+            'session' => $session,
+            'totals' => $totals
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Internal calculator helper to aggregate sales, credit abonos, and manual adjustments.
+     */
+    private function computeSessionTotals(CashSession $session)
+    {
+        $invoices = Invoice::where('cash_session_id', $session->id)->get();
+        $creditDetails = CreditDetail::where('cash_session_id', $session->id)->get();
+        
+        $invoiceCash = 0;
+        $invoiceTransfer = 0;
+        $invoiceCard = 0;
+
+        foreach ($invoices as $inv) {
+            if ($inv->payment_method === 'CASH') {
+                $invoiceCash += $inv->grand_total;
+            } elseif ($inv->payment_method === 'TRANSFER') {
+                $invoiceTransfer += $inv->grand_total;
+            } elseif ($inv->payment_method === 'CARD') {
+                $invoiceCard += $inv->grand_total;
+            } elseif ($inv->payment_method === 'MULTIPLE' && is_array($inv->payment_metadata) && isset($inv->payment_metadata['payments'])) {
+                foreach ($inv->payment_metadata['payments'] as $p) {
+                    if (isset($p['method'])) {
+                        if ($p['method'] === 'CASH') {
+                            $invoiceCash += $p['amount'];
+                        } elseif ($p['method'] === 'TRANSFER') {
+                            $invoiceTransfer += $p['amount'];
+                        } elseif ($p['method'] === 'CARD') {
+                            $invoiceCard += $p['amount'];
+                        }
+                    }
+                }
+            }
+        }
+
+        $creditCash = 0;
+        $creditTransfer = 0;
+        $creditCard = 0;
+
+        foreach ($creditDetails as $cd) {
+            if ($cd->payment_method === 'CASH') {
+                $creditCash += $cd->amount;
+            } elseif ($cd->payment_method === 'TRANSFER') {
+                $creditTransfer += $cd->amount;
+            } elseif ($cd->payment_method === 'CARD') {
+                $creditCard += $cd->amount;
+            } elseif ($cd->payment_method === 'MULTIPLE' && is_array($cd->payment_metadata) && isset($cd->payment_metadata['payments'])) {
+                foreach ($cd->payment_metadata['payments'] as $p) {
+                    if (isset($p['method'])) {
+                        if ($p['method'] === 'CASH') {
+                            $creditCash += $p['amount'];
+                        } elseif ($p['method'] === 'TRANSFER') {
+                            $creditTransfer += $p['amount'];
+                        } elseif ($p['method'] === 'CARD') {
+                            $creditCard += $p['amount'];
+                        }
+                    }
+                }
+            }
+        }
+
+        $manualIn = $session->cashTransactions()->where('type', 'in')->sum('amount');
+        $manualOut = $session->cashTransactions()->where('type', 'out')->sum('amount');
+
+        $expectedCash = $session->opening_balance + $invoiceCash + $creditCash + $manualIn - $manualOut;
+
+        return [
+            'invoice_cash' => $invoiceCash,
+            'invoice_transfer' => $invoiceTransfer,
+            'invoice_card' => $invoiceCard,
+            'credit_cash' => $creditCash,
+            'credit_transfer' => $creditTransfer,
+            'credit_card' => $creditCard,
+            'manual_in' => $manualIn,
+            'manual_out' => $manualOut,
+            'expected_cash' => $expectedCash,
+            'total_transfer' => $invoiceTransfer + $creditTransfer,
+            'total_card' => $invoiceCard + $creditCard,
+        ];
+    }
+}

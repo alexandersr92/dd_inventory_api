@@ -279,7 +279,8 @@ class InvoiceController extends Controller
             $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
             $invoiceData['user_id'] = $userID;
             $invoiceData['organization_id'] = $orgId;
-    
+            $invoiceData['cash_session_id'] = $request->cash_session_id;
+     
             $invoice = Invoice::create($invoiceData);
     
             if (!$invoice) {

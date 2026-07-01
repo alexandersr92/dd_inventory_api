@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InvoiceController;
 use App\Http\Controllers\Api\V1\CreditController;
 use App\Http\Controllers\Api\V1\PurchasesController;
+use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -98,6 +99,13 @@ Route::prefix('v1')->group(function () {
             Route::get('inventories/stores/{store}', [InventoryController::class, 'getProductByStore']);
         });
 
+        // Cash Session Control
+        Route::get('cash-sessions', [CashSessionController::class, 'index']);
+        Route::get('cash-sessions/active', [CashSessionController::class, 'active']);
+        Route::post('cash-sessions/open', [CashSessionController::class, 'open']);
+        Route::post('cash-sessions/close', [CashSessionController::class, 'close']);
+        Route::post('cash-sessions/transactions', [CashSessionController::class, 'addTransaction']);
+
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {
             Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);
@@ -107,6 +115,7 @@ Route::prefix('v1')->group(function () {
 
         // Module: credits
         Route::middleware('module:credits')->group(function () {
+            Route::get('credits/search-active', [CreditController::class, 'searchActive']);
             Route::post('credits/payment', [CreditController::class, 'payment']);
             Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
             Route::get('credits-by-client', [CreditController::class, 'indexByClient']);

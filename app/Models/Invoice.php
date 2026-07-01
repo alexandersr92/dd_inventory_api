@@ -32,11 +32,17 @@ class Invoice extends Model
         'invoice_status',
         'invoice_type', 
         'payment_metadata',
+        'cash_session_id',
     ];
 
     protected $casts = [
         'payment_metadata' => 'array',
     ];
+
+    public function cashSession()
+    {
+        return $this->belongsTo(CashSession::class);
+    }
 
     public function user()
     {
