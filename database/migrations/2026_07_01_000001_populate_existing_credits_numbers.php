@@ -1,6 +1,8 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Credit;
 
 return new class extends Migration
@@ -10,6 +12,12 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // 1. Drop the global unique index
+        Schema::table('credits', function (Blueprint $table) {
+            $table->dropUnique('credits_credit_number_unique');
+        });
+
+        // 2. Populate sequential credit numbers per organization
         $organizations = Credit::select('organization_id')->distinct()->get();
 
         foreach ($organizations as $org) {
@@ -28,6 +36,11 @@ return new class extends Migration
                 $credit->save();
             }
         }
+
+        // 3. Add compound unique index per organization to enforce tenant scope
+        Schema::table('credits', function (Blueprint $table) {
+            $table->unique(['organization_id', 'credit_number']);
+        });
     }
 
     /**
@@ -35,6 +48,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // No operation needed
+        Schema::table('credits', function (Blueprint $table) {
+            $table->dropUnique(['organization_id', 'credit_number']);
+            $table->unique('credit_number');
+        });
     }
 };
