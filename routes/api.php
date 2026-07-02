@@ -113,6 +113,9 @@ Route::prefix('v1')->group(function () {
         Route::post('cash-sessions/open', [CashSessionController::class, 'open']);
         Route::post('cash-sessions/close', [CashSessionController::class, 'close']);
         Route::post('cash-sessions/transactions', [CashSessionController::class, 'addTransaction']);
+        Route::put('cash-sessions/{id}', [CashSessionController::class, 'update']);
+        Route::put('cash-sessions/transactions/{id}', [CashSessionController::class, 'updateTransaction']);
+        Route::delete('cash-sessions/transactions/{id}', [CashSessionController::class, 'destroyTransaction']);
 
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {

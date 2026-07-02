@@ -36,7 +36,7 @@ class CashSessionController extends Controller
             $query->where('user_id', $request->user_id);
         }
 
-        $sessions = $query->with(['store', 'user'])
+        $sessions = $query->with(['store', 'user', 'cashTransactions'])
             ->orderBy('opened_at', 'desc')
             ->paginate($request->pageSize ?? 15);
 
@@ -193,6 +193,163 @@ class CashSessionController extends Controller
             'session' => $session,
             'totals' => $totals
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Update a cash session closure (only owner).
+     */
+    public function update(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        // 1. Authorize owner
+        if (!$user->organization || $user->id !== $user->organization->owner_id) {
+            return response()->json([
+                'message' => 'Solo el propietario (owner) puede editar un cierre de caja.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // 2. Find and check organization
+        $session = CashSession::whereHas('store', function ($q) use ($user) {
+            $q->where('organization_id', $user->organization_id);
+        })->findOrFail($id);
+
+        // 3. Ensure the session is closed
+        if ($session->status !== 'closed') {
+            return response()->json([
+                'message' => 'Solo se pueden editar sesiones de caja cerradas.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // 4. Validate input
+        $request->validate([
+            'actual_cash' => 'required|numeric|min:0',
+            'notes' => 'nullable|string',
+        ]);
+
+        $actual = $request->actual_cash;
+        $expected = $session->expected_balance;
+        $diff = $actual - $expected;
+
+        // 5. Update
+        $session->update([
+            'actual_cash' => $actual,
+            'difference' => $diff,
+            'notes' => $request->notes,
+        ]);
+
+        return response()->json([
+            'message' => 'Cierre de caja actualizado con éxito.',
+            'session' => $session->load(['store', 'user', 'cashTransactions'])
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Update a cash transaction (only owner, closed session).
+     */
+    public function updateTransaction(Request $request, $id)
+    {
+        $user = Auth::user();
+
+        // 1. Authorize owner
+        if (!$user->organization || $user->id !== $user->organization->owner_id) {
+            return response()->json([
+                'message' => 'Solo el propietario (owner) puede editar movimientos de caja.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // 2. Find transaction and check organization
+        $transaction = CashTransaction::whereHas('cashSession.store', function ($q) use ($user) {
+            $q->where('organization_id', $user->organization_id);
+        })->findOrFail($id);
+
+        $session = $transaction->cashSession;
+
+        // 3. Ensure session is closed
+        if ($session->status !== 'closed') {
+            return response()->json([
+                'message' => 'Solo se pueden editar movimientos de sesiones cerradas.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // 4. Validate input
+        $request->validate([
+            'type' => 'required|in:in,out',
+            'amount' => 'required|numeric|min:0.01',
+            'description' => 'required|string|max:255',
+        ]);
+
+        // 5. Update transaction
+        $transaction->update([
+            'type' => $request->type,
+            'amount' => $request->amount,
+            'description' => $request->description,
+        ]);
+
+        // 6. Recalculate session totals and balances
+        $this->recalculateSessionBalances($session);
+
+        return response()->json([
+            'message' => 'Movimiento de caja actualizado con éxito.',
+            'transaction' => $transaction,
+            'session' => $session->fresh(['store', 'user', 'cashTransactions'])
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Delete a cash transaction (only owner, closed session).
+     */
+    public function destroyTransaction($id)
+    {
+        $user = Auth::user();
+
+        // 1. Authorize owner
+        if (!$user->organization || $user->id !== $user->organization->owner_id) {
+            return response()->json([
+                'message' => 'Solo el propietario (owner) puede eliminar movimientos de caja.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // 2. Find transaction and check organization
+        $transaction = CashTransaction::whereHas('cashSession.store', function ($q) use ($user) {
+            $q->where('organization_id', $user->organization_id);
+        })->findOrFail($id);
+
+        $session = $transaction->cashSession;
+
+        // 3. Ensure session is closed
+        if ($session->status !== 'closed') {
+            return response()->json([
+                'message' => 'Solo se pueden eliminar movimientos de sesiones cerradas.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
+        // 4. Delete
+        $transaction->delete();
+
+        // 5. Recalculate session totals and balances
+        $this->recalculateSessionBalances($session);
+
+        return response()->json([
+            'message' => 'Movimiento de caja eliminado con éxito.',
+            'session' => $session->fresh(['store', 'user', 'cashTransactions'])
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Helper to recalculate and update session balances.
+     */
+    private function recalculateSessionBalances(CashSession $session)
+    {
+        $totals = $this->computeSessionTotals($session);
+        $expected = $totals['expected_cash'];
+        $actual = $session->actual_cash;
+        $diff = $actual - $expected;
+
+        $session->update([
+            'expected_balance' => $expected,
+            'difference' => $diff,
+        ]);
     }
 
     /**
