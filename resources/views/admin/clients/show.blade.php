@@ -287,7 +287,9 @@
 @section('content')
     @php
         $invoicesCount = $organization->invoices_count;
-        $totalInvoiced = $organization->total_invoiced ?: 0;
+        $totalInvoicedCanlede = $organization->invoices()->where('invoice_status', 'canceled')->sum('grand_total');
+    
+        $totalInvoiced = ($organization->total_invoiced - $totalInvoicedCanlede)?: 0;
         $ticketPromedio = $invoicesCount > 0 ? ($totalInvoiced / $invoicesCount) : 0;
         $totalDebt = $organization->total_debt ?: 0;
     @endphp
