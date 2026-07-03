@@ -16,14 +16,16 @@ class InventoryCollection extends ResourceCollection
     {
         //has creditos
         return $this->collection->map(function ($inventory) {
+            $stores = $inventory->stores;
+            $firstStore = $stores->first() ?? $inventory->store;
+
             return [
                 'id' => $inventory->id,
                 'name' => $inventory->name,
-                'store' => $inventory->store->name,
-                'store_id' => $inventory->store->id,
+                'store' => $firstStore ? $firstStore->name : null,
+                'store_id' => $firstStore ? $firstStore->id : null,
                 'address' => $inventory->address,
                 'productsQuantity' => $inventory->inventoryDetails->count(),
-
             ];
         })->toArray();
     }

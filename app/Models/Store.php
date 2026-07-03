@@ -65,4 +65,9 @@ class Store extends Model
     {
         return $this->belongsToMany(User::class, 'user_store')->using(UserStore::class);
     }
+
+    public function inventories()
+    {
+        return $this->belongsToMany(Inventory::class, 'inventory_store')->withTimestamps();
+    }
 }

@@ -28,12 +28,13 @@ class StoreController extends Controller
         $user = Auth::user();
         $organizationId = $user->organization_id;
 
-        // If the user has specific assigned stores, restrict to those
-        if ($user->stores()->exists()) {
-            $stores = $user->stores;
-        } else {
-            // Otherwise return all organization stores
+        // Owner or users with store.index permission get all organization stores
+        $isOwner = $user->organization && $user->id === $user->organization->owner_id;
+
+        if ($isOwner || $user->hasPermissionTo('store.index')) {
             $stores = Store::where('organization_id', $organizationId)->get();
+        } else {
+            $stores = $user->stores;
         }
 
         return new StoreCollection($stores);

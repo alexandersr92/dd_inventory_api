@@ -168,9 +168,15 @@ class InventoryMovementService
                         'inventory_id' => $destId,
                         'product_id' => $productId,
                         'quantity' => 0,
-                        'status' => 'active'
+                        'status' => 'active',
+                        'price' => $originDetail->price
                     ]);
                     $destDetail = InventoryDetail::where('id', $destDetail->id)->lockForUpdate()->firstOrFail();
+                } else {
+                    if ($destDetail->price === null || $destDetail->price === '' || $destDetail->price == 0) {
+                        $destDetail->price = $originDetail->price;
+                        $destDetail->save();
+                    }
                 }
 
                 $stockBeforeDest = (float) $destDetail->quantity;

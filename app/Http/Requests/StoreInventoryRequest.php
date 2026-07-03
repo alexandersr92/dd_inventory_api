@@ -25,7 +25,9 @@ class StoreInventoryRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'description' => ['required', 'string', 'max:255'],
             'address' => ['required', 'string', 'max:255'],
-            'store_id' => ['uuid', 'exists:stores,id'],
+            'store_id' => ['nullable', 'string'],
+            'store_ids' => ['nullable', 'array'],
+            'store_ids.*' => ['uuid', 'exists:stores,id'],
         ];
     }
 }

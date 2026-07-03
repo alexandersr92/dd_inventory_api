@@ -32,6 +32,11 @@ class Inventory extends Model
         return $this->belongsTo(Store::class);
     }
 
+    public function stores()
+    {
+        return $this->belongsToMany(Store::class, 'inventory_store')->withTimestamps();
+    }
+
     public function inventoryDetails()
     {
         return $this->hasMany(InventoryDetail::class);

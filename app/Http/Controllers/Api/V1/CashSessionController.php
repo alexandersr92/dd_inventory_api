@@ -107,6 +107,8 @@ class CashSessionController extends Controller
             ], Response::HTTP_OK);
         }
 
+        $session->load('cashTransactions');
+
         $totals = $this->computeSessionTotals($session);
 
         return response()->json([
@@ -245,48 +247,49 @@ class CashSessionController extends Controller
     }
 
     /**
-     * Update a cash transaction (only owner, closed session).
+     * Update a cash transaction (only owner for closed session, cashier for open session).
      */
     public function updateTransaction(Request $request, $id)
     {
         $user = Auth::user();
 
-        // 1. Authorize owner
-        if (!$user->organization || $user->id !== $user->organization->owner_id) {
-            return response()->json([
-                'message' => 'Solo el propietario (owner) puede editar movimientos de caja.'
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        // 2. Find transaction and check organization
+        // 1. Find transaction and check organization
         $transaction = CashTransaction::whereHas('cashSession.store', function ($q) use ($user) {
             $q->where('organization_id', $user->organization_id);
         })->findOrFail($id);
 
         $session = $transaction->cashSession;
 
-        // 3. Ensure session is closed
-        if ($session->status !== 'closed') {
-            return response()->json([
-                'message' => 'Solo se pueden editar movimientos de sesiones cerradas.'
-            ], Response::HTTP_BAD_REQUEST);
+        // 2. Authorize
+        if ($session->status === 'closed') {
+            if (!$user->organization || $user->id !== $user->organization->owner_id) {
+                return response()->json([
+                    'message' => 'Solo el propietario (owner) puede editar movimientos de un cierre de caja.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+        } else {
+            if ($session->user_id !== $user->id) {
+                return response()->json([
+                    'message' => 'Solo el cajero asignado a este turno puede editar sus movimientos.'
+                ], Response::HTTP_FORBIDDEN);
+            }
         }
 
-        // 4. Validate input
+        // 3. Validate input
         $request->validate([
             'type' => 'required|in:in,out',
             'amount' => 'required|numeric|min:0.01',
             'description' => 'required|string|max:255',
         ]);
 
-        // 5. Update transaction
+        // 4. Update transaction
         $transaction->update([
             'type' => $request->type,
             'amount' => $request->amount,
             'description' => $request->description,
         ]);
 
-        // 6. Recalculate session totals and balances
+        // 5. Recalculate session totals and balances
         $this->recalculateSessionBalances($session);
 
         return response()->json([
@@ -297,37 +300,38 @@ class CashSessionController extends Controller
     }
 
     /**
-     * Delete a cash transaction (only owner, closed session).
+     * Delete a cash transaction (only owner for closed session, cashier for open session).
      */
     public function destroyTransaction($id)
     {
         $user = Auth::user();
 
-        // 1. Authorize owner
-        if (!$user->organization || $user->id !== $user->organization->owner_id) {
-            return response()->json([
-                'message' => 'Solo el propietario (owner) puede eliminar movimientos de caja.'
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        // 2. Find transaction and check organization
+        // 1. Find transaction and check organization
         $transaction = CashTransaction::whereHas('cashSession.store', function ($q) use ($user) {
             $q->where('organization_id', $user->organization_id);
         })->findOrFail($id);
 
         $session = $transaction->cashSession;
 
-        // 3. Ensure session is closed
-        if ($session->status !== 'closed') {
-            return response()->json([
-                'message' => 'Solo se pueden eliminar movimientos de sesiones cerradas.'
-            ], Response::HTTP_BAD_REQUEST);
+        // 2. Authorize
+        if ($session->status === 'closed') {
+            if (!$user->organization || $user->id !== $user->organization->owner_id) {
+                return response()->json([
+                    'message' => 'Solo el propietario (owner) puede eliminar movimientos de un cierre de caja.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+        } else {
+            if ($session->user_id !== $user->id) {
+                return response()->json([
+                    'message' => 'Solo el cajero asignado a este turno puede eliminar sus movimientos.'
+                ], Response::HTTP_FORBIDDEN);
+            }
         }
 
-        // 4. Delete
+        // 3. Delete
         $transaction->delete();
 
-        // 5. Recalculate session totals and balances
+        // 4. Recalculate session totals and balances
         $this->recalculateSessionBalances($session);
 
         return response()->json([
