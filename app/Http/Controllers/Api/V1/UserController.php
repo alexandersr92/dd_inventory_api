@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Role;
 use App\Models\Store;
 use App\Models\Organization;
+use App\Models\Seller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
@@ -42,6 +43,7 @@ class UserController extends Controller
             'email' => 'required|string|email|max:255|unique:central.users,email',
             'password' => 'required|string|min:8',
             'role_id' => 'nullable|exists:central.roles,uuid',
+            'seller_id' => 'nullable|exists:sellers,id',
             'stores' => 'nullable|array',
             'stores.*' => 'exists:stores,id',
         ]);
@@ -54,6 +56,14 @@ class UserController extends Controller
             }
         }
 
+        // Validate seller belongs to the organization
+        if ($request->seller_id) {
+            $seller = Seller::where('id', $request->seller_id)->first();
+            if ($seller && $seller->organization_id !== $orgId) {
+                return response()->json(['message' => 'El vendedor no pertenece a tu organización'], Response::HTTP_FORBIDDEN);
+            }
+        }
+        
         // Validate stores belong to the organization
         if ($request->stores) {
             $ownedStoresCount = Store::whereIn('id', $request->stores)
@@ -70,6 +80,7 @@ class UserController extends Controller
             'password' => Hash::make($request->password),
             'organization_id' => $orgId,
             'role_id' => $request->role_id,
+            'seller_id' => $request->seller_id,
             'status' => 'active',
         ]);
 
@@ -83,6 +94,8 @@ class UserController extends Controller
         if ($request->stores) {
             $user->stores()->sync($request->stores);
         }
+
+        event(new \App\Events\UserCreated($user));
 
         return response()->json($user->load(['roles', 'stores']), Response::HTTP_CREATED);
     }
@@ -126,6 +139,7 @@ class UserController extends Controller
             ],
             'password' => 'nullable|string|min:8',
             'role_id' => 'nullable|exists:central.roles,uuid',
+            'seller_id' => 'nullable|exists:sellers,id',
             'stores' => 'nullable|array',
             'stores.*' => 'exists:stores,id',
             'status' => 'sometimes|required|string|in:active,inactive',
@@ -136,6 +150,14 @@ class UserController extends Controller
             $role = Role::where('uuid', $request->role_id)->first();
             if ($role && $role->organization_id !== $orgId) {
                 return response()->json(['message' => 'Role does not belong to your organization'], Response::HTTP_FORBIDDEN);
+            }
+        }
+
+        // Validate seller belongs to the organization
+        if ($request->has('seller_id') && $request->seller_id) {
+            $seller = Seller::where('id', $request->seller_id)->first();
+            if ($seller && $seller->organization_id !== $orgId) {
+                return response()->json(['message' => 'El vendedor no pertenece a tu organización'], Response::HTTP_FORBIDDEN);
             }
         }
 
@@ -150,6 +172,9 @@ class UserController extends Controller
         }
 
         $data = $request->only(['name', 'email', 'status', 'role_id']);
+        if ($request->has('seller_id')) {
+            $data['seller_id'] = $request->seller_id;
+        }
         if ($request->password) {
             $data['password'] = Hash::make($request->password);
         }

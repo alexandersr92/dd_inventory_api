@@ -217,6 +217,46 @@
         box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
 
+    .btn-delete-org {
+        background-color: rgba(239, 68, 68, 0.07);
+        color: var(--danger-color);
+        border: 1px solid rgba(239, 68, 68, 0.18);
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: all 0.2s ease;
+        text-decoration: none;
+    }
+
+    .btn-delete-org:hover {
+        background-color: var(--danger-color);
+        color: #fff;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    }
+
+    .modal-danger-banner {
+        background-color: rgba(239, 68, 68, 0.07);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 20px;
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    .modal-danger-banner svg { flex-shrink: 0; margin-top: 2px; }
+    .modal-danger-banner-text strong { color: var(--danger-color); display: block; margin-bottom: 4px; }
+    .modal-danger-banner-text span { font-size: 13px; color: var(--text-secondary); line-height: 1.5; }
+
+
+
     /* Modal Overlay Backdrop */
     .modal-overlay {
         position: fixed;
@@ -850,10 +890,13 @@
                                     @endif
                                 </td>
                                 <td style="text-align: right;">
-                                    <a href="{{ route('admin.clients.show', $org->id) }}" class="btn-manage-modules" style="text-decoration: none;">
-                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                                        Gestionar
-                                    </a>
+                                    <div style="display: flex; gap: 8px; justify-content: flex-end; align-items: center;">
+                                        <a href="{{ route('admin.clients.show', $org->id) }}" class="btn-manage-modules" style="text-decoration: none;">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2 2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                                            Gestionar
+                                        </a>
+                                       
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -1038,7 +1081,64 @@
         </div>
     </div>
 
+    <!-- Modal: Delete Organization (with password confirmation) -->
+    <div class="modal-overlay" id="delete-org-modal">
+        <div class="modal-card" style="max-width: 480px;">
+            <div class="modal-header" style="border-bottom-color: rgba(239, 68, 68, 0.15);">
+                <h3 class="modal-title" style="color: var(--danger-color);">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:6px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    Eliminar Organización
+                </h3>
+                <button class="modal-close" onclick="closeModal('delete-org-modal')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="delete-org-form" method="POST" action="">
+                @csrf
+                <div class="modal-body">
+                    <div class="modal-danger-banner">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--danger-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                        <div class="modal-danger-banner-text">
+                            <strong>Acción irreversible</strong>
+                            <span>Estás a punto de eliminar permanentemente la organización <strong id="delete-org-name-label" style="color:var(--text-primary);"></strong> junto con todos sus usuarios, vendedores, tiendas, facturas, créditos y demás datos. <strong style="color:var(--danger-color);">Esta operación no se puede deshacer.</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="form-group-item">
+                        <label class="form-label-text" for="delete_admin_password">
+                            Confirma tu contraseña de administrador para continuar
+                        </label>
+                        <input
+                            type="password"
+                            name="admin_password"
+                            id="delete_admin_password"
+                            class="input-field"
+                            placeholder="••••••••"
+                            required
+                            autocomplete="current-password"
+                        >
+                        @error('admin_password')
+                            <p style="color: var(--danger-color); font-size: 12px; margin-top: 6px;">{{ $message }}</p>
+                        @enderror
+                    </div>
+                </div>
+                <div class="modal-footer" style="border-top-color: rgba(239, 68, 68, 0.1);">
+                    <button type="button" class="btn-action-secondary" onclick="closeModal('delete-org-modal')">Cancelar</button>
+                    <button
+                        type="submit"
+                        style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s ease;"
+                        onmouseover="this.style.opacity='0.88'" onmouseout="this.style.opacity='1'"
+                    >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
+                        Eliminar definitivamente
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Modal: Create Admin -->
+
     <div class="modal-overlay" id="create-admin-modal">
         <div class="modal-card">
             <div class="modal-header">
@@ -1163,6 +1263,24 @@
                     toast.classList.remove('show');
                 }, 3000);
             }
+        }
+        // Open delete-org modal with correct org ID and name
+        function openDeleteModal(orgId, orgName) {
+            const form = document.getElementById('delete-org-form');
+            const nameLabel = document.getElementById('delete-org-name-label');
+            const passwordInput = document.getElementById('delete_admin_password');
+
+            // Build the action URL dynamically using the org ID
+            const baseUrl = '{{ url("admin/clients") }}';
+            form.action = baseUrl + '/' + orgId + '/destroy';
+
+            // Populate the org name in the warning banner
+            if (nameLabel) nameLabel.textContent = '"' + orgName + '"';
+
+            // Clear previous password entry every time the modal opens
+            if (passwordInput) passwordInput.value = '';
+
+            openModal('delete-org-modal');
         }
     </script>
 @endsection

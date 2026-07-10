@@ -18,16 +18,20 @@ class StorePolicy
 
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo('store.store');
+        // Organization owner always has full access
+        $isOwner = $user->organization && $user->id === $user->organization->owner_id;
+        return $isOwner || $user->hasPermissionTo('store.store');
     }
 
     public function update(User $user): bool
     {
-        return $user->hasPermissionTo('store.update');
+        $isOwner = $user->organization && $user->id === $user->organization->owner_id;
+        return $isOwner || $user->hasPermissionTo('store.update');
     }
 
     public function delete(User $user): bool
     {
-        return $user->hasPermissionTo('store.delete');
+        $isOwner = $user->organization && $user->id === $user->organization->owner_id;
+        return $isOwner || $user->hasPermissionTo('store.delete');
     }
 }

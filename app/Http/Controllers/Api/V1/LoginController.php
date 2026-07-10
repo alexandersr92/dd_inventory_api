@@ -34,7 +34,7 @@ class LoginController extends Controller
 
 
 
-        $user->load(['roles.permissions', 'organization.modules', 'stores']);
+        $user->load(['roles.permissions', 'organization.modules', 'stores', 'seller.stores']);
 
         if ($user->organization && $user->organization->status !== 'active') {
             return response([
@@ -69,6 +69,19 @@ class LoginController extends Controller
             ];
         });
 
+        $sellerData = null;
+        if ($user->seller_id && $user->seller) {
+            $sellerData = [
+                'id'   => $user->seller->id,
+                'name' => $user->seller->name,
+                'code' => $user->seller->code,
+                'stores' => $user->seller->stores
+                    ->filter(fn($s) => ($s->pivot->status ?? 'active') === 'active')
+                    ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
+                    ->values(),
+            ];
+        }
+
         return response()->json([
             'attributes' => [
                 'id' => $user->id,
@@ -77,6 +90,7 @@ class LoginController extends Controller
                 'device_name' => $request->device_name,
                 'role' => $user->role_id,
                 'seller_id' => $user->seller_id,
+                'seller' => $sellerData,
                 'roles' => $rolesData,
                 'organization' => $orgData
             ],
@@ -151,7 +165,7 @@ class LoginController extends Controller
         $user = Auth::user();
 
         if (Auth::guard('sanctum')->check() && $user) {
-            $user->load(['roles.permissions', 'organization.modules', 'stores']);
+            $user->load(['roles.permissions', 'organization.modules', 'stores', 'seller.stores']);
 
             if ($user->organization && $user->organization->status !== 'active') {
                 return response()->json(['valid' => false, 'message' => 'La organización está inactiva.'], 401);
@@ -184,11 +198,25 @@ class LoginController extends Controller
                 ];
             });
 
+            $sellerData = null;
+            if ($user->seller_id && $user->seller) {
+                $sellerData = [
+                    'id'   => $user->seller->id,
+                    'name' => $user->seller->name,
+                    'code' => $user->seller->code,
+                    'stores' => $user->seller->stores
+                        ->filter(fn($s) => ($s->pivot->status ?? 'active') === 'active')
+                        ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
+                        ->values(),
+                ];
+            }
+
             return response()->json(['valid' => true, 'message' => 'Token is valid.', 'user' => [
                 'id' => $user->id,
                 'email' => $user->email,
                 'organization_id' => $user->organization_id,
                 'seller_id' => $user->seller_id,
+                'seller' => $sellerData,
                 'roles' => $rolesData,
                 'organization' => $orgData
             ]], 200);

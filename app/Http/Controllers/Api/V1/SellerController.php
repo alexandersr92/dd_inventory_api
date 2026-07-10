@@ -349,7 +349,7 @@ class SellerController extends Controller
         $user = Auth::user();
         $orgId = $user->organization_id;
 
-        DB::beginTransaction();
+        DB::connection('central')->beginTransaction();
 
         try {
             // 1. Crear o recuperar el Seller del Owner
@@ -399,7 +399,7 @@ class SellerController extends Controller
                 $seller->stores()->syncWithoutDetaching($syncPayload);
             }
 
-            DB::commit();
+            DB::connection('central')->commit();
 
             return response()->json([
                 'message' => 'Owner seller generated and assigned to all stores successfully',
@@ -407,7 +407,7 @@ class SellerController extends Controller
             ], Response::HTTP_OK);
 
         } catch (\Throwable $e) {
-            DB::rollBack();
+            DB::connection('central')->rollBack();
             return response()->json([
                 'message' => 'Error generating owner seller',
                 'error'   => $e->getMessage(),

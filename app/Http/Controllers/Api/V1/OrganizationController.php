@@ -33,7 +33,7 @@ class OrganizationController extends Controller
 
         $this->validateUniqueFields($request);
 
-        DB::beginTransaction();
+        DB::connection('central')->beginTransaction();
         
         try {
             $owner_id = $request->user()->id;
@@ -113,12 +113,12 @@ class OrganizationController extends Controller
             $seller = $this->createOwnerSeller($user, $organization);
             $user->update(['seller_id' => $seller->id]);
 
-            DB::commit();
+            DB::connection('central')->commit();
 
             return response(new OrganizationResource($organization), Response::HTTP_CREATED);
             
         } catch (\Exception $e) {
-            DB::rollBack();
+            DB::connection('central')->rollBack();
             return response(['message' => 'Error creating organization: ' . $e->getMessage()], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
