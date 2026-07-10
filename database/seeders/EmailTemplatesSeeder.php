@@ -38,6 +38,25 @@ class EmailTemplatesSeeder extends Seeder
                 ]
             ],
             [
+                'key' => 'tenant.user_created',
+                'name' => 'Bienvenida a Usuario del Sistema',
+                'subject' => '¡Bienvenido a DipleBill, {user_name}!',
+                'body' => '<p>Hola <strong>{user_name}</strong>,</p>
+<p>Tu cuenta de usuario ha sido creada con éxito en el sistema DipleBill.</p>
+<div style="background-color: #f3f4f6; border-radius: 8px; padding: 16px; margin: 20px 0;">
+    <p style="margin: 0; font-size: 14px; color: #374151;"><strong>Credenciales de acceso:</strong></p>
+    <p style="margin: 8px 0 0 0; font-size: 14px; color: #4b5563;">Correo: {user_email}</p>
+    <p style="margin: 4px 0 0 0; font-size: 14px; color: #4b5563;">Contraseña: La que te fue asignada por tu administrador.</p>
+</div>
+<p>Por motivos de seguridad, te recomendamos cambiar tu contraseña una vez que ingreses al sistema por primera vez.</p>
+<p>Atentamente,<br>El equipo de DipleBill</p>',
+                'variables' => [
+                    'user_name' => 'Nombre del usuario',
+                    'user_email' => 'Correo electrónico de acceso',
+                    'created_at' => 'Fecha de creación de la cuenta'
+                ]
+            ],
+            [
                 'key' => 'invoice_notification',
                 'name' => 'Notificación de Factura Emitida',
                 'subject' => 'Factura Emitida - {invoice_number} de {client_name}',
