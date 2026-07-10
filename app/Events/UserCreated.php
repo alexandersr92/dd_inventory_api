@@ -27,7 +27,7 @@ class UserCreated
         return [
             'event_key' => 'tenant.user_created',
             'organization_id' => $this->user->organization_id,
-            'notifiables' => [], // Vacío por defecto; se resolverá dinámicamente desde settings
+            'notifiables' => [$this->user], // El usuario recién creado es notificado por defecto
             'data' => [
                 'user_name' => $this->user->name,
                 'user_email' => $this->user->email,
