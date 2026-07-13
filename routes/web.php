@@ -20,8 +20,12 @@ Route::prefix('admin')->group(function () {
         Route::post('/clients', [AdminDashboardController::class, 'storeClient'])->name('admin.clients.store');
         Route::post('/clients/{id}/toggle-status', [AdminDashboardController::class, 'toggleClientStatus'])->name('admin.clients.toggle-status');
         Route::post('/clients/{id}/toggle-module/{moduleId}', [AdminDashboardController::class, 'toggleClientModule'])->name('admin.clients.toggle-module');
+        Route::post('/clients/{id}/license', [AdminDashboardController::class, 'updateLicense'])->name('admin.clients.license');
         Route::post('/clients/{id}/destroy', [AdminDashboardController::class, 'destroyClient'])->name('admin.clients.destroy');
         Route::post('/admins', [AdminDashboardController::class, 'storeAdmin'])->name('admin.admins.store');
+        
+        Route::get('/settings', [AdminDashboardController::class, 'globalSettings'])->name('admin.settings.index');
+        Route::post('/settings', [AdminDashboardController::class, 'updateGlobalSettings'])->name('admin.settings.update');
 
         // Backup management routes
         Route::post('/backups/generate', [AdminDashboardController::class, 'generateBackup'])->name('admin.backups.generate');

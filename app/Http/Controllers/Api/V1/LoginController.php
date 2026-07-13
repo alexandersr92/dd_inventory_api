@@ -47,6 +47,8 @@ class LoginController extends Controller
             $orgData = [
                 'id' => $user->organization->id,
                 'name' => $user->organization->name,
+                'license_expires_at' => $user->organization->license_expires_at,
+                'is_lifetime' => $user->organization->is_lifetime,
                 'modules' => $user->organization->modules->map(function($module) {
                     return [
                         'slug' => $module->slug,
@@ -176,6 +178,8 @@ class LoginController extends Controller
                 $orgData = [
                     'id' => $user->organization->id,
                     'name' => $user->organization->name,
+                    'license_expires_at' => $user->organization->license_expires_at,
+                    'is_lifetime' => $user->organization->is_lifetime,
                     'modules' => $user->organization->modules->map(function($module) {
                         return [
                             'slug' => $module->slug,

@@ -117,6 +117,9 @@ Route::prefix('v1')->group(function () {
         Route::put('cash-sessions/transactions/{id}', [CashSessionController::class, 'updateTransaction']);
         Route::delete('cash-sessions/transactions/{id}', [CashSessionController::class, 'destroyTransaction']);
 
+        // Expense Categories
+        Route::apiResource('expense-categories', \App\Http\Controllers\Api\V1\ExpenseCategoryController::class)->except(['show']);
+
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {
             Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);

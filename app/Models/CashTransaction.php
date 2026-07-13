@@ -15,12 +15,26 @@ class CashTransaction extends Model
         'cash_session_id',
         'type',
         'amount',
+        'currency',
+        'expense_category_id',
+        'reference_id',
+        'user_id',
         'description',
     ];
 
     protected $casts = [
         'amount' => 'float',
     ];
+
+    public function expenseCategory()
+    {
+        return $this->belongsTo(ExpenseCategory::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function cashSession()
     {

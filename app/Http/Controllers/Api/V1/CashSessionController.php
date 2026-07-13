@@ -128,6 +128,8 @@ class CashSessionController extends Controller
             'type' => 'required|in:in,out',
             'amount' => 'required|numeric|min:0.01',
             'description' => 'required|string|max:255',
+            'currency' => 'nullable|string|in:NIO,USD',
+            'expense_category_id' => 'nullable|uuid|exists:expense_categories,id',
         ]);
 
         $session = CashSession::findOrFail($request->cash_session_id);
@@ -142,6 +144,9 @@ class CashSessionController extends Controller
             'cash_session_id' => $session->id,
             'type' => $request->type,
             'amount' => $request->amount,
+            'currency' => $request->currency ?? 'NIO',
+            'expense_category_id' => $request->expense_category_id,
+            'user_id' => Auth::user()->id,
             'description' => $request->description,
         ]);
 
@@ -165,6 +170,8 @@ class CashSessionController extends Controller
         $request->validate([
             'cash_session_id' => 'required|uuid|exists:cash_sessions,id',
             'actual_cash' => 'required|numeric|min:0',
+            'actual_usd' => 'nullable|numeric|min:0',
+            'usd_exchange_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
 
@@ -178,13 +185,19 @@ class CashSessionController extends Controller
 
         $totals = $this->computeSessionTotals($session);
         $expected = $totals['expected_cash'];
-        $actual = $request->actual_cash;
-        $diff = $actual - $expected;
+        $actual_nio = $request->actual_cash;
+        $actual_usd = $request->actual_usd ?? 0;
+        $rate = $request->usd_exchange_rate ?? 0;
+
+        $actual_total_nio = $actual_nio + ($actual_usd * $rate);
+        $diff = $actual_total_nio - $expected;
 
         $session->update([
             'status' => 'closed',
             'expected_balance' => $expected,
-            'actual_cash' => $actual,
+            'actual_cash' => $actual_nio,
+            'actual_usd' => $actual_usd,
+            'usd_exchange_rate' => $rate,
             'difference' => $diff,
             'closed_at' => now(),
             'notes' => $request->notes,
@@ -226,16 +239,24 @@ class CashSessionController extends Controller
         // 4. Validate input
         $request->validate([
             'actual_cash' => 'required|numeric|min:0',
+            'actual_usd' => 'nullable|numeric|min:0',
+            'usd_exchange_rate' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string',
         ]);
 
-        $actual = $request->actual_cash;
+        $actual_nio = $request->actual_cash;
+        $actual_usd = $request->actual_usd ?? $session->actual_usd ?? 0;
+        $rate = $request->usd_exchange_rate ?? $session->usd_exchange_rate ?? 0;
+
         $expected = $session->expected_balance;
-        $diff = $actual - $expected;
+        $actual_total_nio = $actual_nio + ($actual_usd * $rate);
+        $diff = $actual_total_nio - $expected;
 
         // 5. Update
         $session->update([
-            'actual_cash' => $actual,
+            'actual_cash' => $actual_nio,
+            'actual_usd' => $actual_usd,
+            'usd_exchange_rate' => $rate,
             'difference' => $diff,
             'notes' => $request->notes,
         ]);
@@ -280,12 +301,16 @@ class CashSessionController extends Controller
             'type' => 'required|in:in,out',
             'amount' => 'required|numeric|min:0.01',
             'description' => 'required|string|max:255',
+            'currency' => 'nullable|string|in:NIO,USD',
+            'expense_category_id' => 'nullable|uuid|exists:expense_categories,id',
         ]);
 
         // 4. Update transaction
         $transaction->update([
             'type' => $request->type,
             'amount' => $request->amount,
+            'currency' => $request->currency ?? $transaction->currency,
+            'expense_category_id' => $request->has('expense_category_id') ? $request->expense_category_id : $transaction->expense_category_id,
             'description' => $request->description,
         ]);
 
@@ -347,8 +372,13 @@ class CashSessionController extends Controller
     {
         $totals = $this->computeSessionTotals($session);
         $expected = $totals['expected_cash'];
-        $actual = $session->actual_cash;
-        $diff = $actual - $expected;
+        
+        $actual_nio = $session->actual_cash;
+        $actual_usd = $session->actual_usd ?? 0;
+        $rate = $session->usd_exchange_rate ?? 0;
+
+        $actual_total_nio = $actual_nio + ($actual_usd * $rate);
+        $diff = $actual_total_nio - $expected;
 
         $session->update([
             'expected_balance' => $expected,

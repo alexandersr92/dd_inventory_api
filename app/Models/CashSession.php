@@ -18,6 +18,9 @@ class CashSession extends Model
         'opening_balance',
         'expected_balance',
         'actual_cash',
+        'actual_usd',
+        'expected_usd',
+        'usd_exchange_rate',
         'difference',
         'status',
         'opened_at',
@@ -31,6 +34,9 @@ class CashSession extends Model
         'opening_balance' => 'float',
         'expected_balance' => 'float',
         'actual_cash' => 'float',
+        'actual_usd' => 'float',
+        'expected_usd' => 'float',
+        'usd_exchange_rate' => 'float',
         'difference' => 'float',
     ];
 

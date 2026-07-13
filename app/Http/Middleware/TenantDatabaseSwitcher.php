@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use App\Services\TenantManager;
 use Symfony\Component\HttpFoundation\Response;
+use App\Models\GlobalSetting;
 
 class TenantDatabaseSwitcher
 {
@@ -27,6 +28,17 @@ class TenantDatabaseSwitcher
                     return response()->json([
                         'message' => 'La organización está inactiva o suspendida.'
                     ], Response::HTTP_FORBIDDEN);
+                }
+
+                if (!$organization->is_lifetime) {
+                    if (!$organization->license_expires_at || $organization->license_expires_at < now()) {
+                        $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? 'Tu licencia ha expirado. Contacta a soporte.';
+                        return response()->json([
+                            'message' => 'Tu licencia de uso ha expirado.',
+                            'error_code' => 'LICENSE_EXPIRED',
+                            'support_message' => $supportMessage
+                        ], Response::HTTP_PAYMENT_REQUIRED);
+                    }
                 }
 
                 TenantManager::setTenant($organization);

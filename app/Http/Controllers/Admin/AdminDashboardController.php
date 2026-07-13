@@ -12,6 +12,7 @@ use App\Models\Admin;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Seller;
+use App\Models\GlobalSetting;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -134,6 +135,103 @@ class AdminDashboardController extends Controller
         }
 
         return redirect()->route('admin.dashboard')->with('success', $msg);
+    }
+
+    public function updateLicense(Request $request, $id)
+    {
+        $request->validate([
+            'type' => 'required|in:add,replace,lifetime,revoke',
+            'days' => 'required_if:type,add,replace|nullable|integer|min:1',
+        ]);
+
+        $organization = Organization::findOrFail($id);
+        $type = $request->type;
+        $days = (int) $request->days;
+
+        if ($type === 'lifetime') {
+            $organization->update([
+                'is_lifetime' => true,
+                'license_expires_at' => null,
+            ]);
+            $organization->licenses()->create([
+                'type' => 'lifetime',
+                'days' => null,
+            ]);
+            return redirect()->back()->with('success', 'Licencia actualizada a de por vida.');
+        }
+
+        if ($type === 'revoke') {
+            $organization->update([
+                'is_lifetime' => false,
+                'license_expires_at' => now(), // instantly expire it today
+            ]);
+            $organization->licenses()->create([
+                'type' => 'revoke',
+                'days' => 0,
+            ]);
+            return redirect()->back()->with('success', 'Licencia revocada (Vencida inmediatamente).');
+        }
+
+        $organization->is_lifetime = false;
+        
+        if ($type === 'replace') {
+            $lastLicense = $organization->licenses()->whereIn('type', ['add', 'replace'])->latest()->first();
+            if (!$lastLicense || !$lastLicense->created_at->isToday()) {
+                return redirect()->back()->withErrors(['error' => 'Solo puedes reemplazar los días si la última compra se realizó el día de hoy.']);
+            }
+            
+            // Revert to previous_expires_at
+            $baseDate = $lastLicense->previous_expires_at ? \Carbon\Carbon::parse($lastLicense->previous_expires_at) : now();
+            if ($baseDate->isPast()) {
+                $baseDate = now();
+            }
+            $newExpiresAt = $baseDate->addDays($days);
+
+            $organization->licenses()->create([
+                'type' => 'replace',
+                'days' => $days,
+                'previous_expires_at' => $lastLicense->previous_expires_at,
+                'new_expires_at' => $newExpiresAt,
+            ]);
+
+            $organization->update(['license_expires_at' => $newExpiresAt]);
+            return redirect()->back()->with('success', "Días reemplazados correctamente. Nueva expiración: {$newExpiresAt->format('d/m/Y')}.");
+        }
+
+        // Action: ADD
+        $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture()) 
+                    ? $organization->license_expires_at 
+                    : now();
+        $previousExpiresAt = $organization->license_expires_at;
+        $newExpiresAt = $baseDate->copy()->addDays($days);
+
+        $organization->licenses()->create([
+            'type' => 'add',
+            'days' => $days,
+            'previous_expires_at' => $previousExpiresAt,
+            'new_expires_at' => $newExpiresAt,
+        ]);
+
+        $organization->update(['license_expires_at' => $newExpiresAt]);
+        return redirect()->back()->with('success', "Días agregados correctamente. Nueva expiración: {$newExpiresAt->format('d/m/Y')}.");
+    }
+
+    public function globalSettings()
+    {
+        $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? '';
+        return view('admin.settings.index', compact('supportMessage'));
+    }
+
+    public function updateGlobalSettings(Request $request)
+    {
+        $request->validate(['license_support_message' => 'nullable|string']);
+        
+        GlobalSetting::updateOrCreate(
+            ['key' => 'license_support_message'],
+            ['value' => $request->license_support_message]
+        );
+
+        return redirect()->back()->with('success', 'Configuración global actualizada correctamente.');
     }
 
     /**
