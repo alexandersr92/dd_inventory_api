@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\MovementController;
+use App\Http\Controllers\Api\V1\DashboardController;
+
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
     // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
@@ -48,6 +50,8 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
+        Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
+        Route::get('/dashboard/chart', [DashboardController::class, 'chart']);
         Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
         Route::put('/user/password', [LoginController::class, 'updatePassword']);
 
