@@ -27,6 +27,9 @@ class Invoice extends Model
         'discount',
         'tax',
         'grand_total',
+        'paid_in_usd',
+        'paid_in_nio',
+        'exchange_rate',
         'payment_method',
         'payment_date',
         'invoice_status',
@@ -37,6 +40,9 @@ class Invoice extends Model
 
     protected $casts = [
         'payment_metadata' => 'array',
+        'paid_in_usd' => 'float',
+        'paid_in_nio' => 'float',
+        'exchange_rate' => 'float',
     ];
 
     public function cashSession()

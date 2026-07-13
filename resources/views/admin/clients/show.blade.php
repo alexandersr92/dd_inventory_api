@@ -645,6 +645,121 @@
                     @endforeach
                 </div>
             </div>
+
+            <!-- License Management -->
+            <div class="section-card">
+                <h2 class="card-title">Gestión de Licencia</h2>
+                
+                @php
+                    $isLifetime = $organization->is_lifetime;
+                    $expiresAt = $organization->license_expires_at ? \Carbon\Carbon::parse($organization->license_expires_at) : null;
+                    $isExpired = !$isLifetime && (!$expiresAt || $expiresAt->isPast());
+                    $remainingDays = $expiresAt ? now()->diffInDays($expiresAt, false) : 0;
+                @endphp
+
+                <div style="margin-bottom: 24px;">
+                    @if($isLifetime)
+                        <div style="background: rgba(16,185,129,0.08); padding: 16px; border-radius: 12px; border: 1px solid rgba(16,185,129,0.2);">
+                            <span style="color: var(--success-color); font-weight: 700; font-size: 15px; display: block;">Licencia de Por Vida</span>
+                            <span style="color: var(--text-secondary); font-size: 13px;">Este cliente tiene acceso ilimitado a la plataforma.</span>
+                        </div>
+                    @elseif($isExpired)
+                        <div style="background: rgba(239,68,68,0.08); padding: 16px; border-radius: 12px; border: 1px solid rgba(239,68,68,0.2);">
+                            <span style="color: #f87171; font-weight: 700; font-size: 15px; display: block;">Licencia Expirada</span>
+                            <span style="color: var(--text-secondary); font-size: 13px;">La licencia venció hace {{ abs(intval($remainingDays)) }} días ({{ $expiresAt ? $expiresAt->format('d/m/Y') : 'Sin fecha' }}).</span>
+                        </div>
+                    @else
+                        <div style="background: rgba(99,102,241,0.08); padding: 16px; border-radius: 12px; border: 1px solid rgba(99,102,241,0.2);">
+                            <span style="color: #818CF8; font-weight: 700; font-size: 15px; display: block;">Licencia Activa</span>
+                            <span style="color: var(--text-secondary); font-size: 13px;">Quedan {{ intval($remainingDays) }} días (Expira el {{ $expiresAt->format('d/m/Y') }}).</span>
+                        </div>
+                    @endif
+                </div>
+
+                @if($errors->any())
+                    <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 16px; color: var(--danger-color); font-size: 13px;">
+                        <ul style="margin: 0; padding-left: 20px;">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
+                <form action="{{ route('admin.clients.license', $organization->id) }}" method="POST" style="display: flex; flex-direction: column; gap: 16px;">
+                    @csrf
+                    <div>
+                        <label class="modal-input-label" style="margin-bottom: 12px;">Acción a realizar</label>
+                        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="radio" name="type" value="add" checked>
+                                <span style="font-size: 14px; color: var(--text-primary);">Sumar Días</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="radio" name="type" value="replace">
+                                <span style="font-size: 14px; color: var(--text-primary);">Reemplazar Última Compra</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="radio" name="type" value="lifetime">
+                                <span style="font-size: 14px; color: var(--text-primary);">De Por Vida (Lifetime)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                                <input type="radio" name="type" value="revoke">
+                                <span style="font-size: 14px; color: var(--danger-color); font-weight: 600;">Revocar (0 Días)</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div id="days-container">
+                        <label class="modal-input-label" for="days">Cantidad de Días (para sumar o reemplazar)</label>
+                        <input type="number" name="days" id="days" min="1" class="modal-input" placeholder="Ej. 30">
+                    </div>
+
+                    <button type="submit" class="module-toggle-btn active" style="justify-content: center; text-align: center; margin-top: 8px;">
+                        Actualizar Licencia
+                    </button>
+                </form>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const radios = document.querySelectorAll('input[name="type"]');
+                        const daysContainer = document.getElementById('days-container');
+                        
+                        radios.forEach(radio => {
+                            radio.addEventListener('change', function() {
+                                if (this.value === 'revoke' || this.value === 'lifetime') {
+                                    daysContainer.style.display = 'none';
+                                } else {
+                                    daysContainer.style.display = 'block';
+                                }
+                            });
+                        });
+                    });
+                </script>
+
+                @if($organization->licenses()->count() > 0)
+                    <div style="margin-top: 32px;">
+                        <h3 class="card-title" style="font-size: 14px; margin-bottom: 16px; border: none; padding: 0;">Historial Reciente</h3>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            @foreach($organization->licenses()->latest()->take(5)->get() as $lic)
+                                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); padding: 12px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="font-size: 13px; font-weight: 600; color: var(--text-primary); display: block; text-transform: capitalize;">
+                                            {{ $lic->type === 'add' ? 'Suma de Días' : ($lic->type === 'replace' ? 'Reemplazo' : ($lic->type === 'revoke' ? 'Revocada' : 'Vitalicia')) }}
+                                        </span>
+                                        <span style="font-size: 12px; color: var(--text-secondary);">
+                                            {{ $lic->created_at->format('d/m/Y H:i') }}
+                                        </span>
+                                    </div>
+                                    @if($lic->days)
+                                        <span style="font-size: 14px; font-weight: 700; color: var(--success-color);">+{{ $lic->days }} días</span>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+            </div>
         </div>
 
         <div class="right-column">

@@ -21,7 +21,19 @@ class Organization extends Model
         'description',
         'status',
         'owner_id',
+        'is_lifetime',
+        'license_expires_at',
+        'support_message',
+        'tenancy_type',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_lifetime' => 'boolean',
+            'license_expires_at' => 'datetime',
+        ];
+    }
 
     public function user()
     {
@@ -38,6 +50,11 @@ class Organization extends Model
     public function roles()
     {
         return $this->hasMany(Role::class);
+    }
+
+    public function licenses()
+    {
+        return $this->hasMany(OrganizationLicense::class);
     }
 
     public function clients()
