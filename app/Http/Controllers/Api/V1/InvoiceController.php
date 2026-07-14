@@ -291,6 +291,29 @@ class InvoiceController extends Controller
             $invoiceData['user_id'] = $userID;
             $invoiceData['organization_id'] = $orgId;
             $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+
+            // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
+            $paidInNio = 0.0;
+            $paidInUsd = 0.0;
+            $exchangeRateVal = 0.0;
+
+            if ($request->payment_method === 'CASH' && is_array($request->payment_metadata)) {
+                $paidInNio = (float) ($request->payment_metadata['paid_in_nio'] ?? $request->payment_metadata['paid_nio'] ?? 0);
+                $paidInUsd = (float) ($request->payment_metadata['paid_in_usd'] ?? $request->payment_metadata['paid_usd'] ?? 0);
+                $exchangeRateVal = (float) ($request->payment_metadata['exchange_rate'] ?? 0);
+            } elseif ($request->payment_method === 'MULTIPLE' && is_array($request->payment_metadata) && isset($request->payment_metadata['payments'])) {
+                foreach ($request->payment_metadata['payments'] as $p) {
+                    if (($p['method'] ?? '') === 'CASH') {
+                        $paidInNio += (float) ($p['paid_in_nio'] ?? $p['paid_nio'] ?? 0);
+                        $paidInUsd += (float) ($p['paid_in_usd'] ?? $p['paid_usd'] ?? 0);
+                        $exchangeRateVal = (float) ($p['exchange_rate'] ?? $exchangeRateVal);
+                    }
+                }
+            }
+
+            $invoiceData['paid_in_nio'] = $paidInNio;
+            $invoiceData['paid_in_usd'] = $paidInUsd;
+            $invoiceData['exchange_rate'] = $exchangeRateVal;
      
             $invoice = Invoice::create($invoiceData);
     
