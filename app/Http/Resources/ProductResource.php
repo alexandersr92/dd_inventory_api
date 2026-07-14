@@ -37,14 +37,19 @@ class ProductResource extends JsonResource
                 'id' => $inventory->id,
                 'quantity' => $inventory->quantity,
                 'inventory_id' => $inventory->inventory_id,
-             
+                'price' => $inventory->price,
             ];
         });
 
         $totalStock = $this->inventoryDetails->sum('quantity');
 
-        //El atributo suppliers no esta asignado al producto, para obtenerlo debemos ir al ultimo purchaseDetail y obtener el supplier
-        $supplier = $this->purchaseDetails->last()->purchase->supplier;
+        $supplier = $this->suppliers->first();
+        if (!$supplier) {
+            $lastPurchaseDetail = $this->purchaseDetails->last();
+            $supplier = ($lastPurchaseDetail && $lastPurchaseDetail->purchase)
+                ? $lastPurchaseDetail->purchase->supplier
+                : null;
+        }
  
        // dd($this);
         return [

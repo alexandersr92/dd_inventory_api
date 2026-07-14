@@ -10,6 +10,8 @@ class Organization extends Model
 {
     use Uuids, HasFactory;
 
+    protected $connection = 'central';
+
     protected $fillable = [
         'name',
         'email',
@@ -19,7 +21,19 @@ class Organization extends Model
         'description',
         'status',
         'owner_id',
+        'is_lifetime',
+        'license_expires_at',
+        'support_message',
+        'tenancy_type',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'is_lifetime' => 'boolean',
+            'license_expires_at' => 'datetime',
+        ];
+    }
 
     public function user()
     {
@@ -28,12 +42,19 @@ class Organization extends Model
 
     public function modules()
     {
-        return $this->belongsToMany(Module::class);
+        return $this->belongsToMany(Module::class, 'organization_modules')
+            ->using(OrganizationModule::class)
+            ->withPivot('status');
     }
 
     public function roles()
     {
         return $this->hasMany(Role::class);
+    }
+
+    public function licenses()
+    {
+        return $this->hasMany(OrganizationLicense::class);
     }
 
     public function clients()
@@ -49,5 +70,20 @@ class Organization extends Model
     public function users()
     {
         return $this->hasMany(User::class);
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
+    public function credits()
+    {
+        return $this->hasMany(Credit::class);
+    }
+
+    public function sellers()
+    {
+        return $this->hasMany(Seller::class);
     }
 }

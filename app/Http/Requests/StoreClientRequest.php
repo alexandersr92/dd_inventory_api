@@ -23,6 +23,7 @@ class StoreClientRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
+            'cedula_ruc' => 'nullable|string|max:255',
             'email' => 'email|max:255 | nullable',
             'phone' => 'string|max:255 | nullable',
             'address' => 'string|max:255 | nullable',

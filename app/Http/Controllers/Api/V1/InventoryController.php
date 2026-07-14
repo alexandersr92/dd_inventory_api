@@ -29,18 +29,28 @@ use Illuminate\Support\Collection;
 
 class InventoryController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Inventory::class);
         $orgId = Auth::user()->organization_id;
 
         $inventories = Inventory::where('organization_id', $orgId)->get();
         $per_page = $request->query('per_page', 20);
         $store = $request->query('store');
-        if($store){
-            $inventories = Inventory::where('organization_id', $orgId)->where('store_id', $store)->paginate($per_page);
+        if ($store) {
+            $inventories = Inventory::where('organization_id', $orgId)
+                ->where(function ($query) use ($store) {
+                    $query->where('store_id', $store)
+                        ->orWhereHas('stores', function ($q) use ($store) {
+                            $q->where('stores.id', $store);
+                        });
+                })
+                ->paginate($per_page);
         }
 
         // FIXME: Retorna HTTP_CREATED en lugar de HTTP_OK para GET request
@@ -55,19 +65,32 @@ class InventoryController extends Controller
      */
     public function store(StoreInventoryRequest $request)
     {
+        $this->authorize('create', Inventory::class);
+
         $orgId = Auth::user()->organization_id;
+
+        // Support both array and single value for store_ids
+        $storeIds = is_array($request->store_ids) 
+            ? $request->store_ids 
+            : ($request->store_id ? (array) $request->store_id : []);
+
+        $firstStoreId = count($storeIds) > 0 ? $storeIds[0] : null;
 
         //create inventory and assign to organization and store
         $inventory = Inventory::create([
             'name' => $request->name,
             'description' => $request->description,
             'address' => $request->address,
-            'store_id' => $request->store_id,
+            'store_id' => $firstStoreId, // for backward compatibility
             'organization_id' => $orgId
         ]);
 
+        if (count($storeIds) > 0) {
+            $inventory->stores()->sync($storeIds);
+        }
+
         return response(
-            new InventoryResource($inventory),
+            new InventoryResource($inventory->load('stores')),
             Response::HTTP_CREATED
         );
     }
@@ -77,6 +100,8 @@ class InventoryController extends Controller
      */
     public function show(Inventory $inventory, Request $request)
     {
+        $this->authorize('view', $inventory);
+
          $inventory->load('store');
 
         $perPage = $request->query('per_page', 50);
@@ -142,6 +167,7 @@ class InventoryController extends Controller
 
     public function showProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('view', $inventory);
         if ($request->has('barcode')) {
             $barcode = $request->query('barcode');
             $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($barcode) {
@@ -176,6 +202,7 @@ class InventoryController extends Controller
 
     public function addProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('update', $inventory);
         $listOfProducts = explode(',', $request->products);
 
         foreach ($listOfProducts as $product) {
@@ -208,6 +235,7 @@ class InventoryController extends Controller
 
     public function removeProducts(Inventory $inventory, Request $request)
     {
+        $this->authorize('update', $inventory);
         $listOfProducts = explode(',', $request->products);
 
         foreach ($listOfProducts as $product) {
@@ -242,10 +270,25 @@ class InventoryController extends Controller
      */
     public function update(UpdateInventoryRequest $request, Inventory $inventory)
     {
-        $inventory->update($request->all());
+        $this->authorize('update', $inventory);
+
+        $storeIds = is_array($request->store_ids) 
+            ? $request->store_ids 
+            : ($request->store_id ? (array) $request->store_id : null);
+
+        $updateData = $request->all();
+        if ($storeIds !== null) {
+            $updateData['store_id'] = count($storeIds) > 0 ? $storeIds[0] : null;
+        }
+
+        $inventory->update($updateData);
+
+        if ($storeIds !== null) {
+            $inventory->stores()->sync($storeIds);
+        }
 
         return response(
-            new InventoryResource($inventory),
+            new InventoryResource($inventory->load('stores')),
             Response::HTTP_OK
         );
     }
@@ -255,6 +298,7 @@ class InventoryController extends Controller
      */
     public function destroy(Inventory $inventory)
     {
+        $this->authorize('delete', $inventory);
 
         //validate if inventory has products
         $inventoryDetails = InventoryDetail::where('inventory_id', $inventory->id)->get();
@@ -272,6 +316,7 @@ class InventoryController extends Controller
 
     public function getProductInventory(Inventory $inventory, Product $product)
     {
+        $this->authorize('view', $inventory);
         $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)
             ->where('product_id', $product->id)
             ->first();
@@ -283,16 +328,23 @@ class InventoryController extends Controller
     }
 
     public function getProductByStore(Store $store, Request $request){
+        $this->authorize('viewAny', Inventory::class);
             
         $search = $request->query('search');
 
         $inventoryDetails = InventoryDetail::whereHas('inventory', function ($q) use ($store) {
-                $q->where('store_id', $store->id);
+                $q->where(function ($sub) use ($store) {
+                    $sub->where('store_id', $store->id)
+                        ->orWhereHas('stores', function ($sq) use ($store) {
+                            $sq->where('stores.id', $store->id);
+                        });
+                });
             })
             ->when($search, function ($query, $search) {
                 $query->whereHas('product', function ($q) use ($search) {
                     $q->where('sku', 'like', "%$search%")
-                      ->orWhere('name', 'like', "%$search%");
+                      ->orWhere('name', 'like', "%$search%")
+                      ->orWhere('barcode', 'like', "%$search%");
                 });
             })
             ->with('product') // Carga la relación para evitar N+1
@@ -303,6 +355,7 @@ class InventoryController extends Controller
 
     public function exportInventory(Request $request)
     {
+        $this->authorize('viewAny', Inventory::class);
 
         $orgId = Auth::user()->organization_id;
         $inventory = InventoryDetail::where('inventory_id', $request->inventory_id)

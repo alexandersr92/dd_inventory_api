@@ -23,13 +23,14 @@ class UpdateClientRequest extends FormRequest
     {
         return [
             'name' => 'required|string|max:255',
-            'email' => 'email|max:255',
-            'phone' => 'string|max:255',
-            'address' => 'string|max:255',
-            'city' => 'string|max:255',
-            'state' => 'string|max:255',
-            'country' => 'string|max:255',
-            'zip' => 'string|max:255',
+            'cedula_ruc' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
+            'phone' => 'nullable|string|max:255',
+            'address' => 'nullable|string|max:255',
+            'city' => 'nullable|string|max:255',
+            'state' => 'nullable|string|max:255',
+            'country' => 'nullable|string|max:255',
+            'zip' => 'nullable|string|max:255',
 
             'wholesaler' => 'required|boolean',
             'notes' => 'nullable|string',

@@ -30,6 +30,8 @@ class UpdateProductRequest extends FormRequest
             'price' => ['numeric'],
             'min_stock' => ['numeric'],
             'unit_of_measure' => ['string', 'max:255'],
+            'inventory' => ['nullable', 'string'],
+            'update_all_inventories' => ['nullable', 'boolean'],
         ];
     }
 }

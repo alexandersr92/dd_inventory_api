@@ -25,6 +25,8 @@ class OrganizationFactory extends Factory
             'description' => $this->faker->sentence(),
             'status' => 'active',
             'owner_id' => \App\Models\User::factory(),
+            'license_expires_at' => now()->addYear(),
+            'is_lifetime' => false,
         ];
     }
 }

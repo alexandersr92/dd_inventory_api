@@ -17,6 +17,7 @@ class User extends Authenticatable
     use Uuids;
     use HasRoles;
 
+    protected $connection = 'central';
 
     use HasFactory, Notifiable, HasApiTokens;
 
@@ -76,7 +77,12 @@ class User extends Authenticatable
     }
 
     public function seller()
-{
-    return $this->belongsTo(Seller::class);
-}
+    {
+        return $this->belongsTo(Seller::class);
+    }
+
+    public function stores()
+    {
+        return $this->belongsToMany(Store::class, 'user_store')->using(UserStore::class);
+    }
 }

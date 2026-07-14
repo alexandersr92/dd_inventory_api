@@ -13,19 +13,24 @@ use App\Http\Resources\InvoiceCollection;
 use App\Http\Resources\InvoiceResource;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\JsonResponse;
 use App\Http\Requests\StoreInvoiceRequest;
+use App\Services\InventoryMovementService;
 
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\InvoiceExport;
 
 class InvoiceController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Invoice::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
         $order = $request->query('order', 'asc');
@@ -98,6 +103,8 @@ class InvoiceController extends Controller
 
         if($invoice_status) {
             $query->where('invoice_status', $invoice_status);
+        } else {
+            $query->where('invoice_status', '!=', 'proforma');
         }
 
      
@@ -130,12 +137,83 @@ class InvoiceController extends Controller
      */
     public function store(StoreInvoiceRequest $request)
     {
+        $this->authorize('create', Invoice::class);
+
+        $lockKey = 'create_invoice_' . Auth::id() . '_' . md5(json_encode($request->all()));
+        $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos para evitar doble envío
+
+        if (!$lock->get()) {
+            return response()->json(['message' => 'Esta factura ya está siendo procesada o ya fue enviada.'], 422);
+        }
+
         DB::beginTransaction();
-    
         try {
-            $orgId = Auth::user()->organization_id;
+            $result = $this->storeInternal($request);
+            if ($result instanceof \Illuminate\Http\JsonResponse) {
+                DB::rollBack();
+                $lock->release();
+                return $result;
+            }
+            DB::commit();
+
+            // Disparar eventos de notificación después del commit exitoso
+            $invoice = $result->resource;
+            event(new \App\Events\InvoiceCreated($invoice));
+
+            if ($invoice->credit) {
+                event(new \App\Events\CreditCreated($invoice->credit));
+            }
+
+            return $result;
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $lock->release();
+            report($e);
+            return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    protected function storeInternal(StoreInvoiceRequest $request)
+    {
+        if ($request->isCredit && empty($request->client_id)) {
+            return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
+        }
+
+        if ($request->payment_method === 'MULTIPLE') {
+            $metadata = $request->payment_metadata;
+            if (!is_array($metadata) || !isset($metadata['payments']) || !is_array($metadata['payments'])) {
+                return response()->json(['message' => 'Los metadatos de pago múltiple son requeridos y deben ser válidos.'], 400);
+            }
+
+            $totalPayments = 0.0;
+            foreach ($metadata['payments'] as $pay) {
+                if (!isset($pay['amount']) || !is_numeric($pay['amount']) || $pay['amount'] < 0) {
+                    return response()->json(['message' => 'Cada método de pago debe especificar un monto numérico positivo.'], 400);
+                }
+                $totalPayments += (float) $pay['amount'];
+
+                if (($pay['method'] ?? '') === 'TRANSFER') {
+                    if (empty($pay['bank']) || empty($pay['reference'])) {
+                        return response()->json(['message' => 'Los pagos por transferencia deben incluir el banco de origen y la referencia.'], 400);
+                    }
+                }
+
+                if (($pay['method'] ?? '') === 'CARD') {
+                    if (empty($pay['card_last_four']) || empty($pay['reference'])) {
+                        return response()->json(['message' => 'Los pagos con tarjeta deben incluir los últimos 4 dígitos y la referencia.'], 400);
+                    }
+                }
+            }
+
+            $grandTotal = (float) $request->grand_total;
+            if ($totalPayments < $grandTotal - 0.05) {
+                return response()->json(['message' => 'La suma de los métodos de pago (C$ ' . number_format($totalPayments, 2) . ') es menor al total de la factura (C$ ' . number_format($grandTotal, 2) . ').'], 400);
+            }
+        }
+
+        $orgId = Auth::user()->organization_id;
             $userID = Auth::id();
-            $store = Store::findOrFail($request->store_id);
+            $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
             $allowNegativeStock = true;
            
     
@@ -168,9 +246,20 @@ class InvoiceController extends Controller
                 }
             }
     
-            $invoiceNumber = $store->invoice_prefix
-                ? $store->invoice_prefix . '-' . str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT)
-                : str_pad($store->invoice_number + 1, 6, '0', STR_PAD_LEFT);
+            $nextInvoiceNumber = $store->invoice_number + 1;
+            do {
+                $invoiceNumber = $store->invoice_prefix
+                    ? $store->invoice_prefix . '-' . str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT)
+                    : str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT);
+
+                $exists = Invoice::where('store_id', $request->store_id)
+                    ->where('invoice_number', $invoiceNumber)
+                    ->exists();
+
+                if ($exists) {
+                    $nextInvoiceNumber++;
+                }
+            } while ($exists);
     
             $invoiceData = $request->only([
                 'client_id',
@@ -183,47 +272,103 @@ class InvoiceController extends Controller
                 'tax',
                 'grand_total',
                 'payment_method',
-                'payment_date'
+                'payment_date',
+                'payment_metadata'
             ]);
             $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
             $invoiceData['invoice_number'] = $invoiceNumber;
             $invoiceData['total'] = $totalItems;
-            $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
-            $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+
+            $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
+            if ($isProforma) {
+                $invoiceData['invoice_status'] = 'proforma';
+                $invoiceData['invoice_type'] = 'proforma';
+            } else {
+                $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
+                $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+            }
+
             $invoiceData['user_id'] = $userID;
             $invoiceData['organization_id'] = $orgId;
-    
+            $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+
+            // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
+            $paidInNio = 0.0;
+            $paidInUsd = 0.0;
+            $exchangeRateVal = 0.0;
+
+            if ($request->payment_method === 'CASH' && is_array($request->payment_metadata)) {
+                $paidInNio = (float) ($request->payment_metadata['paid_in_nio'] ?? $request->payment_metadata['paid_nio'] ?? 0);
+                $paidInUsd = (float) ($request->payment_metadata['paid_in_usd'] ?? $request->payment_metadata['paid_usd'] ?? 0);
+                $exchangeRateVal = (float) ($request->payment_metadata['exchange_rate'] ?? 0);
+            } elseif ($request->payment_method === 'MULTIPLE' && is_array($request->payment_metadata) && isset($request->payment_metadata['payments'])) {
+                foreach ($request->payment_metadata['payments'] as $p) {
+                    if (($p['method'] ?? '') === 'CASH') {
+                        $paidInNio += (float) ($p['paid_in_nio'] ?? $p['paid_nio'] ?? 0);
+                        $paidInUsd += (float) ($p['paid_in_usd'] ?? $p['paid_usd'] ?? 0);
+                        $exchangeRateVal = (float) ($p['exchange_rate'] ?? $exchangeRateVal);
+                    }
+                }
+            }
+
+            $invoiceData['paid_in_nio'] = $paidInNio;
+            $invoiceData['paid_in_usd'] = $paidInUsd;
+            $invoiceData['exchange_rate'] = $exchangeRateVal;
+     
             $invoice = Invoice::create($invoiceData);
     
             if (!$invoice) {
                 return response()->json(['message' => 'No se pudo crear la factura.'], 400);
             }
     
-            // Actualizar número de factura
-            $store->increment('invoice_number');
+            // Actualizar número de factura al consecutivo utilizado
+            $store->invoice_number = $nextInvoiceNumber;
+            $store->save();
     
+            $movementService = app(InventoryMovementService::class);
+
             // Detalles y actualización de inventario
-            foreach ($productArray as $product) {
+            foreach ($productArray as $index => $product) {
                 $invoice->invoiceDetails()->create([
                     'product_id' => $product['product_id'],
                     'inventory_id' => $product['inventory_id'],
                     'quantity' => $product['quantity'],
                     'price' => $product['price'],
-                    'total' => $product['total']
+                    'total' => $product['total'],
+                    'discount' => $product['discount'] ?? 0,
+                    'tax' => $product['tax'] ?? 0,
+                    'grand_total' => $product['grand_total'] ?? $product['total'],
+                    'sort_order' => $index
                 ]);
                 
-                $quantity = (float) $product['quantity'];
-                $operator = $quantity >= 0 ? '-' : '+';
+                // Si es proforma, no alteramos el inventario (es una cotización)
+                if ($invoiceData['invoice_status'] === 'proforma') {
+                    continue;
+                }
                 
-                InventoryDetail::where('product_id', $product['product_id'])
+                $quantity = (float) $product['quantity'];
+                
+                $detail = InventoryDetail::where('product_id', $product['product_id'])
                     ->where('inventory_id', $product['inventory_id'])
-                    ->update([
-                        'quantity' => DB::raw("quantity $operator " . abs($quantity))
+                    ->lockForUpdate()
+                    ->first();
+                
+                if ($detail) {
+                    $movementService->recordMovement([
+                        'inventory_detail_id' => $detail->id,
+                        'type' => $quantity >= 0 ? 'sale' : 'return',
+                        'quantity' => abs($quantity),
+                        'reason' => "Venta en Factura N° {$invoice->invoice_number}",
+                        'user_id' => $userID,
+                        'seller_id' => $invoiceData['seller_id'],
+                        'reference_id' => $invoice->id,
+                        'reference_type' => Invoice::class,
                     ]);
+                }
             }
     
-            // Si es crédito
-            if ($request->isCredit && $request->client_id) {
+            // Si es crédito y no es proforma
+            if ($invoiceData['invoice_status'] !== 'proforma' && $request->isCredit && $request->client_id) {
                 $credit = $invoice->credit()->create([
                     'user_id' => $userID,
                     'organization_id' => $orgId,
@@ -251,14 +396,8 @@ class InvoiceController extends Controller
                 }
             }
     
-            DB::commit();
+            $invoice->load('client');
             return new InvoiceResource($invoice);
-    
-        } catch (\Throwable $e) {
-            DB::rollBack();
-            report($e);
-            return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
-        }
     }
 
     /**
@@ -266,6 +405,9 @@ class InvoiceController extends Controller
      */
     public function show(Invoice $invoice)
     {
+        $this->authorize('view', $invoice);
+
+        $invoice->load('client');
         return new InvoiceResource($invoice);
     }
 
@@ -274,23 +416,119 @@ class InvoiceController extends Controller
      */
     public function cancel(Invoice $invoice)
     {
+        $this->authorize('delete', $invoice);
+
+        DB::beginTransaction();
+        try {
+            $this->cancelInternal($invoice);
+            DB::commit();
+            return response()->json(['message' => 'Invoice cancelled successfully.']);
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            report($e);
+            return response()->json(['message' => 'Error canceling invoice.', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+    protected function cancelInternal(Invoice $invoice)
+    {
         $invoice->invoice_status = 'canceled';
         $invoice->save();
 
-        $invoiceDetails = $invoice->invoiceDetails;
+            // Si la factura tiene un crédito asociado, lo anulamos también
+            if ($invoice->credit) {
+                $invoice->credit->credit_status = 'canceled';
+                $invoice->credit->debt = 0; // Se elimina la deuda
+                $invoice->credit->save();
+            }
 
-        foreach($invoiceDetails as $invoiceDetail){
-            $productObjs = InventoryDetail::where('product_id', $invoiceDetail->product_id)->where('inventory_id', $invoiceDetail->inventory_id)->first();
-            $productObjs->quantity = $productObjs->quantity + $invoiceDetail->quantity;
-            $productObjs->save();
+            $invoiceDetails = $invoice->invoiceDetails;
+            $movementService = app(InventoryMovementService::class);
+
+            foreach($invoiceDetails as $invoiceDetail){
+                $detail = InventoryDetail::where('product_id', $invoiceDetail->product_id)
+                    ->where('inventory_id', $invoiceDetail->inventory_id)
+                    ->lockForUpdate()
+                    ->first();
+                
+                if ($detail) {
+                    $qty = (float) $invoiceDetail->quantity;
+                    $type = $qty >= 0 ? 'sale_cancel' : 'manual_out';
+                    
+                    $movementService->recordMovement([
+                        'inventory_detail_id' => $detail->id,
+                        'type' => $type,
+                        'quantity' => abs($qty),
+                        'reason' => "Cancelación de Factura N° {$invoice->invoice_number}",
+                        'user_id' => Auth::id(),
+                        'seller_id' => $invoice->seller_id,
+                        'reference_id' => $invoice->id,
+                        'reference_type' => Invoice::class,
+                    ]);
+                }
+            }
+    }
+
+    public function replace(StoreInvoiceRequest $request, Invoice $invoice)
+    {
+        $this->authorize('create', Invoice::class);
+
+        if ($invoice->invoice_status === 'canceled') {
+            return response()->json(['message' => 'La factura original ya está anulada.'], 400);
         }
 
-        return response()->json(['message' => 'Invoice cancelled successfully.']);
+        $lockKey = 'replace_invoice_' . Auth::id() . '_' . $invoice->id . '_' . md5(json_encode($request->all()));
+        $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos
+
+        if (!$lock->get()) {
+            return response()->json(['message' => 'Esta factura ya está siendo reemplazada.'], 422);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // 1. Anular la factura vieja
+            $this->cancelInternal($invoice);
+
+            // 2. Crear la nueva factura
+            $newInvoiceResponse = $this->storeInternal($request);
+            
+            if ($newInvoiceResponse instanceof \Illuminate\Http\JsonResponse) {
+                DB::rollBack();
+                $lock->release();
+                return $newInvoiceResponse; // Propagar el error
+            }
+
+            $newInvoice = $newInvoiceResponse->resource;
+
+            // 3. Establecer trazabilidad bidireccional
+            $invoice->replaced_by_invoice_id = $newInvoice->id;
+            $invoice->save();
+
+            $newInvoice->replaces_invoice_id = $invoice->id;
+            $newInvoice->save();
+
+            DB::commit();
+            $lock->release();
+
+            $newInvoice->load('client');
+            return response()->json([
+                'message' => 'Factura reemplazada exitosamente.',
+                'invoice' => new InvoiceResource($newInvoice)
+            ]);
+
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            $lock->release();
+            report($e);
+            return response()->json(['message' => 'Error al reemplazar la factura.', 'error' => $e->getMessage()], 500);
+        }
     }
 
     
     public function exportInvoices(Request $request)
     {
+        $this->authorize('viewAny', Invoice::class);
 
         $orgId = Auth::user()->organization_id;
         $invoices = Invoice::where('organization_id', $orgId)

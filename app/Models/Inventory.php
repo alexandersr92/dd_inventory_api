@@ -5,12 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
-
+use App\Traits\Multitenantable;
 
 class Inventory extends Model
 {
     use HasFactory;
     use Uuids;
+    use Multitenantable;
 
     protected $fillable = [
         'organization_id',
@@ -29,6 +30,11 @@ class Inventory extends Model
     public function store()
     {
         return $this->belongsTo(Store::class);
+    }
+
+    public function stores()
+    {
+        return $this->belongsToMany(Store::class, 'inventory_store')->withTimestamps();
     }
 
     public function inventoryDetails()

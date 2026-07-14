@@ -21,6 +21,7 @@ class InvoiceDetail extends Model
         'discount',
         'tax',
         'grand_total',
+        'sort_order',
     ];
 
 

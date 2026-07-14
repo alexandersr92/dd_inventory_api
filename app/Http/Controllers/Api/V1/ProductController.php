@@ -22,11 +22,14 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Product::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
 
@@ -77,6 +80,8 @@ class ProductController extends Controller
      */
     public function store(StoreProductRequest $request)
     {
+        $this->authorize('create', Product::class);
+
         $orgId = Auth::user()->organization_id;
 
         $request->merge(['organization_id' => $orgId]);
@@ -169,6 +174,7 @@ class ProductController extends Controller
      */
     public function show(Product $product)
     {
+        $this->authorize('view', $product);
 
         return response(
             new ProductResource($product),
@@ -181,8 +187,7 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
-
-        $data = $request->all();
+        $this->authorize('update', $product);
 
         $orgId = Auth::user()->organization_id;
 
@@ -191,9 +196,47 @@ class ProductController extends Controller
             'barcode' => 'unique:products,barcode,' . $product->id . ',id,organization_id,' . $orgId,
         ]);
 
+        $oldPrice = $product->price;
+        $data = $request->all();
+
+        // Si se edita para una sucursal, no modificamos el precio base global
+        if ($request->filled('inventory')) {
+            unset($data['price']);
+        }
 
         // Actualizar producto
         $product->update($data);
+
+        // Lógica condicional de actualización de precios en sucursales
+        if ($request->has('price')) {
+            if ($request->filled('inventory')) {
+                // Caso 1: Edición local en una sucursal específica
+                $inventoryDetail = InventoryDetail::where('product_id', $product->id)
+                    ->where('inventory_id', $request->inventory)
+                    ->first();
+
+                if ($inventoryDetail) {
+                    $inventoryDetail->update(['price' => $request->price]);
+                } else {
+                    InventoryDetail::create([
+                        'inventory_id' => $request->inventory,
+                        'product_id' => $product->id,
+                        'quantity' => 0,
+                        'price' => $request->price,
+                    ]);
+                }
+            } else {
+                // Caso 2: Edición global desde catálogo
+                $query = InventoryDetail::where('product_id', $product->id);
+
+                if (!$request->input('update_all_inventories', false)) {
+                    // Opción B (Default): Solo sobreescribir los que tenían el precio base anterior
+                    $query->where('price', $oldPrice);
+                }
+
+                $query->update(['price' => $request->price]);
+            }
+        }
 
 
         if ($request->has('categories')) {
@@ -275,6 +318,8 @@ class ProductController extends Controller
      */
     public function destroy(Product $product)
     {
+        $this->authorize('delete', $product);
+
         $product->delete();
 
         return response(

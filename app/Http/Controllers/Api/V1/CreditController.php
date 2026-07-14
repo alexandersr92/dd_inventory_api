@@ -13,25 +13,71 @@ use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 class CreditController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request) 
     {
+        $this->authorize('viewAny', Credit::class);
         $orgId = Auth::user()->organization_id;
         $per_page = $request->query('per_page', 20);
         $credits = Credit::where('organization_id', $orgId)->paginate($per_page);
         return new CreditCollection($credits);
     }
 
+    public function searchActive(Request $request)
+    {
+        $this->authorize('viewAny', Credit::class);
+
+        $orgId = Auth::user()->organization_id;
+        $search = $request->query('search');
+
+        // Solo créditos activos
+        $query = Credit::where('organization_id', $orgId)
+            ->where('credit_status', '!=', 'paid');
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('client', function ($qc) use ($search) {
+                    $qc->where('name', 'like', '%' . $search . '%');
+                })
+                ->orWhereHas('invoice', function ($qi) use ($search) {
+                    $qi->where('invoice_number', 'like', '%' . $search . '%');
+                })
+                ->orWhere('credit_number', 'like', '%' . $search . '%');
+            });
+        }
+
+        $credits = $query->with(['client', 'invoice'])->limit(20)->get();
+
+        $simplified = $credits->map(function ($credit) {
+            return [
+                'id' => $credit->id,
+                'credit_number' => $credit->credit_number ?? 'CR-PENDIENTE',
+                'client_name' => $credit->client->name ?? 'Cliente Desconocido',
+                'invoice_number' => $credit->invoice->invoice_number ?? 'N/A',
+                'total' => $credit->total,
+                'debt' => $credit->debt,
+                'created_at' => $credit->created_at ? $credit->created_at->toDateString() : '',
+            ];
+        });
+
+        return response()->json($simplified, 200);
+    }
+
     public function indexByClient(Request $request)
     {
+        $this->authorize('viewAny', Credit::class);
+
         $orgId = Auth::user()->organization_id;
         $sort = $request->query('sort_by', 'created_at');
         $storeId = $request->query('store_id');
         $clientId = $request->query('client_id');
         $order = $request->query('order', 'asc');
         $creditStatus = $request->query('credit_status', 'all');
+        $search = $request->query('search');
 
         // Base query
         $query = Credit::where('organization_id', $orgId);
@@ -46,6 +92,12 @@ class CreditController extends Controller
 
         if ($creditStatus !== 'all') {
             $query->where('credit_status', $creditStatus);
+        }
+
+        if ($search) {
+            $query->whereHas('client', function ($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%');
+            });
         }
 
         // Cargar relaciones necesarias
@@ -78,16 +130,16 @@ class CreditController extends Controller
 
     public function indexByClientID($client_id)
     {
+        $this->authorize('viewAny', Credit::class);
+
         $orgId = Auth::user()->organization_id;
-        $show = request()->query('show', 'active');
+        $show = request()->query('show', 'all');
         $per_page = request()->query('per_page', 20);
         $sort = request()->query('sort', 'created_at');
         $order = request()->query('order', 'asc');
     
-        $credits = Credit::whereHas('client', function ($query) use ($orgId, $client_id) {
-                $query->where('organization_id', $orgId)
-                      ->where('id', $client_id);
-            })
+        $credits = Credit::where('organization_id', $orgId)
+            ->where('client_id', $client_id)
             ->when($show, function ($query) use ($show) {
                 if ($show === 'all') {
                     return $query;
@@ -112,6 +164,8 @@ class CreditController extends Controller
      */
     public function show(Credit $credit)
     {
+        $this->authorize('view', $credit);
+
         return new CreditResource($credit);
     }
 
@@ -120,67 +174,82 @@ class CreditController extends Controller
      */
     public function payment(Request $request)
     {
-        $orgID = Auth::user()->organization_id;
-        $credits =json_decode( $request->credits_id);
+        $this->authorize('payment', Credit::class);
 
-        if (!$request->amount || !$credits) {
+        $orgID = Auth::user()->organization_id;
+        $creditsIds = is_array($request->credits_id) ? $request->credits_id : json_decode($request->credits_id);
+
+        if (!$request->amount || !$creditsIds) {
             return response()->json(['message' => 'Amount and credits_id are required.'], 400);
         }
 
-        if ($request->amoun > 0) {
-            return response()->json(['message' => 'The amount exceeds the total debt of the selected credits.'], 400);
+        if ($request->amount <= 0) {
+            return response()->json(['message' => 'The amount must be greater than 0.'], 400);
         }
-        if (count($credits) == 0) {
+
+        if (count($creditsIds) == 0) {
             return response()->json(['message' => 'No credits selected.'], 400);
         }
 
-        $amount = $request->amount; 
+        // Validar que el monto de abono no exceda la deuda pendiente total
+        $totalDebt = Credit::whereIn('id', $creditsIds)->where('organization_id', $orgID)->sum('debt');
+        if ($request->amount > $totalDebt) {
+            return response()->json([
+                'message' => 'El monto de pago excede el saldo pendiente total de los créditos seleccionados. El saldo máximo a pagar es C$ ' . number_format($totalDebt, 2)
+            ], 400);
+        }
+
+        $remainingAmount = $request->amount; 
         $notes = $request->notes;
 
-        
+        foreach ($creditsIds as $creditId) {
+            if ($remainingAmount <= 0) break;
 
-        foreach ($credits as $creditId) {
             $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first(); 
     
             if ($credit) {
-                if ($amount >= $credit->debt) {
-                  
-                    $amount -= $credit->debt; 
+                $appliedToThisCredit = 0;
+
+                if ($remainingAmount >= $credit->debt) {
+                    $appliedToThisCredit = $credit->debt;
+                    $remainingAmount -= $credit->debt; 
                     $credit->debt = 0; 
                     $credit->credit_status = 'paid'; 
                 } else {
-                    $credit->debt -= $amount; 
-                    $amount = 0; 
+                    $appliedToThisCredit = $remainingAmount;
+                    $credit->debt -= $remainingAmount; 
+                    $remainingAmount = 0; 
                 }
     
                 $credit->save(); 
     
-                $creditDetail = new CreditDetail();
-                $creditDetail->credit_id = $credit->id;
-                $creditDetail->amount = $request->amount;
-                $creditDetail->date = date('Y-m-d');
-                $creditDetail->note = $notes;
-                $creditDetail->seller_id = $request->seller_id;
-                $creditDetail->save();
-    
-                if ($amount == 0) {
-                    break;
+                // Solo crear el detalle si realmente se aplicó un pago
+                if ($appliedToThisCredit > 0) {
+                    $creditDetail = new CreditDetail();
+                    $creditDetail->credit_id = $credit->id;
+                    $creditDetail->amount = $appliedToThisCredit; // Monto real aplicado a ESTE crédito
+                    $creditDetail->date = date('Y-m-d');
+                    $creditDetail->note = $notes;
+                    $creditDetail->seller_id = $request->seller_id;
+                    $creditDetail->payment_method = $request->payment_method ?? 'CASH';
+                    $creditDetail->payment_metadata = $request->payment_metadata;
+                    $creditDetail->cash_session_id = $request->cash_session_id;
+                    $creditDetail->save();
                 }
-            }else{
-                return response()->json(['message' => 'Credit not found or does not belong to the organization.'], 404);
+            } else {
+                return response()->json(['message' => "Credit $creditId not found or does not belong to the organization."], 404);
             }
         }
 
-        $allCredistsList = [];
-        foreach ($credits as $creditId) {
+        $updatedCredits = [];
+        foreach ($creditsIds as $creditId) {
             $credit = Credit::where('id', $creditId)->where('organization_id', $orgID)->first();
             if ($credit) {
-                $allCredistsList[] =new  CreditResource($credit);
+                $updatedCredits[] = new CreditResource($credit);
             }
         }
      
-
-        return response()->json( $allCredistsList, 200);
+        return response()->json($updatedCredits, 200);
     }
 
 }

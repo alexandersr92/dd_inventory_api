@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Invoice extends Model
 {
     use HasFactory;
     use Uuids;
+    use Multitenantable;
 
     protected $fillable = [
         'user_id',
@@ -25,14 +27,28 @@ class Invoice extends Model
         'discount',
         'tax',
         'grand_total',
+        'paid_in_usd',
+        'paid_in_nio',
+        'exchange_rate',
         'payment_method',
         'payment_date',
         'invoice_status',
         'invoice_type', 
-  
-
-
+        'payment_metadata',
+        'cash_session_id',
     ];
+
+    protected $casts = [
+        'payment_metadata' => 'array',
+        'paid_in_usd' => 'float',
+        'paid_in_nio' => 'float',
+        'exchange_rate' => 'float',
+    ];
+
+    public function cashSession()
+    {
+        return $this->belongsTo(CashSession::class);
+    }
 
     public function user()
     {
@@ -56,7 +72,7 @@ class Invoice extends Model
 
     public function invoiceDetails()
     {
-        return $this->hasMany(InvoiceDetail::class);
+        return $this->hasMany(InvoiceDetail::class)->orderBy('sort_order', 'asc');
     }
 
 

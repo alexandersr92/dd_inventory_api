@@ -78,6 +78,7 @@ class ClientController extends Controller
 
     public function store(StoreClientRequest $request)
     {
+        $this->authorize('create', Client::class);
 
         $orgId = Auth::user()->organization_id;
 
@@ -119,8 +120,7 @@ class ClientController extends Controller
 
     public function update(UpdateClientRequest $request, Client $client)
     {
-
-
+        $this->authorize('update', Client::class);
 
         $client->update($request->all());
         return response(
@@ -131,6 +131,8 @@ class ClientController extends Controller
 
     public function destroy(Client $client)
     {
+        $this->authorize('delete', Client::class);
+
         $client->delete();
         return response(
             [

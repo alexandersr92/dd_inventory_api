@@ -34,6 +34,56 @@ class LoginController extends Controller
 
 
 
+        $user->load(['roles.permissions', 'organization.modules', 'stores', 'seller.stores']);
+
+        if ($user->organization && $user->organization->status !== 'active') {
+            return response([
+                'message' => 'La organización de este usuario está inactiva o suspendida.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        $orgData = null;
+        if ($user->organization) {
+            $orgData = [
+                'id' => $user->organization->id,
+                'name' => $user->organization->name,
+                'license_expires_at' => $user->organization->license_expires_at,
+                'is_lifetime' => $user->organization->is_lifetime,
+                'modules' => $user->organization->modules->map(function($module) {
+                    return [
+                        'slug' => $module->slug,
+                        'status' => $module->pivot->status ?? 'active',
+                    ];
+                }),
+            ];
+        }
+
+        $rolesData = $user->roles->map(function($role) {
+            return [
+                'uuid' => $role->uuid,
+                'name' => $role->name,
+                'permissions' => $role->permissions->map(function($perm) {
+                    return [
+                        'name' => $perm->name,
+                        'display_name' => $perm->display_name ?? $perm->name,
+                    ];
+                }),
+            ];
+        });
+
+        $sellerData = null;
+        if ($user->seller_id && $user->seller) {
+            $sellerData = [
+                'id'   => $user->seller->id,
+                'name' => $user->seller->name,
+                'code' => $user->seller->code,
+                'stores' => $user->seller->stores
+                    ->filter(fn($s) => ($s->pivot->status ?? 'active') === 'active')
+                    ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
+                    ->values(),
+            ];
+        }
+
         return response()->json([
             'attributes' => [
                 'id' => $user->id,
@@ -42,7 +92,9 @@ class LoginController extends Controller
                 'device_name' => $request->device_name,
                 'role' => $user->role_id,
                 'seller_id' => $user->seller_id,
-
+                'seller' => $sellerData,
+                'roles' => $rolesData,
+                'organization' => $orgData
             ],
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK); //200
@@ -114,12 +166,63 @@ class LoginController extends Controller
     {
         $user = Auth::user();
 
-        if (Auth::guard('sanctum')->check()) {
+        if (Auth::guard('sanctum')->check() && $user) {
+            $user->load(['roles.permissions', 'organization.modules', 'stores', 'seller.stores']);
+
+            if ($user->organization && $user->organization->status !== 'active') {
+                return response()->json(['valid' => false, 'message' => 'La organización está inactiva.'], 401);
+            }
+
+            $orgData = null;
+            if ($user->organization) {
+                $orgData = [
+                    'id' => $user->organization->id,
+                    'name' => $user->organization->name,
+                    'license_expires_at' => $user->organization->license_expires_at,
+                    'is_lifetime' => $user->organization->is_lifetime,
+                    'modules' => $user->organization->modules->map(function($module) {
+                        return [
+                            'slug' => $module->slug,
+                            'status' => $module->pivot->status ?? 'active',
+                        ];
+                    }),
+                ];
+            }
+
+            $rolesData = $user->roles->map(function($role) {
+                return [
+                    'uuid' => $role->uuid,
+                    'name' => $role->name,
+                    'permissions' => $role->permissions->map(function($perm) {
+                        return [
+                            'name' => $perm->name,
+                            'display_name' => $perm->display_name ?? $perm->name,
+                        ];
+                    }),
+                ];
+            });
+
+            $sellerData = null;
+            if ($user->seller_id && $user->seller) {
+                $sellerData = [
+                    'id'   => $user->seller->id,
+                    'name' => $user->seller->name,
+                    'code' => $user->seller->code,
+                    'stores' => $user->seller->stores
+                        ->filter(fn($s) => ($s->pivot->status ?? 'active') === 'active')
+                        ->map(fn($s) => ['id' => $s->id, 'name' => $s->name])
+                        ->values(),
+                ];
+            }
+
             return response()->json(['valid' => true, 'message' => 'Token is valid.', 'user' => [
                 'id' => $user->id,
                 'email' => $user->email,
                 'organization_id' => $user->organization_id,
-                'seller_id' => $user->seller_id
+                'seller_id' => $user->seller_id,
+                'seller' => $sellerData,
+                'roles' => $rolesData,
+                'organization' => $orgData
             ]], 200);
         } else {
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
@@ -129,4 +232,29 @@ class LoginController extends Controller
 
 
     public function registerMember(Request $request) {}
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required',
+            'password' => 'required|min:6|confirmed',
+        ]);
+
+        $user = $request->user();
+
+        if (!Hash::check($request->current_password, $user->password)) {
+            return response()->json([
+                'message' => 'La contraseña actual no es correcta.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password)
+        ]);
+
+        return response()->json([
+            'message' => 'Contraseña actualizada correctamente.'
+        ], Response::HTTP_OK);
+    }
 }
+

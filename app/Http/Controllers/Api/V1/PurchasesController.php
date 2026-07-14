@@ -8,6 +8,7 @@ use App\Models\PurchaseDetail;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
 use App\Models\Product;
+use App\Services\InventoryMovementService;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -23,20 +24,39 @@ use App\Http\Resources\PurchaseCollection;
 
 class PurchasesController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Purchases::class);
         $orgId = Auth::user()->organization_id;
         $storeId = $request->query('store_id');
-        $purchases = Purchases::where('organization_id', $orgId)->get();
+        
+        $query = Purchases::where('organization_id', $orgId);
 
         if ($storeId) {
-            $purchases = Purchases::where('organization_id', $orgId)
-                ->where('store_id', $storeId)
-                ->get();
+            $query->where('store_id', $storeId);
         }
+
+        $sortBy = $request->query('sort_by') ?? $request->query('sort');
+        $order = $request->query('order') ?? $request->query('direction');
+
+        $allowedSortFields = [
+            'id', 'total', 'purchase_date', 'total_items', 'status', 
+            'created_at', 'updated_at', 'store_id', 'supplier_id', 'inventory_id'
+        ];
+
+        if ($sortBy && in_array($sortBy, $allowedSortFields)) {
+            $order = in_array(strtolower($order), ['asc', 'desc']) ? $order : 'asc';
+            $query->orderBy($sortBy, $order);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
+
+        $purchases = $query->get();
 
         return response(
             new PurchaseCollection($purchases),
@@ -50,6 +70,7 @@ class PurchasesController extends Controller
      */
     public function store(StorePurchaseRequest $request)
     {
+        $this->authorize('create', Purchases::class);
         //
 
         $orgId = Auth::user()->organization_id;
@@ -76,7 +97,13 @@ class PurchasesController extends Controller
             //if product id is null, create a new product
 
             //find product if exists by sku or barcode
-            $productExists = Product::where('sku', $product['sku'])->orWhere('barcode', $product['barcode'])->first();
+            $productExists = Product::where('organization_id', $orgId)
+                ->where(function ($query) use ($product) {
+                    $query->where('sku', $product['sku']);
+                    if (!empty($product['barcode'])) {
+                        $query->orWhere('barcode', $product['barcode']);
+                    }
+                })->first();
             if($productExists){
                 $product['product_id'] = $productExists->id;
             }
@@ -115,22 +142,30 @@ class PurchasesController extends Controller
 
         if($inventory){
             $listProducts = PurchaseDetail::where('purchase_id', $purchase->id)->get();
+            $movementService = app(InventoryMovementService::class);
+
             foreach ($listProducts as $product) {
                 //get inventoryDetail
                 $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)->where('product_id', $product['product_id'])->first();
-                if($inventoryDetail){
-                    $inventoryDetail->quantity = $inventoryDetail->quantity + $product['quantity'];
-                    $inventoryDetail->save();
-                }else{
-                    
-                    $inventoryDetail = new InventoryDetail();
-                    $inventoryDetail->inventory_id = $inventory->id;
-                    $inventoryDetail->product_id = $product['product_id'];
-                    $inventoryDetail->quantity = $product['quantity'];
-                    $inventoryDetail->price = $product['price'];
-                    $inventoryDetail->save();
+                if(!$inventoryDetail){
+                    $inventoryDetail = InventoryDetail::create([
+                        'inventory_id' => $inventory->id,
+                        'product_id' => $product['product_id'],
+                        'quantity' => 0,
+                        'price' => $product['price'],
+                        'status' => 'active'
+                    ]);
                 }
 
+                $movementService->recordMovement([
+                    'inventory_detail_id' => $inventoryDetail->id,
+                    'type' => 'purchase',
+                    'quantity' => (float) $product['quantity'],
+                    'reason' => "Ingreso por Compra ID: {$purchase->id}",
+                    'user_id' => Auth::id(),
+                    'reference_id' => $purchase->id,
+                    'reference_type' => Purchases::class,
+                ]);
             }
         }
         //responder con los resultados
@@ -148,6 +183,7 @@ class PurchasesController extends Controller
      */
     public function show(Purchases $purchase)
     {
+        $this->authorize('view', $purchase);
         return response(
             new PurchaseResource($purchase),
             Response::HTTP_OK
@@ -159,6 +195,7 @@ class PurchasesController extends Controller
      */
     public function update(Request $request, Purchases $purchase)
     {
+        $this->authorize('update', $purchase);
         $orgId = Auth::user()->organization_id;
         //obtener la compra actual 
         $inventoryID = $purchase->inventory_id;
@@ -167,13 +204,20 @@ class PurchasesController extends Controller
         $newProductList = $request->products;
         $newTotalItems = 0;
 
+        $movementService = app(InventoryMovementService::class);
         foreach ($purchaseDetails as $purchaseDetail) {
-            
-          //  dd($purchaseDetail);
             $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
-            //dd($inventoryID, $purchaseDetail->product_id);
-            $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
-            $inventoryDetail->save();
+            if ($inventoryDetail) {
+                $movementService->recordMovement([
+                    'inventory_detail_id' => $inventoryDetail->id,
+                    'type' => 'purchase_cancel',
+                    'quantity' => (float) $purchaseDetail->quantity,
+                    'reason' => "Reversión de compra previa por modificación de Compra ID: {$purchase->id}",
+                    'user_id' => Auth::id(),
+                    'reference_id' => $purchase->id,
+                    'reference_type' => Purchases::class,
+                ]);
+            }
         }
     
         //clear purchase details
@@ -225,19 +269,25 @@ class PurchasesController extends Controller
             foreach ($listProducts as $product) {
                 //get inventoryDetail
                 $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)->where('product_id', $product['product_id'])->first();
-                if($inventoryDetail){
-                    $inventoryDetail->quantity = $inventoryDetail->quantity + $product['quantity'];
-                    $inventoryDetail->save();
-                }else{
-                    
-                    $inventoryDetail = new InventoryDetail();
-                    $inventoryDetail->inventory_id = $inventory->id;
-                    $inventoryDetail->product_id = $product['product_id'];
-                    $inventoryDetail->quantity = $product['quantity'];
-                    $inventoryDetail->price = $product['price'];
-                    $inventoryDetail->save();
+                if(!$inventoryDetail){
+                    $inventoryDetail = InventoryDetail::create([
+                        'inventory_id' => $inventory->id,
+                        'product_id' => $product['product_id'],
+                        'quantity' => 0,
+                        'price' => $product['price'],
+                        'status' => 'active'
+                    ]);
                 }
 
+                $movementService->recordMovement([
+                    'inventory_detail_id' => $inventoryDetail->id,
+                    'type' => 'purchase',
+                    'quantity' => (float) $product['quantity'],
+                    'reason' => "Ingreso por modificación de Compra ID: {$purchase->id}",
+                    'user_id' => Auth::id(),
+                    'reference_id' => $purchase->id,
+                    'reference_type' => Purchases::class,
+                ]);
             }
         }
 
@@ -255,6 +305,7 @@ class PurchasesController extends Controller
      */
     public function destroy(Purchases $purchase)
     {
+        $this->authorize('delete', $purchase);
         $purchaseID = $purchase->id;
         //find purchase
         $purchase = Purchases::find($purchaseID);
@@ -265,12 +316,20 @@ class PurchasesController extends Controller
         //find purchase details and restore inventory
         $purchaseDetails = PurchaseDetail::where('purchase_id', $purchaseID)->get();
 
+        $movementService = app(InventoryMovementService::class);
         foreach ($purchaseDetails as $purchaseDetail) {
-            
             $inventoryDetail = InventoryDetail::where('inventory_id', $purchase->inventory_id)->where('product_id', $purchaseDetail->product_id)->first();
-      
-            $inventoryDetail->quantity = $inventoryDetail->quantity - $purchaseDetail->quantity;
-            $inventoryDetail->save();
+            if ($inventoryDetail) {
+                $movementService->recordMovement([
+                    'inventory_detail_id' => $inventoryDetail->id,
+                    'type' => 'purchase_cancel',
+                    'quantity' => (float) $purchaseDetail->quantity,
+                    'reason' => "Cancelación de Compra ID: {$purchase->id}",
+                    'user_id' => Auth::id(),
+                    'reference_id' => $purchase->id,
+                    'reference_type' => Purchases::class,
+                ]);
+            }
         }
 
         return response()->json(['message' => 'Purchase deleted successfully.']);
@@ -278,6 +337,7 @@ class PurchasesController extends Controller
     
     public function upload(Request $request)
     {
+        $this->authorize('create', Purchases::class);
      
         $request->validate([
             'file' => 'required|file|mimes:xlsx',

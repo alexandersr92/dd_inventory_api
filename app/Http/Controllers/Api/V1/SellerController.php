@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Seller;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use App\Http\Requests\StoreSellerRequest;
 use App\Http\Requests\UpdateSellerRequest;
@@ -17,11 +18,14 @@ use App\Http\Resources\SellerCollection;
 
 class SellerController extends Controller
 {
+    use \Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
     /**
      * Listado con filtros por status y store(s).
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Seller::class);
         $orgId = Auth::user()->organization_id;
 
         $query = Seller::with(['stores' => function ($q) {
@@ -52,6 +56,8 @@ class SellerController extends Controller
      */
     public function store(StoreSellerRequest $request)
     {
+        $this->authorize('create', Seller::class);
+
         $orgId     = Auth::user()->organization_id;
         $validated = $request->validated();
 
@@ -99,6 +105,8 @@ class SellerController extends Controller
      */
     public function show(Seller $seller)
     {
+        $this->authorize('view', $seller);
+
         // Asegurar que pertenece a la org del usuario
         $this->authorizeSeller($seller);
 
@@ -112,6 +120,8 @@ class SellerController extends Controller
      */
     public function update(UpdateSellerRequest $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
+
         $this->authorizeSeller($seller);
 
         $orgId     = Auth::user()->organization_id;
@@ -168,7 +178,13 @@ class SellerController extends Controller
      */
     public function destroy(Seller $seller)
     {
+        $this->authorize('delete', $seller);
+
         $this->authorizeSeller($seller);
+
+        // Rename code to free it up for reuse
+        $seller->code = substr($seller->code, 0, 10) . '_DEL_' . time();
+        $seller->save();
 
         $seller->delete();
 
@@ -184,6 +200,7 @@ class SellerController extends Controller
      */
     public function assignStores(Request $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
         $this->authorizeSeller($seller);
 
         $validated = $request->validate([
@@ -221,6 +238,7 @@ class SellerController extends Controller
 
     public function removeStores(Request $request, Seller $seller)
     {
+        $this->authorize('update', $seller);
         $this->authorizeSeller($seller);
 
         $validated = $request->validate([
@@ -233,45 +251,83 @@ class SellerController extends Controller
         return new SellerResource($seller->load('stores'));
     }
 
-        public function sellerLogin(Request $request)
+    public function sellerLogin(Request $request)
     {
+        $this->authorize('viewAny', Seller::class);
+
         $orgId = Auth::user()->organization_id;
 
-        $data = $request->validate([
-            'store_id' => ['required', 'uuid', 'exists:stores,id'],
-            'code'     => ['required', 'string', 'max:50'],
-            'pin'      => ['required', 'string', 'min:4', 'max:10'],
-        ]);
-
-        // 1) Buscar seller por org + code y activo
-        $seller = Seller::where('organization_id', $orgId)
-            ->where('code', $data['code'])
-            ->where('status', 'active')
+        // Check login mode setting
+        $modeSetting = Setting::where('organization_id', $orgId)
+            ->where('key', 'seller_login_mode')
             ->first();
+        
+        $loginMode = $modeSetting ? $modeSetting->value : 'CODE_AND_PIN';
 
-        if (!$seller) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
+        if ($loginMode === 'PIN_ONLY') {
+            $data = $request->validate([
+                'store_id' => ['required', 'uuid', 'exists:stores,id'],
+                'pin'      => ['required', 'string', 'min:4', 'max:10'],
+            ]);
 
-        // 2) Verificar PIN
-        if (!Hash::check($data['pin'], $seller->pin_hash)) {
-            return response()->json([
-                'message' => 'Invalid credentials',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
+            // Get all active sellers assigned to this store
+            $sellers = Seller::where('organization_id', $orgId)
+                ->where('status', 'active')
+                ->whereHas('stores', function ($q) use ($data) {
+                    $q->where('stores.id', $data['store_id'])->where('seller_store.status', 'active');
+                })
+                ->get();
 
-        // 3) Verificar asignación del seller a esa store (pivote seller_store, status=active)
-        $isAssigned = $seller->stores()
-            ->where('stores.id', $data['store_id'])
-            ->wherePivot('status', 'active')
-            ->exists();
+            $seller = null;
+            foreach ($sellers as $s) {
+                if (Hash::check($data['pin'], $s->pin_hash)) {
+                    $seller = $s;
+                    break;
+                }
+            }
 
-        if (!$isAssigned) {
-            return response()->json([
-                'message' => 'Seller not assigned to this store',
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            if (!$seller) {
+                return response()->json([
+                    'message' => 'Invalid credentials',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+        } else {
+            $data = $request->validate([
+                'store_id' => ['required', 'uuid', 'exists:stores,id'],
+                'code'     => ['required', 'string', 'max:50'],
+                'pin'      => ['required', 'string', 'min:4', 'max:10'],
+            ]);
+
+            // 1) Buscar seller por org + code y activo
+            $seller = Seller::where('organization_id', $orgId)
+                ->where('code', $data['code'])
+                ->where('status', 'active')
+                ->first();
+
+            if (!$seller) {
+                return response()->json([
+                    'message' => 'Invalid credentials',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // 2) Verificar PIN
+            if (!Hash::check($data['pin'], $seller->pin_hash)) {
+                return response()->json([
+                    'message' => 'Invalid credentials',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            // 3) Verificar asignación del seller a esa store
+            $isAssigned = $seller->stores()
+                ->where('stores.id', $data['store_id'])
+                ->wherePivot('status', 'active')
+                ->exists();
+
+            if (!$isAssigned) {
+                return response()->json([
+                    'message' => 'Seller not assigned to this store',
+                ], Response::HTTP_UNPROCESSABLE_ENTITY);
+            }
         }
 
         // 4) OK → devolver info mínima para el front
@@ -288,10 +344,12 @@ class SellerController extends Controller
     }
     public function generateOwnerSeller(Request $request)
     {
+        $this->authorize('create', Seller::class);
+
         $user = Auth::user();
         $orgId = $user->organization_id;
 
-        DB::beginTransaction();
+        DB::connection('central')->beginTransaction();
 
         try {
             // 1. Crear o recuperar el Seller del Owner
@@ -341,7 +399,7 @@ class SellerController extends Controller
                 $seller->stores()->syncWithoutDetaching($syncPayload);
             }
 
-            DB::commit();
+            DB::connection('central')->commit();
 
             return response()->json([
                 'message' => 'Owner seller generated and assigned to all stores successfully',
@@ -349,7 +407,7 @@ class SellerController extends Controller
             ], Response::HTTP_OK);
 
         } catch (\Throwable $e) {
-            DB::rollBack();
+            DB::connection('central')->rollBack();
             return response()->json([
                 'message' => 'Error generating owner seller',
                 'error'   => $e->getMessage(),

@@ -24,6 +24,7 @@ class ClientCollection extends ResourceCollection
             return [
                 'id' => $client->id,
                 'name' => $client->name,
+                'cedula_ruc' => $client->cedula_ruc,
                 'phone' => $client->phone,
                 'city' => $client->city,
                 'state' => $client->state,

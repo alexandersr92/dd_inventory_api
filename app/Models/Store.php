@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Store extends Model
 {
     use HasFactory;
     use Uuids;
+    use Multitenantable;
 
     protected $fillable = [
         'name',
@@ -32,7 +34,15 @@ class Store extends Model
         'print_width',
         'invoice_number',
         'invoice_prefix',
+        'print_json',
     ];
+
+    protected function casts(): array
+    {
+        return [
+            'print_json' => 'array',
+        ];
+    }
 
     public function organization()
     {
@@ -53,6 +63,11 @@ class Store extends Model
 
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(User::class, 'user_store')->using(UserStore::class);
+    }
+
+    public function inventories()
+    {
+        return $this->belongsToMany(Inventory::class, 'inventory_store')->withTimestamps();
     }
 }

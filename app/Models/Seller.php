@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class Seller extends Model
 {
     use Uuids;
     use HasFactory;
     use SoftDeletes;
+    use Multitenantable;
 
     protected $fillable = [
         'organization_id',

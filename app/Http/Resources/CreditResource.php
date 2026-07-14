@@ -21,6 +21,9 @@ class CreditResource extends JsonResource
                 'date' => $payment->date,
                 'note' => $payment->note,
                 'seller' => $payment->seller->name ?? null,
+                'payment_method' => $payment->payment_method ?? 'CASH',
+                'payment_metadata' => $payment->payment_metadata,
+                'cash_session_id' => $payment->cash_session_id,
                 'created_at' => $payment->created_at,
                 'updated_at' => $payment->updated_at,
             ];
@@ -28,6 +31,7 @@ class CreditResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'credit_number' => $this->credit_number ?? 'CR-PENDIENTE',
             'amount' => $this->total,
             'current_debt' => $this->debt,
             'client' => $this->client->name,
