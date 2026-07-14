@@ -391,7 +391,9 @@ class CashSessionController extends Controller
      */
     private function computeSessionTotals(CashSession $session)
     {
-        $invoices = Invoice::where('cash_session_id', $session->id)->get();
+        $invoices = Invoice::where('cash_session_id', $session->id)
+            ->whereNotIn('invoice_status', ['proforma', 'canceled'])
+            ->get();
         $creditDetails = CreditDetail::where('cash_session_id', $session->id)->get();
         
         $invoiceCash = 0;
