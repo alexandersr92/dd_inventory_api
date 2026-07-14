@@ -39,6 +39,7 @@ class InvoiceCreated
                 'total_items' => $this->invoice->total,
                 'discount' => $this->invoice->discount,
                 'tax' => $this->invoice->tax,
+                'store_currency' => $this->invoice->store->store_currency ?? 'C$',
             ]
         ];
     }

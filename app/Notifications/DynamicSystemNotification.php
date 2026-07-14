@@ -102,7 +102,14 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
                     'bacs' => 'Transferencia',
                 ];
 
+                $currency = $this->data['store_currency'] ?? '';
+
                 foreach ($this->data as $key => $val) {
+                    // Evitar pintar la variable de moneda como un elemento de lista independiente
+                    if ($key === 'store_currency') {
+                        continue;
+                    }
+
                     $label = $translations[$key] ?? ucwords(str_replace('_', ' ', $key));
                     
                     // Traducir valores específicos si son de tipo string
@@ -110,9 +117,10 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
                         ? $valueTranslations[strtolower($val)]
                         : $val;
 
-                    // Formatear montos numéricos de dinero
+                    // Formatear montos numéricos de dinero con la moneda de la tienda en lugar del signo $
                     if (in_array($key, ['grand_total', 'total', 'debt', 'tax', 'discount']) && is_numeric($displayVal)) {
-                        $displayVal = '$' . number_format((float)$displayVal, 2);
+                        $formattedNum = number_format((float)$displayVal, 2);
+                        $displayVal = $currency ? $currency . ' ' . $formattedNum : $formattedNum;
                     }
 
                     $body .= '<li><strong>' . e($label) . ':</strong> ' . e((string)$displayVal) . '</li>';
@@ -126,6 +134,12 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
             // Reemplazar las variables dinámicas {variable}
             foreach ($this->data as $key => $val) {
                 $placeholder = '{' . $key . '}';
+                // Si la variable a reemplazar es un monto de dinero, formatearla adecuadamente
+                if (in_array($key, ['grand_total', 'total', 'debt', 'tax', 'discount']) && is_numeric($val)) {
+                    $currency = $this->data['store_currency'] ?? '';
+                    $formattedNum = number_format((float)$val, 2);
+                    $val = $currency ? $currency . ' ' . $formattedNum : $formattedNum;
+                }
                 $subject = str_replace($placeholder, (string)$val, $subject);
                 $body = str_replace($placeholder, (string)$val, $body);
             }
