@@ -103,6 +103,8 @@ class InvoiceController extends Controller
 
         if($invoice_status) {
             $query->where('invoice_status', $invoice_status);
+        } else {
+            $query->where('invoice_status', '!=', 'proforma');
         }
 
      
@@ -276,11 +278,19 @@ class InvoiceController extends Controller
             $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
             $invoiceData['invoice_number'] = $invoiceNumber;
             $invoiceData['total'] = $totalItems;
-            $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
-            $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+
+            $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
+            if ($isProforma) {
+                $invoiceData['invoice_status'] = 'proforma';
+                $invoiceData['invoice_type'] = 'proforma';
+            } else {
+                $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
+                $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+            }
+
             $invoiceData['user_id'] = $userID;
             $invoiceData['organization_id'] = $orgId;
-            $invoiceData['cash_session_id'] = $request->cash_session_id;
+            $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
      
             $invoice = Invoice::create($invoiceData);
     
@@ -308,6 +318,11 @@ class InvoiceController extends Controller
                     'sort_order' => $index
                 ]);
                 
+                // Si es proforma, no alteramos el inventario (es una cotización)
+                if ($invoiceData['invoice_status'] === 'proforma') {
+                    continue;
+                }
+                
                 $quantity = (float) $product['quantity'];
                 
                 $detail = InventoryDetail::where('product_id', $product['product_id'])
@@ -329,8 +344,8 @@ class InvoiceController extends Controller
                 }
             }
     
-            // Si es crédito
-            if ($request->isCredit && $request->client_id) {
+            // Si es crédito y no es proforma
+            if ($invoiceData['invoice_status'] !== 'proforma' && $request->isCredit && $request->client_id) {
                 $credit = $invoice->credit()->create([
                     'user_id' => $userID,
                     'organization_id' => $orgId,
