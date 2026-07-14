@@ -146,9 +146,14 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
         }
 
         // Obtener el destinatario
-        $recipientEmail = $notifiable->routeNotificationFor('mail', $this);
-        if (!$recipientEmail && is_string($notifiable)) {
+        $recipientEmail = null;
+        if (is_string($notifiable)) {
             $recipientEmail = $notifiable;
+        } elseif (method_exists($notifiable, 'routeNotificationFor')) {
+            $recipientEmail = $notifiable->routeNotificationFor('mail', $this);
+        }
+        if (!$recipientEmail) {
+            $recipientEmail = $notifiable->email ?? null;
         }
 
         // Retornar la estructura Mailable dinámica
