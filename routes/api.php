@@ -24,6 +24,8 @@ use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\MovementController;
 use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\LandingAdminController;
+use App\Http\Controllers\Api\V1\LandingPublicController;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
@@ -42,6 +44,11 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
+
+    // Public Landing Page Routes
+    Route::get('/landing/content', [LandingPublicController::class, 'getPublicContent']);
+    Route::get('/landing/plans', [LandingPublicController::class, 'getPublicPlans']);
+
     Route::middleware(['auth:sanctum', 'tenant.switch'])->group(function () {
             //Excel Reports
             Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
@@ -161,5 +168,14 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('reports', ReportController::class)->only(['index', 'store', 'destroy']);
             Route::get('reports/{report}/download', [ReportController::class, 'download']);
         });
+
+        // Landing Page Admin Routes
+        Route::post('/landing/admin/media', [LandingAdminController::class, 'uploadMedia']);
+        Route::get('/landing/admin/media', [LandingAdminController::class, 'getMedia']);
+        Route::delete('/landing/admin/media/{id}', [LandingAdminController::class, 'deleteMedia']);
+        Route::put('/landing/admin/content/{key}', [LandingAdminController::class, 'saveSectionContent']);
+        Route::post('/landing/admin/plans', [LandingAdminController::class, 'managePlan']);
+        Route::put('/landing/admin/plans/{id}', [LandingAdminController::class, 'managePlan']);
+        Route::delete('/landing/admin/plans/{id}', [LandingAdminController::class, 'deletePlan']);
     });
 });
