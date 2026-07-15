@@ -9,7 +9,15 @@ class SettingPolicy
     public function viewAny(User $user): bool
     {
         $key = request()->query('key');
-        if ($key === 'usd_exchange_rate' || $key === 'cash_control_mode') {
+        $publicKeys = [
+            'usd_exchange_rate',
+            'cash_control_mode',
+            'closing_count_type',
+            'cash_assignment_mode',
+            'carry_over_balance',
+            'seller_login_mode'
+        ];
+        if (in_array($key, $publicKeys)) {
             return true;
         }
         return $user->hasPermissionTo('setting.index');
