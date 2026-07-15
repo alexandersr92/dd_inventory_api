@@ -271,6 +271,7 @@ class InvoiceController extends Controller
                         'sku' => $sku,
                         'name' => $productName,
                         'price' => $price,
+                        'cost' => 0,
                         'status' => 'active',
                     ]);
                 }
