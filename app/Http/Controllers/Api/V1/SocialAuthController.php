@@ -33,7 +33,10 @@ class SocialAuthController extends Controller
                 public function __construct(string $token) {
                     $this->token = $token;
                 }
-                public function getEmail() { return 'user_mocked_' . substr(md5($this->token), 0, 6) . '@gmail.com'; }
+                public function getEmail() {
+                    $existing = \App\Models\User::first();
+                    return $existing ? $existing->email : 'admin@diplebill.com';
+                }
                 public function getId() { return 'mock_google_id_' . substr(md5($this->token), 0, 10); }
                 public function getAvatar() { return 'https://lh3.googleusercontent.com/a/default-user=s96-c'; }
                 public function getName() { return 'Usuario Mocked ' . substr(md5($this->token), 0, 4); }
