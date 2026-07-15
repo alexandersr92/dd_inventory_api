@@ -195,4 +195,27 @@ class PasswordResetAndForcedChangeTest extends TestCase
         $this->assertNull($user->google_id);
         $this->assertNull($user->avatar);
     }
+
+    /**
+     * Test que valida la simulación de vinculación con token mockeado en entorno local/test.
+     */
+    public function test_user_can_link_google_account_with_mock_token(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user, 'sanctum');
+
+        $response = $this->postJson('/api/v1/user/google/link', [
+            'token' => 'mock_token_12345'
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment([
+            'message' => 'Tu cuenta de Google ha sido vinculada correctamente.',
+            'google_id' => 'mock_google_id_linked_12345'
+        ]);
+
+        $user->refresh();
+        $this->assertEquals('mock_google_id_linked_12345', $user->google_id);
+    }
 }
