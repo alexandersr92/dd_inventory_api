@@ -171,4 +171,28 @@ class PasswordResetAndForcedChangeTest extends TestCase
         $this->assertTrue(Hash::check('new_password123', $user->password));
         $this->assertFalse((bool)$user->must_change_password);
     }
+
+    /**
+     * Test que valida que un usuario logueado puede desvincular su cuenta de Google.
+     */
+    public function test_user_can_unlink_google_account(): void
+    {
+        $user = User::factory()->create([
+            'google_id' => 'google-id-12345',
+            'avatar' => 'http://avatar-url.com'
+        ]);
+
+        $this->actingAs($user, 'sanctum');
+
+        $response = $this->postJson('/api/v1/user/google/unlink');
+
+        $response->assertStatus(200);
+        $response->assertJsonFragment([
+            'message' => 'Tu cuenta de Google ha sido desvinculada correctamente.'
+        ]);
+
+        $user->refresh();
+        $this->assertNull($user->google_id);
+        $this->assertNull($user->avatar);
+    }
 }

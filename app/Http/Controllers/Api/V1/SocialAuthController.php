@@ -145,4 +145,76 @@ class SocialAuthController extends Controller
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK);
     }
+
+    /**
+     * Vincular la cuenta de Google al usuario logueado actualmente.
+     */
+    public function linkGoogle(Request $request)
+    {
+        $request->validate([
+            'token' => 'required|string',
+        ]);
+
+        GoogleOAuthConfigurator::applyConfiguration();
+
+        try {
+            $googleUser = Socialite::driver('google')->userFromToken($request->token);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Token de Google inválido o expirado.',
+                'error' => $e->getMessage()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if (!$googleUser || !$googleUser->getEmail()) {
+            return response()->json([
+                'message' => 'No se pudo obtener información del perfil de Google.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $googleId = $googleUser->getId();
+        $avatar = $googleUser->getAvatar();
+        $currentUser = $request->user();
+
+        // Verificar si la cuenta de Google ya está vinculada a otro usuario
+        $existingUser = User::where('google_id', $googleId)
+            ->where('id', '!=', $currentUser->id)
+            ->first();
+
+        if ($existingUser) {
+            return response()->json([
+                'message' => 'Esta cuenta de Google ya está vinculada a otro usuario del sistema.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Vincular cuenta
+        $currentUser->update([
+            'google_id' => $googleId,
+            'avatar' => $avatar,
+        ]);
+
+        return response()->json([
+            'message' => 'Tu cuenta de Google ha sido vinculada correctamente.',
+            'google_id' => $currentUser->google_id,
+            'avatar' => $currentUser->avatar
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Desvincular la cuenta de Google del usuario logueado actualmente.
+     */
+    public function unlinkGoogle(Request $request)
+    {
+        $currentUser = $request->user();
+
+        // Desvincular cuenta
+        $currentUser->update([
+            'google_id' => null,
+            'avatar' => null,
+        ]);
+
+        return response()->json([
+            'message' => 'Tu cuenta de Google ha sido desvinculada correctamente.'
+        ], Response::HTTP_OK);
+    }
 }

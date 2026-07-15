@@ -66,6 +66,8 @@ Route::prefix('v1')->group(function () {
         Route::get('/dashboard/chart', [DashboardController::class, 'chart']);
         Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
         Route::put('/user/password', [LoginController::class, 'updatePassword']);
+        Route::post('/user/google/link', [SocialAuthController::class, 'linkGoogle']);
+        Route::post('/user/google/unlink', [SocialAuthController::class, 'unlinkGoogle']);
 
 
         Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
