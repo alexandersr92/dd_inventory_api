@@ -196,14 +196,23 @@ class PasswordResetAndForcedChangeTest extends TestCase
         $this->assertNull($user->avatar);
     }
 
-    /**
-     * Test que valida la simulación de vinculación con token mockeado en entorno local/test.
-     */
     public function test_user_can_link_google_account_with_mock_token(): void
     {
         $user = User::factory()->create();
 
         $this->actingAs($user, 'sanctum');
+
+        // Mockear Socialite
+        $googleUser = \Mockery::mock('Laravel\Socialite\Two\User');
+        $googleUser->shouldReceive('getId')->andReturn('mock_google_id_linked_12345');
+        $googleUser->shouldReceive('getEmail')->andReturn('user_mocked_linked@gmail.com');
+        $googleUser->shouldReceive('getAvatar')->andReturn('https://lh3.googleusercontent.com/a/default-user=s96-c');
+        $googleUser->shouldReceive('getName')->andReturn('Mocked Linked User');
+
+        $provider = \Mockery::mock('Laravel\Socialite\Contracts\Provider');
+        $provider->shouldReceive('userFromToken')->with('mock_token_12345')->andReturn($googleUser);
+
+        \Laravel\Socialite\Facades\Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
 
         $response = $this->postJson('/api/v1/user/google/link', [
             'token' => 'mock_token_12345'

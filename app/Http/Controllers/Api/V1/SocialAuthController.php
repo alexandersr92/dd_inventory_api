@@ -27,30 +27,14 @@ class SocialAuthController extends Controller
         // Aplicar la configuración dinámica guardada en BD
         GoogleOAuthConfigurator::applyConfiguration();
 
-        if (app()->environment('local', 'testing') && str_starts_with($request->token, 'mock_')) {
-            $googleUser = new class($request->token) {
-                private string $token;
-                public function __construct(string $token) {
-                    $this->token = $token;
-                }
-                public function getEmail() {
-                    $existing = \App\Models\User::first();
-                    return $existing ? $existing->email : 'admin@diplebill.com';
-                }
-                public function getId() { return 'mock_google_id_' . substr(md5($this->token), 0, 10); }
-                public function getAvatar() { return 'https://lh3.googleusercontent.com/a/default-user=s96-c'; }
-                public function getName() { return 'Usuario Mocked ' . substr(md5($this->token), 0, 4); }
-            };
-        } else {
-            try {
-                // Obtener datos del usuario desde Google usando el token proveído
-                $googleUser = Socialite::driver('google')->userFromToken($request->token);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Token de Google inválido o expirado.',
-                    'error' => $e->getMessage()
-                ], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
+        try {
+            // Obtener datos del usuario desde Google usando el token proveído
+            $googleUser = Socialite::driver('google')->userFromToken($request->token);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Token de Google inválido o expirado.',
+                'error' => $e->getMessage()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         if (!$googleUser || !$googleUser->getEmail()) {
@@ -173,26 +157,13 @@ class SocialAuthController extends Controller
 
         GoogleOAuthConfigurator::applyConfiguration();
 
-        if (app()->environment('local', 'testing') && str_starts_with($request->token, 'mock_')) {
-            $googleUser = new class($request->token) {
-                private string $token;
-                public function __construct(string $token) {
-                    $this->token = $token;
-                }
-                public function getEmail() { return 'user_mocked_linked@gmail.com'; }
-                public function getId() { return 'mock_google_id_linked_12345'; }
-                public function getAvatar() { return 'https://lh3.googleusercontent.com/a/default-user=s96-c'; }
-                public function getName() { return 'Mocked Linked User'; }
-            };
-        } else {
-            try {
-                $googleUser = Socialite::driver('google')->userFromToken($request->token);
-            } catch (\Exception $e) {
-                return response()->json([
-                    'message' => 'Token de Google inválido o expirado.',
-                    'error' => $e->getMessage()
-                ], Response::HTTP_UNPROCESSABLE_ENTITY);
-            }
+        try {
+            $googleUser = Socialite::driver('google')->userFromToken($request->token);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Token de Google inválido o expirado.',
+                'error' => $e->getMessage()
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
         if (!$googleUser || !$googleUser->getEmail()) {
