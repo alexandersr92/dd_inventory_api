@@ -14,7 +14,7 @@ use Symfony\Component\HttpFoundation\Response;
 class CashSessionController extends Controller
 {
     /**
-     * List all cash sessions for the organization.
+     * List all cash sessions for the organization. Ai
      */
     public function index(Request $request)
     {
