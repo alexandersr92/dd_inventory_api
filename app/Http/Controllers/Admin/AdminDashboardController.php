@@ -258,6 +258,7 @@ class AdminDashboardController extends Controller
                 'email' => $request->owner_email,
                 'password' => Hash::make($request->owner_password),
                 'status' => 'active',
+                'must_change_password' => true,
             ]);
 
             // 2. Create organization

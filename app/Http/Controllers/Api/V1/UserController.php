@@ -82,6 +82,7 @@ class UserController extends Controller
             'role_id' => $request->role_id,
             'seller_id' => $request->seller_id,
             'status' => 'active',
+            'must_change_password' => true,
         ]);
 
         if ($request->role_id) {

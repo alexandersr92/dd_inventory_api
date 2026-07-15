@@ -94,7 +94,8 @@ class LoginController extends Controller
                 'seller_id' => $user->seller_id,
                 'seller' => $sellerData,
                 'roles' => $rolesData,
-                'organization' => $orgData
+                'organization' => $orgData,
+                'must_change_password' => (bool)$user->must_change_password,
             ],
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK); //200
@@ -144,7 +145,8 @@ class LoginController extends Controller
             'email' => $request->email,
             'name' => $request->name,
             'password' => Hash::make($request->password),
-            'organization_id' => null
+            'organization_id' => null,
+            'must_change_password' => false
         ]);
 
         //dd($user);
@@ -222,7 +224,8 @@ class LoginController extends Controller
                 'seller_id' => $user->seller_id,
                 'seller' => $sellerData,
                 'roles' => $rolesData,
-                'organization' => $orgData
+                'organization' => $orgData,
+                'must_change_password' => (bool)$user->must_change_password,
             ]], 200);
         } else {
             return response()->json(['valid' => false, 'message' => 'Token is invalid or expired.'], 401);
@@ -249,7 +252,8 @@ class LoginController extends Controller
         }
 
         $user->update([
-            'password' => Hash::make($request->password)
+            'password' => Hash::make($request->password),
+            'must_change_password' => false,
         ]);
 
         return response()->json([

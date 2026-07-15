@@ -26,6 +26,8 @@ use App\Http\Controllers\Api\V1\MovementController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LandingAdminController;
 use App\Http\Controllers\Api\V1\LandingPublicController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\SocialAuthController;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
@@ -44,6 +46,9 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
+    Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
+    Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
+    Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle']);
 
     // Public Landing Page Routes
     Route::get('/landing/content', [LandingPublicController::class, 'getPublicContent']);
