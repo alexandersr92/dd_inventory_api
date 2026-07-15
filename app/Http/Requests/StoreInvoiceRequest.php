@@ -35,6 +35,8 @@ class StoreInvoiceRequest extends FormRequest
             'payment_date' => 'required|date',
             'payment_metadata' => 'nullable|array',
             'products' => 'required',
+            'source' => 'nullable|string|in:POS,ADMIN,MOBILE_APP,ECOMMERCE',
+            'seller_id' => 'nullable|string|exists:sellers,id',
         ];
     }
 }

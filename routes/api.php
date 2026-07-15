@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\MovementController;
+use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
+
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
     // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
@@ -157,5 +159,10 @@ Route::prefix('v1')->group(function () {
             Route::apiResource('reports', ReportController::class)->only(['index', 'store', 'destroy']);
             Route::get('reports/{report}/download', [ReportController::class, 'download']);
         });
+
+        // WooCommerce Integration Settings
+        Route::get('woocommerce/integration', [WooCommerceIntegrationController::class, 'index']);
+        Route::post('woocommerce/integration', [WooCommerceIntegrationController::class, 'store']);
+        Route::post('woocommerce/integration/test', [WooCommerceIntegrationController::class, 'testConnection']);
     });
 });
