@@ -13,6 +13,8 @@ class WooCommerceIntegration extends Model
     use Uuids;
     use Multitenantable;
 
+    protected $table = 'woocommerce_integrations';
+
     protected $fillable = [
         'organization_id',
         'store_id',
