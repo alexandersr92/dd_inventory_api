@@ -132,6 +132,7 @@ class SocialAuthController extends Controller
             'attributes' => [
                 'id' => $user->id,
                 'name' => $user->name,
+                'email' => $user->email,
                 'organization_id' => $user->organization_id,
                 'device_name' => $request->device_name,
                 'role' => $user->role_id,
@@ -141,6 +142,7 @@ class SocialAuthController extends Controller
                 'organization' => $orgData,
                 'must_change_password' => (bool)$user->must_change_password,
                 'avatar' => $user->avatar,
+                'google_id' => $user->google_id,
             ],
             'token' => $user->createToken($request->device_name)->plainTextToken,
         ], Response::HTTP_OK);
