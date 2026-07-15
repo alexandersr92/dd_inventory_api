@@ -10,6 +10,8 @@ use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
+use App\Services\GoogleOAuthConfigurator;
+
 class SocialAuthController extends Controller
 {
     /**
@@ -21,6 +23,9 @@ class SocialAuthController extends Controller
             'token' => 'required|string', // Token de acceso o ID token enviado desde el frontend
             'device_name' => 'required|string',
         ]);
+
+        // Aplicar la configuración dinámica guardada en BD
+        GoogleOAuthConfigurator::applyConfiguration();
 
         try {
             // Obtener datos del usuario desde Google usando el token proveído

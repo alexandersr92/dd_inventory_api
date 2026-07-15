@@ -24,11 +24,53 @@
 
     <form action="{{ route('admin.settings.update') }}" method="POST">
         @csrf
-        <textarea 
-            name="license_support_message" 
-            style="width: 100%; min-height: 120px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; font-family: inherit; font-size: 14px; color: var(--text-primary); resize: vertical; outline: none; margin-bottom: 20px;"
-            placeholder="Ej. Tu licencia ha expirado. Para renovar, comunícate al WhatsApp +123456789."
-        >{{ old('license_support_message', $supportMessage) }}</textarea>
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 14px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">Mensaje de expiración</label>
+            <textarea 
+                name="license_support_message" 
+                style="width: 100%; min-height: 100px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 12px; font-family: inherit; font-size: 14px; color: var(--text-primary); resize: vertical; outline: none;"
+                placeholder="Ej. Tu licencia ha expirado. Para renovar, comunícate al WhatsApp +123456789."
+            >{{ old('license_support_message', $supportMessage) }}</textarea>
+        </div>
+
+        <h2 style="font-size: 16px; font-weight: 600; margin-top: 36px; margin-bottom: 24px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">Configuración de Google OAuth</h2>
+        
+        <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
+            Define las credenciales globales del cliente OAuth de Google de tu consola de desarrollador para la autenticación social en el sistema.
+        </p>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">Google Client ID</label>
+            <input 
+                type="text" 
+                name="google_client_id" 
+                value="{{ old('google_client_id', $googleClientId) }}"
+                style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;"
+                placeholder="Ingresa el Client ID obtenido de Google Cloud"
+            />
+        </div>
+
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">Google Client Secret</label>
+            <input 
+                type="password" 
+                name="google_client_secret" 
+                value="{{ old('google_client_secret', $googleClientSecret) }}"
+                style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;"
+                placeholder="Ingresa el Client Secret obtenido de Google Cloud"
+            />
+        </div>
+
+        <div style="margin-bottom: 28px;">
+            <label style="display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">Google Redirect URI</label>
+            <input 
+                type="text" 
+                name="google_redirect_uri" 
+                value="{{ old('google_redirect_uri', $googleRedirectUri) }}"
+                style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;"
+                placeholder="https://tudominio.com/api/v1/auth/google/callback"
+            />
+        </div>
         
         <button type="submit" style="background: rgba(99, 102, 241, 0.1); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
             Guardar Configuración

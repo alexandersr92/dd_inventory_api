@@ -219,16 +219,39 @@ class AdminDashboardController extends Controller
     public function globalSettings()
     {
         $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? '';
-        return view('admin.settings.index', compact('supportMessage'));
+        $googleClientId = GlobalSetting::where('key', 'google_client_id')->value('value') ?? '';
+        $googleClientSecret = GlobalSetting::where('key', 'google_client_secret')->value('value') ?? '';
+        $googleRedirectUri = GlobalSetting::where('key', 'google_redirect_uri')->value('value') ?? '';
+        return view('admin.settings.index', compact('supportMessage', 'googleClientId', 'googleClientSecret', 'googleRedirectUri'));
     }
 
     public function updateGlobalSettings(Request $request)
     {
-        $request->validate(['license_support_message' => 'nullable|string']);
+        $request->validate([
+            'license_support_message' => 'nullable|string',
+            'google_client_id' => 'nullable|string',
+            'google_client_secret' => 'nullable|string',
+            'google_redirect_uri' => 'nullable|string',
+        ]);
         
         GlobalSetting::updateOrCreate(
             ['key' => 'license_support_message'],
             ['value' => $request->license_support_message]
+        );
+
+        GlobalSetting::updateOrCreate(
+            ['key' => 'google_client_id'],
+            ['value' => $request->google_client_id]
+        );
+
+        GlobalSetting::updateOrCreate(
+            ['key' => 'google_client_secret'],
+            ['value' => $request->google_client_secret]
+        );
+
+        GlobalSetting::updateOrCreate(
+            ['key' => 'google_redirect_uri'],
+            ['value' => $request->google_redirect_uri]
         );
 
         return redirect()->back()->with('success', 'Configuración global actualizada correctamente.');
