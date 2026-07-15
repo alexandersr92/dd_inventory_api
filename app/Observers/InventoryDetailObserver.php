@@ -14,7 +14,7 @@ class InventoryDetailObserver
     public function updated(InventoryDetail $inventoryDetail): void
     {
         // Solo actuar si la cantidad cambió
-        if (!$inventoryDetail->isDirty('quantity')) {
+        if (!$inventoryDetail->wasChanged('quantity')) {
             return;
         }
 

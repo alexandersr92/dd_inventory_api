@@ -44,13 +44,22 @@ class SyncStockToWooCommerce
         }
 
         try {
+            $isHttps = str_starts_with(strtolower($url), 'https://');
+            $searchRequest = Http::timeout(15);
+            $searchParams = [
+                'sku' => $sku,
+                'per_page' => 1
+            ];
+
+            if ($isHttps) {
+                $searchRequest = $searchRequest->withBasicAuth($key, $secret);
+            } else {
+                $searchParams['consumer_key'] = $key;
+                $searchParams['consumer_secret'] = $secret;
+            }
+
             // 1. Buscar el producto por SKU en WooCommerce
-            $searchResponse = Http::timeout(15)
-                ->withBasicAuth($key, $secret)
-                ->get($url . '/wp-json/wc/v3/products', [
-                    'sku' => $sku,
-                    'per_page' => 1
-                ]);
+            $searchResponse = $searchRequest->get($url . '/wp-json/wc/v3/products', $searchParams);
 
             if (!$searchResponse->successful()) {
                 Log::error("SyncStockToWooCommerce: Error buscando producto con SKU {$sku} en WooCommerce. Status: " . $searchResponse->status());
@@ -68,12 +77,26 @@ class SyncStockToWooCommerce
             $wooProductId = $wooProduct['id'];
 
             // 2. Actualizar el stock en WooCommerce
-            $updateResponse = Http::timeout(15)
-                ->withBasicAuth($key, $secret)
-                ->put($url . '/wp-json/wc/v3/products/' . $wooProductId, [
-                    'manage_stock' => true,
-                    'stock_quantity' => $qty
-                ]);
+            $updateRequest = Http::timeout(15);
+            $updateParams = [];
+            $bodyData = [
+                'manage_stock' => true,
+                'stock_quantity' => $qty
+            ];
+
+            if ($isHttps) {
+                $updateRequest = $updateRequest->withBasicAuth($key, $secret);
+            } else {
+                $updateParams['consumer_key'] = $key;
+                $updateParams['consumer_secret'] = $secret;
+            }
+
+            $updateUrl = $url . '/wp-json/wc/v3/products/' . $wooProductId;
+            if (!empty($updateParams)) {
+                $updateUrl .= '?' . http_build_query($updateParams);
+            }
+
+            $updateResponse = $updateRequest->put($updateUrl, $bodyData);
 
             if (!$updateResponse->successful()) {
                 Log::error("SyncStockToWooCommerce: Error actualizando stock del producto ID {$wooProductId} (SKU: {$sku}) en WooCommerce. Status: " . $updateResponse->status());
