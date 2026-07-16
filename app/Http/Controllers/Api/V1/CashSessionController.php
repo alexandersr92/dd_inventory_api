@@ -184,17 +184,20 @@ class CashSessionController extends Controller
         }
 
         $totals = $this->computeSessionTotals($session);
-        $expected = $totals['expected_cash'];
+        $expected = $totals['expected_cash_nio'];
+        $expected_usd = $totals['expected_cash_usd'];
         $actual_nio = $request->actual_cash;
         $actual_usd = $request->actual_usd ?? 0;
         $rate = $request->usd_exchange_rate ?? 0;
 
         $actual_total_nio = $actual_nio + ($actual_usd * $rate);
-        $diff = $actual_total_nio - $expected;
+        $expected_total_nio = $expected + ($expected_usd * $rate);
+        $diff = $actual_total_nio - $expected_total_nio;
 
         $session->update([
             'status' => 'closed',
             'expected_balance' => $expected,
+            'expected_usd' => $expected_usd,
             'actual_cash' => $actual_nio,
             'actual_usd' => $actual_usd,
             'usd_exchange_rate' => $rate,
@@ -249,8 +252,10 @@ class CashSessionController extends Controller
         $rate = $request->usd_exchange_rate ?? $session->usd_exchange_rate ?? 0;
 
         $expected = $session->expected_balance;
+        $expected_usd = $session->expected_usd ?? 0;
         $actual_total_nio = $actual_nio + ($actual_usd * $rate);
-        $diff = $actual_total_nio - $expected;
+        $expected_total_nio = $expected + ($expected_usd * $rate);
+        $diff = $actual_total_nio - $expected_total_nio;
 
         // 5. Update
         $session->update([
@@ -366,22 +371,44 @@ class CashSessionController extends Controller
     }
 
     /**
+     * Get details of a specific session including computed totals.
+     */
+    public function show($id)
+    {
+        $orgId = Auth::user()->organization_id;
+        
+        $session = CashSession::whereHas('store', function ($q) use ($orgId) {
+            $q->where('organization_id', $orgId);
+        })->with(['store', 'user', 'cashTransactions'])->findOrFail($id);
+
+        $totals = $this->computeSessionTotals($session);
+
+        return response()->json([
+            'session' => $session,
+            'totals' => $totals
+        ], Response::HTTP_OK);
+    }
+
+    /**
      * Helper to recalculate and update session balances.
      */
     private function recalculateSessionBalances(CashSession $session)
     {
         $totals = $this->computeSessionTotals($session);
-        $expected = $totals['expected_cash'];
+        $expected = $totals['expected_cash_nio'];
+        $expected_usd = $totals['expected_cash_usd'];
         
         $actual_nio = $session->actual_cash;
         $actual_usd = $session->actual_usd ?? 0;
         $rate = $session->usd_exchange_rate ?? 0;
 
         $actual_total_nio = $actual_nio + ($actual_usd * $rate);
-        $diff = $actual_total_nio - $expected;
+        $expected_total_nio = $expected + ($expected_usd * $rate);
+        $diff = $actual_total_nio - $expected_total_nio;
 
         $session->update([
             'expected_balance' => $expected,
+            'expected_usd' => $expected_usd,
             'difference' => $diff,
         ]);
     }
@@ -396,13 +423,19 @@ class CashSessionController extends Controller
             ->get();
         $creditDetails = CreditDetail::where('cash_session_id', $session->id)->get();
         
-        $invoiceCash = 0;
-        $invoiceTransfer = 0;
-        $invoiceCard = 0;
+        $invoiceCashNio = 0.0;
+        $invoiceCashUsd = 0.0;
+        $invoiceTransfer = 0.0;
+        $invoiceCard = 0.0;
 
         foreach ($invoices as $inv) {
             if ($inv->payment_method === 'CASH') {
-                $invoiceCash += $inv->grand_total;
+                if ($inv->paid_in_nio > 0 || $inv->paid_in_usd > 0) {
+                    $invoiceCashNio += $inv->paid_in_nio;
+                    $invoiceCashUsd += $inv->paid_in_usd;
+                } else {
+                    $invoiceCashNio += $inv->grand_total;
+                }
             } elseif ($inv->payment_method === 'TRANSFER') {
                 $invoiceTransfer += $inv->grand_total;
             } elseif ($inv->payment_method === 'CARD') {
@@ -411,7 +444,12 @@ class CashSessionController extends Controller
                 foreach ($inv->payment_metadata['payments'] as $p) {
                     if (isset($p['method'])) {
                         if ($p['method'] === 'CASH') {
-                            $invoiceCash += $p['amount'];
+                            if (isset($p['paid_nio']) || isset($p['paid_usd'])) {
+                                $invoiceCashNio += ($p['paid_nio'] ?? 0);
+                                $invoiceCashUsd += ($p['paid_usd'] ?? 0);
+                            } else {
+                                $invoiceCashNio += $p['amount'];
+                            }
                         } elseif ($p['method'] === 'TRANSFER') {
                             $invoiceTransfer += $p['amount'];
                         } elseif ($p['method'] === 'CARD') {
@@ -422,13 +460,19 @@ class CashSessionController extends Controller
             }
         }
 
-        $creditCash = 0;
-        $creditTransfer = 0;
-        $creditCard = 0;
+        $creditCashNio = 0.0;
+        $creditCashUsd = 0.0;
+        $creditTransfer = 0.0;
+        $creditCard = 0.0;
 
         foreach ($creditDetails as $cd) {
             if ($cd->payment_method === 'CASH') {
-                $creditCash += $cd->amount;
+                if (is_array($cd->payment_metadata) && (isset($cd->payment_metadata['paid_nio']) || isset($cd->payment_metadata['paid_usd']))) {
+                    $creditCashNio += ($cd->payment_metadata['paid_nio'] ?? 0);
+                    $creditCashUsd += ($cd->payment_metadata['paid_usd'] ?? 0);
+                } else {
+                    $creditCashNio += $cd->amount;
+                }
             } elseif ($cd->payment_method === 'TRANSFER') {
                 $creditTransfer += $cd->amount;
             } elseif ($cd->payment_method === 'CARD') {
@@ -437,7 +481,12 @@ class CashSessionController extends Controller
                 foreach ($cd->payment_metadata['payments'] as $p) {
                     if (isset($p['method'])) {
                         if ($p['method'] === 'CASH') {
-                            $creditCash += $p['amount'];
+                            if (isset($p['paid_nio']) || isset($p['paid_usd'])) {
+                                $creditCashNio += ($p['paid_nio'] ?? 0);
+                                $creditCashUsd += ($p['paid_usd'] ?? 0);
+                            } else {
+                                $creditCashNio += $p['amount'];
+                            }
                         } elseif ($p['method'] === 'TRANSFER') {
                             $creditTransfer += $p['amount'];
                         } elseif ($p['method'] === 'CARD') {
@@ -448,21 +497,34 @@ class CashSessionController extends Controller
             }
         }
 
-        $manualIn = $session->cashTransactions()->where('type', 'in')->sum('amount');
-        $manualOut = $session->cashTransactions()->where('type', 'out')->sum('amount');
+        $manualInNio = $session->cashTransactions()->where('type', 'in')->where('currency', 'NIO')->sum('amount');
+        $manualOutNio = $session->cashTransactions()->where('type', 'out')->where('currency', 'NIO')->sum('amount');
+        $manualInUsd = $session->cashTransactions()->where('type', 'in')->where('currency', 'USD')->sum('amount');
+        $manualOutUsd = $session->cashTransactions()->where('type', 'out')->where('currency', 'USD')->sum('amount');
 
-        $expectedCash = $session->opening_balance + $invoiceCash + $creditCash + $manualIn - $manualOut;
+        $expectedCashNio = $session->opening_balance + $invoiceCashNio + $creditCashNio + $manualInNio - $manualOutNio;
+        $expectedCashUsd = $invoiceCashUsd + $creditCashUsd + $manualInUsd - $manualOutUsd;
 
         return [
-            'invoice_cash' => $invoiceCash,
+            'invoice_cash' => $invoiceCashNio,
+            'invoice_cash_nio' => $invoiceCashNio,
+            'invoice_cash_usd' => $invoiceCashUsd,
             'invoice_transfer' => $invoiceTransfer,
             'invoice_card' => $invoiceCard,
-            'credit_cash' => $creditCash,
+            'credit_cash' => $creditCashNio,
+            'credit_cash_nio' => $creditCashNio,
+            'credit_cash_usd' => $creditCashUsd,
             'credit_transfer' => $creditTransfer,
             'credit_card' => $creditCard,
-            'manual_in' => $manualIn,
-            'manual_out' => $manualOut,
-            'expected_cash' => $expectedCash,
+            'manual_in' => $manualInNio,
+            'manual_out' => $manualOutNio,
+            'manual_in_nio' => $manualInNio,
+            'manual_out_nio' => $manualOutNio,
+            'manual_in_usd' => $manualInUsd,
+            'manual_out_usd' => $manualOutUsd,
+            'expected_cash' => $expectedCashNio,
+            'expected_cash_nio' => $expectedCashNio,
+            'expected_cash_usd' => $expectedCashUsd,
             'total_transfer' => $invoiceTransfer + $creditTransfer,
             'total_card' => $invoiceCard + $creditCard,
         ];

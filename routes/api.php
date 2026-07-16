@@ -128,6 +128,7 @@ Route::prefix('v1')->group(function () {
         // Cash Session Control
         Route::get('cash-sessions', [CashSessionController::class, 'index']);
         Route::get('cash-sessions/active', [CashSessionController::class, 'active']);
+        Route::get('cash-sessions/{id}', [CashSessionController::class, 'show']);
         Route::post('cash-sessions/open', [CashSessionController::class, 'open']);
         Route::post('cash-sessions/close', [CashSessionController::class, 'close']);
         Route::post('cash-sessions/transactions', [CashSessionController::class, 'addTransaction']);
