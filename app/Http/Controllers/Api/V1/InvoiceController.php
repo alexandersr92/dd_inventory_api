@@ -175,7 +175,10 @@ class InvoiceController extends Controller
 
     protected function storeInternal(StoreInvoiceRequest $request)
     {
-        if ($request->isCredit && empty($request->client_id)) {
+        $isCredit = filter_var($request->isCredit, FILTER_VALIDATE_BOOLEAN)
+            || in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']);
+
+        if ($isCredit && empty($request->client_id)) {
             return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
         }
 
@@ -284,8 +287,8 @@ class InvoiceController extends Controller
                 $invoiceData['invoice_status'] = 'proforma';
                 $invoiceData['invoice_type'] = 'proforma';
             } else {
-                $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
-                $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+                $invoiceData['invoice_status'] = $isCredit ? 'credit' : 'completed';
+                $invoiceData['invoice_type'] = $isCredit ? 'credit' : 'cash';
             }
 
             $invoiceData['user_id'] = $userID;
@@ -368,7 +371,7 @@ class InvoiceController extends Controller
             }
     
             // Si es crédito y no es proforma
-            if ($invoiceData['invoice_status'] !== 'proforma' && $request->isCredit && $request->client_id) {
+            if ($invoiceData['invoice_status'] !== 'proforma' && $isCredit && $request->client_id) {
                 $credit = $invoice->credit()->create([
                     'user_id' => $userID,
                     'organization_id' => $orgId,
@@ -388,7 +391,10 @@ class InvoiceController extends Controller
                     $credit->creditDetails()->create([
                         'amount' => $request->init_payment,
                         'date' => $request->payment_date,
-                        'note' => 'Pago inicial'
+                        'note' => 'Pago inicial',
+                        'payment_method' => in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']) ? 'CASH' : ($request->payment_method ?? 'CASH'),
+                        'payment_metadata' => $request->payment_metadata,
+                        'cash_session_id' => $request->cash_session_id
                     ]);
     
                     $credit->debt -= $request->init_payment;
