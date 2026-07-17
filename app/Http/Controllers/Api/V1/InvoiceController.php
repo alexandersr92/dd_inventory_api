@@ -158,6 +158,7 @@ class InvoiceController extends Controller
 
             // Disparar eventos de notificación después del commit exitoso
             $invoice = $result->resource;
+            $invoice->load('credit');
             event(new \App\Events\InvoiceCreated($invoice));
 
             if ($invoice->credit) {
@@ -246,7 +247,9 @@ class InvoiceController extends Controller
                         $defaultInventoryId = $firstInv->id;
                     }
                 }
-               $productArray = is_array($request->products)
+            }
+        }
+        $productArray = is_array($request->products)
             ? $request->products
             : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
 

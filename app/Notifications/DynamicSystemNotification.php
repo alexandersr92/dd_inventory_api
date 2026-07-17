@@ -10,7 +10,7 @@ use App\Models\EmailTemplate;
 use App\Services\MailConfigurator;
 use App\Mail\DynamicSystemMail;
 
-class DynamicSystemNotification extends Notification implements ShouldQueue
+class DynamicSystemNotification extends Notification
 {
     use Queueable, TenantQueueContext;
 
@@ -158,6 +158,72 @@ class DynamicSystemNotification extends Notification implements ShouldQueue
 
         // Retornar la estructura Mailable dinámica
         return (new DynamicSystemMail($subject, $body))->to($recipientEmail);
+    }
+
+    /**
+     * Obtener la representación para la base de datos de la notificación.
+     */
+    public function toDatabase($notifiable): array
+    {
+        $title = '';
+        $description = '';
+        $action = '';
+
+        switch ($this->eventKey) {
+            case 'tenant.invoice_created':
+                $title = 'Nueva Factura Registrada';
+                $invoiceNumber = $this->data['invoice_number'] ?? 'N/A';
+                $clientName = $this->data['client_name'] ?? 'Consumidor Final';
+                $total = $this->data['grand_total'] ?? 0;
+                $currency = $this->data['store_currency'] ?? 'C$';
+                $description = "Se ha registrado la factura {$invoiceNumber} para el cliente {$clientName} por un total de {$currency} " . number_format((float)$total, 2);
+                $action = '/invoices';
+                break;
+            case 'tenant.credit_created':
+                $title = 'Nuevo Crédito Otorgado';
+                $clientName = $this->data['client_name'] ?? 'Cliente';
+                $total = $this->data['total'] ?? 0;
+                $currency = $this->data['store_currency'] ?? 'C$';
+                $description = "Se ha aperturado un crédito para {$clientName} por un total de {$currency} " . number_format((float)$total, 2);
+                $action = '/credits';
+                break;
+            case 'tenant.box_closed':
+                $title = 'Cierre de Caja Realizado';
+                $boxName = $this->data['box_name'] ?? 'Caja';
+                $closedBy = $this->data['closed_by'] ?? 'Usuario';
+                $balance = $this->data['balance'] ?? '0.00';
+                $description = "El cajero {$closedBy} ha cerrado la caja '{$boxName}' reportando un saldo final de C$ " . number_format((float)$balance, 2);
+                $action = '/cajas';
+                break;
+            case 'tenant.user_created':
+                $title = 'Nuevo Usuario Creado';
+                $userName = $this->data['user_name'] ?? 'N/A';
+                $userEmail = $this->data['user_email'] ?? 'N/A';
+                $description = "Se ha registrado un nuevo usuario en la plataforma: {$userName} ({$userEmail})";
+                $action = '/settings';
+                break;
+            case 'client.registered':
+                $title = 'Nueva Organización Registrada';
+                $clientName = $this->data['client_name'] ?? 'N/A';
+                $clientEmail = $this->data['client_email'] ?? 'N/A';
+                $description = "La organización '{$clientName}' ({$clientEmail}) se ha registrado correctamente.";
+                $action = '/settings';
+                break;
+            default:
+                $title = 'Notificación del Sistema';
+                $description = 'Se ha generado un evento de tipo: ' . $this->eventKey;
+                $action = '/';
+                break;
+        }
+
+        return [
+            'event_key' => $this->eventKey,
+            'title' => $title,
+            'description' => $description,
+            'action' => $action,
+            'organization_id' => $this->organizationId,
+            'data' => $this->data,
+        ];
     }
 
     /**
