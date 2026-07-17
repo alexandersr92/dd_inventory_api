@@ -10,7 +10,7 @@ use App\Models\EmailTemplate;
 use App\Services\MailConfigurator;
 use App\Mail\DynamicSystemMail;
 
-class DynamicSystemNotification extends Notification implements ShouldQueue
+class DynamicSystemNotification extends Notification
 {
     use Queueable, TenantQueueContext;
 
