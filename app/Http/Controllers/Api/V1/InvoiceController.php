@@ -215,195 +215,286 @@ class InvoiceController extends Controller
         }
 
         $orgId = Auth::user()->organization_id;
-            $userID = Auth::id();
-            $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
-            $allowNegativeStock = true;
-           
-    
-            $productArray = is_array($request->products)
-                ? $request->products
-                : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
-    
-            $totalItems = 0;
-    
-            foreach ($productArray as $product) {
-                $quantity = $product['quantity'];
-                $totalItems += abs($quantity); // opcional, si querés contar total de unidades sin importar si son devoluciones
-            
-                $productObj = InventoryDetail::with('product')
-                    ->where('product_id', $product['product_id'])
-                    ->where('inventory_id', $product['inventory_id'])
-                    ->first();
-            
-                if (!$productObj) {
-                    return response()->json(['message' => 'Producto no encontrado en el inventario.'], 404);
-                }
-            
-                if ($quantity > 0 && $productObj->quantity < $quantity && !$allowNegativeStock) {
-                    return response()->json([
-                        'message' => 'Producto sin stock suficiente.',
-                        'product_name' => $productObj->product->name ?? 'N/A',
-                        'quantity_available' => $productObj->quantity,
-                        'quantity_requested' => $quantity
-                    ], 400);
-                }
-            }
-    
-            $nextInvoiceNumber = $store->invoice_number + 1;
-            do {
-                $invoiceNumber = $store->invoice_prefix
-                    ? $store->invoice_prefix . '-' . str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT)
-                    : str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT);
+        $userID = Auth::id();
+        $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
+        $allowNegativeStock = true;
 
-                $exists = Invoice::where('store_id', $request->store_id)
-                    ->where('invoice_number', $invoiceNumber)
-                    ->exists();
-
-                if ($exists) {
-                    $nextInvoiceNumber++;
-                }
-            } while ($exists);
-    
-            $invoiceData = $request->only([
-                'client_id',
-                'seller_id',
-                'store_id',
-                'invoice_date',
-                'invoice_note',
-                'client_name',
-                'discount',
-                'tax',
-                'grand_total',
-                'payment_method',
-                'payment_date',
-                'payment_metadata'
-            ]);
-            $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
-            $invoiceData['invoice_number'] = $invoiceNumber;
-            $invoiceData['total'] = $totalItems;
-
-            $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
-            if ($isProforma) {
-                $invoiceData['invoice_status'] = 'proforma';
-                $invoiceData['invoice_type'] = 'proforma';
+        // Resolver ID de inventario por defecto
+        $defaultInventoryId = $request->inventory_id;
+        if (!$defaultInventoryId) {
+            // Intentar buscar de woocommerce_integrations
+            $integration = DB::table('woocommerce_integrations')
+                ->where('organization_id', $orgId)
+                ->where('store_id', $request->store_id)
+                ->where('status', true)
+                ->first();
+            if ($integration) {
+                $defaultInventoryId = $integration->inventory_id;
             } else {
-                $invoiceData['invoice_status'] = $isCredit ? 'credit' : 'completed';
-                $invoiceData['invoice_type'] = $isCredit ? 'credit' : 'cash';
-            }
-
-            $invoiceData['user_id'] = $userID;
-            $invoiceData['organization_id'] = $orgId;
-            $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
-
-            // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
-            $paidInNio = 0.0;
-            $paidInUsd = 0.0;
-            $exchangeRateVal = 0.0;
-
-            if ($request->payment_method === 'CASH' && is_array($request->payment_metadata)) {
-                $paidInNio = (float) ($request->payment_metadata['paid_in_nio'] ?? $request->payment_metadata['paid_nio'] ?? 0);
-                $paidInUsd = (float) ($request->payment_metadata['paid_in_usd'] ?? $request->payment_metadata['paid_usd'] ?? 0);
-                $exchangeRateVal = (float) ($request->payment_metadata['exchange_rate'] ?? 0);
-            } elseif ($request->payment_method === 'MULTIPLE' && is_array($request->payment_metadata) && isset($request->payment_metadata['payments'])) {
-                foreach ($request->payment_metadata['payments'] as $p) {
-                    if (($p['method'] ?? '') === 'CASH') {
-                        $paidInNio += (float) ($p['paid_in_nio'] ?? $p['paid_nio'] ?? 0);
-                        $paidInUsd += (float) ($p['paid_in_usd'] ?? $p['paid_usd'] ?? 0);
-                        $exchangeRateVal = (float) ($p['exchange_rate'] ?? $exchangeRateVal);
-                    }
-                }
-            }
-
-            $invoiceData['paid_in_nio'] = $paidInNio;
-            $invoiceData['paid_in_usd'] = $paidInUsd;
-            $invoiceData['exchange_rate'] = $exchangeRateVal;
-     
-            $invoice = Invoice::create($invoiceData);
-    
-            if (!$invoice) {
-                return response()->json(['message' => 'No se pudo crear la factura.'], 400);
-            }
-    
-            // Actualizar número de factura al consecutivo utilizado
-            $store->invoice_number = $nextInvoiceNumber;
-            $store->save();
-    
-            $movementService = app(InventoryMovementService::class);
-
-            // Detalles y actualización de inventario
-            foreach ($productArray as $index => $product) {
-                $invoice->invoiceDetails()->create([
-                    'product_id' => $product['product_id'],
-                    'inventory_id' => $product['inventory_id'],
-                    'quantity' => $product['quantity'],
-                    'price' => $product['price'],
-                    'total' => $product['total'],
-                    'discount' => $product['discount'] ?? 0,
-                    'tax' => $product['tax'] ?? 0,
-                    'grand_total' => $product['grand_total'] ?? $product['total'],
-                    'sort_order' => $index
-                ]);
-                
-                // Si es proforma, no alteramos el inventario (es una cotización)
-                if ($invoiceData['invoice_status'] === 'proforma') {
-                    continue;
-                }
-                
-                $quantity = (float) $product['quantity'];
-                
-                $detail = InventoryDetail::where('product_id', $product['product_id'])
-                    ->where('inventory_id', $product['inventory_id'])
-                    ->lockForUpdate()
+                // Intentar buscar de inventory_store
+                $invStore = DB::table('inventory_store')
+                    ->where('store_id', $request->store_id)
                     ->first();
-                
-                if ($detail) {
-                    $movementService->recordMovement([
-                        'inventory_detail_id' => $detail->id,
-                        'type' => $quantity >= 0 ? 'sale' : 'return',
-                        'quantity' => abs($quantity),
-                        'reason' => "Venta en Factura N° {$invoice->invoice_number}",
-                        'user_id' => $userID,
-                        'seller_id' => $invoiceData['seller_id'],
-                        'reference_id' => $invoice->id,
-                        'reference_type' => Invoice::class,
-                    ]);
-                }
-            }
-    
-            // Si es crédito y no es proforma
-            if ($invoiceData['invoice_status'] !== 'proforma' && $isCredit && $request->client_id) {
-                $credit = $invoice->credit()->create([
-                    'user_id' => $userID,
-                    'organization_id' => $orgId,
-                    'store_id' => $request->store_id,
-                    'client_id' => $request->client_id,
-                    'invoice_id' => $invoice->id,
-                    'total' => $request->grand_total,
-                    'debt' => $request->grand_total,
-                    'credit_status' => 'active'
-                ]);
-    
-                if ($request->init_payment) {
-                    if ($request->init_payment > $request->grand_total) {
-                        return response()->json(['message' => 'El abono inicial no puede ser mayor al total.'], 400);
+                if ($invStore) {
+                    $defaultInventoryId = $invStore->inventory_id;
+                } else {
+                    // Intentar buscar primer inventario de la organización
+                    $firstInv = DB::table('inventories')
+                        ->where('organization_id', $orgId)
+                        ->first();
+                    if ($firstInv) {
+                        $defaultInventoryId = $firstInv->id;
                     }
-    
-                    $credit->creditDetails()->create([
-                        'amount' => $request->init_payment,
-                        'date' => $request->payment_date,
-                        'note' => 'Pago inicial',
-                        'payment_method' => in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']) ? 'CASH' : ($request->payment_method ?? 'CASH'),
-                        'payment_metadata' => $request->payment_metadata,
-                        'cash_session_id' => $request->cash_session_id
+                }
+               $productArray = is_array($request->products)
+            ? $request->products
+            : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
+
+        $processedProducts = [];
+        foreach ($productArray as $product) {
+            $qty = $product['quantity'];
+            $price = $product['price'] ?? 0;
+            
+            $prodId = $product['product_id'] ?? null;
+            $invId = $product['inventory_id'] ?? $defaultInventoryId;
+
+            // Si se proporciona SKU en lugar de ID (WooCommerce)
+            if (empty($prodId) && !empty($product['sku'])) {
+                $sku = $product['sku'];
+                $productObj = Product::where('organization_id', $orgId)
+                    ->where('sku', $sku)
+                    ->first();
+
+                if (!$productObj) {
+                    // Crear automáticamente producto comodín/genérico para WooCommerce
+                    $productName = $product['name'] ?? 'Producto WooCommerce ' . $sku;
+                    $productObj = Product::create([
+                        'organization_id' => $orgId,
+                        'sku' => $sku,
+                        'name' => $productName,
+                        'price' => $price,
+                        'cost' => 0,
+                        'status' => 'active',
                     ]);
-    
-                    $credit->debt -= $request->init_payment;
-                    $credit->save();
+                }
+
+                $prodId = $productObj->id;
+
+                // Asegurar que exista el detalle de inventario
+                $detailObj = InventoryDetail::where('product_id', $prodId)
+                    ->where('inventory_id', $invId)
+                    ->first();
+                if (!$detailObj) {
+                    InventoryDetail::create([
+                        'product_id' => $prodId,
+                        'inventory_id' => $invId,
+                        'quantity' => 0,
+                    ]);
                 }
             }
-    
-            $invoice->load('client');
-            return new InvoiceResource($invoice);
+
+            $processedProducts[] = [
+                'product_id' => $prodId,
+                'inventory_id' => $invId,
+                'quantity' => $qty,
+                'price' => $price,
+                'total' => $product['total'] ?? ($price * $qty),
+                'discount' => $product['discount'] ?? 0,
+                'tax' => $product['tax'] ?? 0,
+                'grand_total' => $product['grand_total'] ?? ($price * $qty),
+            ];
+        }
+
+        $totalItems = 0;
+
+        foreach ($processedProducts as $product) {
+            $quantity = $product['quantity'];
+            $totalItems += abs($quantity); // total de unidades
+
+            $productObj = InventoryDetail::with('product')
+                ->where('product_id', $product['product_id'])
+                ->where('inventory_id', $product['inventory_id'])
+                ->first();
+
+            if (!$productObj) {
+                return response()->json(['message' => 'Producto no encontrado en el inventario.'], 404);
+            }
+
+            if ($quantity > 0 && $productObj->quantity < $quantity && !$allowNegativeStock) {
+                return response()->json([
+                    'message' => 'Producto sin stock suficiente.',
+                    'product_name' => $productObj->product->name ?? 'N/A',
+                    'quantity_available' => $productObj->quantity,
+                    'quantity_requested' => $quantity
+                ], 400);
+            }
+        }
+
+        $nextInvoiceNumber = $store->invoice_number + 1;
+        do {
+            $invoiceNumber = $store->invoice_prefix
+                ? $store->invoice_prefix . '-' . str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT)
+                : str_pad($nextInvoiceNumber, 6, '0', STR_PAD_LEFT);
+
+            $exists = Invoice::where('store_id', $request->store_id)
+                ->where('invoice_number', $invoiceNumber)
+                ->exists();
+
+            if ($exists) {
+                $nextInvoiceNumber++;
+            }
+        } while ($exists);
+
+        $invoiceData = $request->only([
+            'client_id',
+            'seller_id',
+            'store_id',
+            'invoice_date',
+            'invoice_note',
+            'client_name',
+            'discount',
+            'tax',
+            'grand_total',
+            'payment_method',
+            'payment_date',
+            'payment_metadata',
+            'source'
+        ]);
+
+        $source = $request->input('source', 'POS');
+        $invoiceData['source'] = $source;
+
+        if ($source === 'ECOMMERCE') {
+            $invoiceData['seller_id'] = null;
+        } else {
+            $invoiceData['seller_id'] = $request->seller_id ?? Auth::user()->seller_id;
+        }
+
+        $invoiceData['invoice_number'] = $invoiceNumber;
+        $invoiceData['total'] = $totalItems;
+
+        $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
+        if ($isProforma) {
+            $invoiceData['invoice_status'] = 'proforma';
+            $invoiceData['invoice_type'] = 'proforma';
+        } else {
+            $invoiceData['invoice_status'] = $isCredit ? 'credit' : 'completed';
+            $invoiceData['invoice_type'] = $isCredit ? 'credit' : 'cash';
+        }
+
+        $invoiceData['user_id'] = $userID;
+        $invoiceData['organization_id'] = $orgId;
+        $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+
+        // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
+        $paidInNio = 0.0;
+        $paidInUsd = 0.0;
+        $exchangeRateVal = 0.0;
+
+        if ($request->payment_method === 'CASH' && is_array($request->payment_metadata)) {
+            $paidInNio = (float) ($request->payment_metadata['paid_in_nio'] ?? $request->payment_metadata['paid_nio'] ?? 0);
+            $paidInUsd = (float) ($request->payment_metadata['paid_in_usd'] ?? $request->payment_metadata['paid_usd'] ?? 0);
+            $exchangeRateVal = (float) ($request->payment_metadata['exchange_rate'] ?? 0);
+        } elseif ($request->payment_method === 'MULTIPLE' && is_array($request->payment_metadata) && isset($request->payment_metadata['payments'])) {
+            foreach ($request->payment_metadata['payments'] as $p) {
+                if (($p['method'] ?? '') === 'CASH') {
+                    $paidInNio += (float) ($p['paid_in_nio'] ?? $p['paid_nio'] ?? 0);
+                    $paidInUsd += (float) ($p['paid_in_usd'] ?? $p['paid_usd'] ?? 0);
+                    $exchangeRateVal = (float) ($p['exchange_rate'] ?? $exchangeRateVal);
+                }
+            }
+        }
+
+        $invoiceData['paid_in_nio'] = $paidInNio;
+        $invoiceData['paid_in_usd'] = $paidInUsd;
+        $invoiceData['exchange_rate'] = $exchangeRateVal;
+
+        $invoice = Invoice::create($invoiceData);
+
+        if (!$invoice) {
+            return response()->json(['message' => 'No se pudo crear la factura.'], 400);
+        }
+
+        // Actualizar número de factura al consecutivo utilizado
+        $store->invoice_number = $nextInvoiceNumber;
+        $store->save();
+
+        $movementService = app(InventoryMovementService::class);
+
+        // Detalles y actualización de inventario
+        foreach ($processedProducts as $index => $product) {
+            $invoice->invoiceDetails()->create([
+                'product_id' => $product['product_id'],
+                'inventory_id' => $product['inventory_id'],
+                'quantity' => $product['quantity'],
+                'price' => $product['price'],
+                'total' => $product['total'],
+                'discount' => $product['discount'] ?? 0,
+                'tax' => $product['tax'] ?? 0,
+                'grand_total' => $product['grand_total'] ?? $product['total'],
+                'sort_order' => $index
+            ]);
+
+            // Si es proforma, no alteramos el inventario (es una cotización)
+            if ($invoiceData['invoice_status'] === 'proforma') {
+                continue;
+            }
+
+            $quantity = (float) $product['quantity'];
+
+            $detail = InventoryDetail::where('product_id', $product['product_id'])
+                ->where('inventory_id', $product['inventory_id'])
+                ->lockForUpdate()
+                ->first();
+
+            if ($detail) {
+                $movementService->recordMovement([
+                    'inventory_detail_id' => $detail->id,
+                    'type' => $quantity >= 0 ? 'sale' : 'return',
+                    'quantity' => abs($quantity),
+                    'reason' => "Venta en Factura N° {$invoice->invoice_number}",
+                    'user_id' => $userID,
+                    'seller_id' => $invoiceData['seller_id'],
+                    'reference_id' => $invoice->id,
+                    'reference_type' => Invoice::class,
+                ]);
+            }
+        }
+
+        // Si es crédito y no es proforma
+        if ($invoiceData['invoice_status'] !== 'proforma' && $isCredit && $request->client_id) {
+            $credit = $invoice->credit()->create([
+                'user_id' => $userID,
+                'organization_id' => $orgId,
+                'store_id' => $request->store_id,
+                'client_id' => $request->client_id,
+                'invoice_id' => $invoice->id,
+                'total' => $request->grand_total,
+                'debt' => $request->grand_total,
+                'credit_status' => 'active'
+            ]);
+
+            if ($request->init_payment) {
+                if ($request->init_payment > $request->grand_total) {
+                    return response()->json(['message' => 'El abono inicial no puede ser mayor al total.'], 400);
+                }
+
+                $credit->creditDetails()->create([
+                    'amount' => $request->init_payment,
+                    'date' => $request->payment_date,
+                    'note' => 'Pago inicial',
+                    'payment_method' => in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']) ? 'CASH' : ($request->payment_method ?? 'CASH'),
+                    'payment_metadata' => $request->payment_metadata,
+                    'cash_session_id' => $request->cash_session_id
+                ]);
+
+                $credit->debt -= $request->init_payment;
+                $credit->save();
+            }
+        }
+
+        $invoice->load('client');
+        return new InvoiceResource($invoice);
     }
 
     /**

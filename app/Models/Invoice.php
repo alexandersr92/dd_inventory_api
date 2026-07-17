@@ -36,6 +36,7 @@ class Invoice extends Model
         'invoice_type', 
         'payment_metadata',
         'cash_session_id',
+        'source',
     ];
 
     protected $casts = [
