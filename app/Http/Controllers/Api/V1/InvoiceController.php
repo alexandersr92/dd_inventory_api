@@ -103,6 +103,8 @@ class InvoiceController extends Controller
 
         if($invoice_status) {
             $query->where('invoice_status', $invoice_status);
+        } else {
+            $query->where('invoice_status', '!=', 'proforma');
         }
 
      
@@ -173,7 +175,10 @@ class InvoiceController extends Controller
 
     protected function storeInternal(StoreInvoiceRequest $request)
     {
-        if ($request->isCredit && empty($request->client_id)) {
+        $isCredit = filter_var($request->isCredit, FILTER_VALIDATE_BOOLEAN)
+            || in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']);
+
+        if ($isCredit && empty($request->client_id)) {
             return response()->json(['message' => 'Debe seleccionar un cliente registrado para crear una factura a crédito.'], 400);
         }
 
@@ -241,10 +246,7 @@ class InvoiceController extends Controller
                         $defaultInventoryId = $firstInv->id;
                     }
                 }
-            }
-        }
-
-        $productArray = is_array($request->products)
+               $productArray = is_array($request->products)
             ? $request->products
             : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
 
@@ -370,11 +372,42 @@ class InvoiceController extends Controller
 
         $invoiceData['invoice_number'] = $invoiceNumber;
         $invoiceData['total'] = $totalItems;
-        $invoiceData['invoice_status'] = $request->isCredit ? 'credit' : 'completed';
-        $invoiceData['invoice_type'] = $request->isCredit ? 'credit' : 'cash';
+
+        $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
+        if ($isProforma) {
+            $invoiceData['invoice_status'] = 'proforma';
+            $invoiceData['invoice_type'] = 'proforma';
+        } else {
+            $invoiceData['invoice_status'] = $isCredit ? 'credit' : 'completed';
+            $invoiceData['invoice_type'] = $isCredit ? 'credit' : 'cash';
+        }
+
         $invoiceData['user_id'] = $userID;
         $invoiceData['organization_id'] = $orgId;
-        $invoiceData['cash_session_id'] = $request->cash_session_id;
+        $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+
+        // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
+        $paidInNio = 0.0;
+        $paidInUsd = 0.0;
+        $exchangeRateVal = 0.0;
+
+        if ($request->payment_method === 'CASH' && is_array($request->payment_metadata)) {
+            $paidInNio = (float) ($request->payment_metadata['paid_in_nio'] ?? $request->payment_metadata['paid_nio'] ?? 0);
+            $paidInUsd = (float) ($request->payment_metadata['paid_in_usd'] ?? $request->payment_metadata['paid_usd'] ?? 0);
+            $exchangeRateVal = (float) ($request->payment_metadata['exchange_rate'] ?? 0);
+        } elseif ($request->payment_method === 'MULTIPLE' && is_array($request->payment_metadata) && isset($request->payment_metadata['payments'])) {
+            foreach ($request->payment_metadata['payments'] as $p) {
+                if (($p['method'] ?? '') === 'CASH') {
+                    $paidInNio += (float) ($p['paid_in_nio'] ?? $p['paid_nio'] ?? 0);
+                    $paidInUsd += (float) ($p['paid_in_usd'] ?? $p['paid_usd'] ?? 0);
+                    $exchangeRateVal = (float) ($p['exchange_rate'] ?? $exchangeRateVal);
+                }
+            }
+        }
+
+        $invoiceData['paid_in_nio'] = $paidInNio;
+        $invoiceData['paid_in_usd'] = $paidInUsd;
+        $invoiceData['exchange_rate'] = $exchangeRateVal;
 
         $invoice = Invoice::create($invoiceData);
 
@@ -402,6 +435,11 @@ class InvoiceController extends Controller
                 'sort_order' => $index
             ]);
 
+            // Si es proforma, no alteramos el inventario (es una cotización)
+            if ($invoiceData['invoice_status'] === 'proforma') {
+                continue;
+            }
+
             $quantity = (float) $product['quantity'];
 
             $detail = InventoryDetail::where('product_id', $product['product_id'])
@@ -422,38 +460,41 @@ class InvoiceController extends Controller
                 ]);
             }
         }
-    
-            // Si es crédito
-            if ($request->isCredit && $request->client_id) {
-                $credit = $invoice->credit()->create([
-                    'user_id' => $userID,
-                    'organization_id' => $orgId,
-                    'store_id' => $request->store_id,
-                    'client_id' => $request->client_id,
-                    'invoice_id' => $invoice->id,
-                    'total' => $request->grand_total,
-                    'debt' => $request->grand_total,
-                    'credit_status' => 'active'
-                ]);
-    
-                if ($request->init_payment) {
-                    if ($request->init_payment > $request->grand_total) {
-                        return response()->json(['message' => 'El abono inicial no puede ser mayor al total.'], 400);
-                    }
-    
-                    $credit->creditDetails()->create([
-                        'amount' => $request->init_payment,
-                        'date' => $request->payment_date,
-                        'note' => 'Pago inicial'
-                    ]);
-    
-                    $credit->debt -= $request->init_payment;
-                    $credit->save();
+
+        // Si es crédito y no es proforma
+        if ($invoiceData['invoice_status'] !== 'proforma' && $isCredit && $request->client_id) {
+            $credit = $invoice->credit()->create([
+                'user_id' => $userID,
+                'organization_id' => $orgId,
+                'store_id' => $request->store_id,
+                'client_id' => $request->client_id,
+                'invoice_id' => $invoice->id,
+                'total' => $request->grand_total,
+                'debt' => $request->grand_total,
+                'credit_status' => 'active'
+            ]);
+
+            if ($request->init_payment) {
+                if ($request->init_payment > $request->grand_total) {
+                    return response()->json(['message' => 'El abono inicial no puede ser mayor al total.'], 400);
                 }
+
+                $credit->creditDetails()->create([
+                    'amount' => $request->init_payment,
+                    'date' => $request->payment_date,
+                    'note' => 'Pago inicial',
+                    'payment_method' => in_array(strtoupper($request->payment_method ?? ''), ['CREDIT', 'CREDITO']) ? 'CASH' : ($request->payment_method ?? 'CASH'),
+                    'payment_metadata' => $request->payment_metadata,
+                    'cash_session_id' => $request->cash_session_id
+                ]);
+
+                $credit->debt -= $request->init_payment;
+                $credit->save();
             }
-    
-            $invoice->load('client');
-            return new InvoiceResource($invoice);
+        }
+
+        $invoice->load('client');
+        return new InvoiceResource($invoice);
     }
 
     /**

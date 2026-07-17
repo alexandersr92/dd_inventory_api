@@ -25,7 +25,7 @@ class SalesReportStrategy extends BaseReportStrategy
     protected function fetchData(string $organizationId, array $filters): array
     {
         $query = Invoice::where('organization_id', $organizationId)
-                        ->where('invoice_status', '!=', 'canceled');
+                        ->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
 
         if (!empty($filters['date_from'])) {
             $query->where('created_at', '>=', $filters['date_from'] . ' 00:00:00');

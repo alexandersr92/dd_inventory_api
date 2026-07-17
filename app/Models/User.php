@@ -34,6 +34,9 @@ class User extends Authenticatable
         'organization_id',
         'role_id',
         'seller_id',
+        'must_change_password',
+        'google_id',
+        'avatar',
     ];
 
     /**
@@ -56,6 +59,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'must_change_password' => 'boolean',
         ];
     }
 

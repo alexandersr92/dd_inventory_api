@@ -35,6 +35,7 @@ class CreditCreated
                 'invoice_number' => $this->credit->invoice->invoice_number ?? '',
                 'store_name' => $this->credit->store->name ?? '',
                 'created_at' => now()->format('Y-m-d H:i:s'),
+                'store_currency' => $this->credit->store->store_currency ?? 'C$',
             ]
         ];
     }

@@ -24,6 +24,11 @@ use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\MovementController;
 use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
+use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\LandingAdminController;
+use App\Http\Controllers\Api\V1\LandingPublicController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\SocialAuthController;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
@@ -42,6 +47,14 @@ Route::prefix('v1')->group(function () {
 
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
+    Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
+    Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
+    Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle']);
+
+    // Public Landing Page Routes
+    Route::get('/landing/content', [LandingPublicController::class, 'getPublicContent']);
+    Route::get('/landing/plans', [LandingPublicController::class, 'getPublicPlans']);
+
     Route::middleware(['auth:sanctum', 'tenant.switch'])->group(function () {
             //Excel Reports
             Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
@@ -50,8 +63,12 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
+        Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
+        Route::get('/dashboard/chart', [DashboardController::class, 'chart']);
         Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
         Route::put('/user/password', [LoginController::class, 'updatePassword']);
+        Route::post('/user/google/link', [SocialAuthController::class, 'linkGoogle']);
+        Route::post('/user/google/unlink', [SocialAuthController::class, 'unlinkGoogle']);
 
 
         Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
@@ -112,6 +129,7 @@ Route::prefix('v1')->group(function () {
         // Cash Session Control
         Route::get('cash-sessions', [CashSessionController::class, 'index']);
         Route::get('cash-sessions/active', [CashSessionController::class, 'active']);
+        Route::get('cash-sessions/{id}', [CashSessionController::class, 'show']);
         Route::post('cash-sessions/open', [CashSessionController::class, 'open']);
         Route::post('cash-sessions/close', [CashSessionController::class, 'close']);
         Route::post('cash-sessions/transactions', [CashSessionController::class, 'addTransaction']);
@@ -164,5 +182,14 @@ Route::prefix('v1')->group(function () {
         Route::get('woocommerce/integration', [WooCommerceIntegrationController::class, 'index']);
         Route::post('woocommerce/integration', [WooCommerceIntegrationController::class, 'store']);
         Route::post('woocommerce/integration/test', [WooCommerceIntegrationController::class, 'testConnection']);
+
+        // Landing Page Admin Routes
+        Route::post('/landing/admin/media', [LandingAdminController::class, 'uploadMedia']);
+        Route::get('/landing/admin/media', [LandingAdminController::class, 'getMedia']);
+        Route::delete('/landing/admin/media/{id}', [LandingAdminController::class, 'deleteMedia']);
+        Route::put('/landing/admin/content/{key}', [LandingAdminController::class, 'saveSectionContent']);
+        Route::post('/landing/admin/plans', [LandingAdminController::class, 'managePlan']);
+        Route::put('/landing/admin/plans/{id}', [LandingAdminController::class, 'managePlan']);
+        Route::delete('/landing/admin/plans/{id}', [LandingAdminController::class, 'deletePlan']);
     });
 });

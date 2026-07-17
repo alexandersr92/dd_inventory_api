@@ -38,5 +38,14 @@ Route::prefix('admin')->group(function () {
         Route::post('/email-settings/test', [\App\Http\Controllers\Admin\AdminEmailController::class, 'sendTestEmail'])->name('admin.emails.test');
         Route::get('/email-settings/templates/{id}', [\App\Http\Controllers\Admin\AdminEmailController::class, 'getTemplate'])->name('admin.emails.template.get');
         Route::post('/email-settings/templates/{id}', [\App\Http\Controllers\Admin\AdminEmailController::class, 'updateTemplate'])->name('admin.emails.template.update');
+
+        // Landing Page management routes
+        Route::get('/landing', [\App\Http\Controllers\Admin\AdminLandingController::class, 'index'])->name('admin.landing.index');
+        Route::post('/landing/media', [\App\Http\Controllers\Admin\AdminLandingController::class, 'uploadMedia'])->name('admin.landing.media.upload');
+        Route::post('/landing/media/{id}/delete', [\App\Http\Controllers\Admin\AdminLandingController::class, 'deleteMedia'])->name('admin.landing.media.delete');
+        Route::post('/landing/content/{key}', [\App\Http\Controllers\Admin\AdminLandingController::class, 'updateContent'])->name('admin.landing.content.update');
+        Route::post('/landing/plans', [\App\Http\Controllers\Admin\AdminLandingController::class, 'storePlan'])->name('admin.landing.plans.store');
+        Route::post('/landing/plans/{id}/update', [\App\Http\Controllers\Admin\AdminLandingController::class, 'storePlan'])->name('admin.landing.plans.update');
+        Route::post('/landing/plans/{id}/delete', [\App\Http\Controllers\Admin\AdminLandingController::class, 'deletePlan'])->name('admin.landing.plans.delete');
     });
 });
