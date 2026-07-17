@@ -27,7 +27,7 @@ class CreditCreated
         return [
             'event_key' => 'tenant.credit_created',
             'organization_id' => $this->credit->organization_id,
-            'notifiables' => [],
+            'notifiables' => $this->credit->user ? [$this->credit->user] : [],
             'data' => [
                 'client_name' => $this->credit->client->name ?? '',
                 'total' => $this->credit->total,

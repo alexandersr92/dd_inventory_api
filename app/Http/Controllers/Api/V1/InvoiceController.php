@@ -158,6 +158,7 @@ class InvoiceController extends Controller
 
             // Disparar eventos de notificación después del commit exitoso
             $invoice = $result->resource;
+            $invoice->load('credit');
             event(new \App\Events\InvoiceCreated($invoice));
 
             if ($invoice->credit) {
