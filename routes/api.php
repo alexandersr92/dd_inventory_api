@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\SettingController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\MovementController;
 use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LandingAdminController;
 use App\Http\Controllers\Api\V1\LandingPublicController;
@@ -191,5 +192,11 @@ Route::prefix('v1')->group(function () {
         Route::post('/landing/admin/plans', [LandingAdminController::class, 'managePlan']);
         Route::put('/landing/admin/plans/{id}', [LandingAdminController::class, 'managePlan']);
         Route::delete('/landing/admin/plans/{id}', [LandingAdminController::class, 'deletePlan']);
+
+        // Notifications Module
+        Route::get('notifications', [NotificationController::class, 'index']);
+        Route::put('notifications/read-all', [NotificationController::class, 'markAllAsRead']);
+        Route::put('notifications/{id}/read', [NotificationController::class, 'markAsRead']);
+        Route::delete('notifications/{id}', [NotificationController::class, 'destroy']);
     });
 });
