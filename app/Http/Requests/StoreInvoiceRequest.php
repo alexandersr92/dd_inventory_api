@@ -37,6 +37,9 @@ class StoreInvoiceRequest extends FormRequest
             'products' => 'required',
             'source' => 'nullable|string|in:POS,ADMIN,MOBILE_APP,ECOMMERCE',
             'seller_id' => 'nullable|string|exists:sellers,id',
+            'offline_reference' => 'nullable|uuid',
+            'is_offline' => 'nullable|boolean',
+            'offline_number' => 'nullable|string|max:30',
         ];
     }
 }

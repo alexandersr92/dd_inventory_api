@@ -46,6 +46,11 @@ Route::prefix('v1')->group(function () {
         }
     );
 
+    // Ping liviano sin auth para detección de conectividad del POS offline
+    Route::get('/ping', function () {
+        return response()->json(['ok' => true, 'ts' => now()->timestamp]);
+    });
+
     Route::post('/login', [LoginController::class, 'login']);
     Route::post('/register', [LoginController::class, 'registerOwner']);
     Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
