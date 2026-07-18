@@ -139,6 +139,19 @@ class InvoiceController extends Controller
     {
         $this->authorize('create', Invoice::class);
 
+        // Idempotencia para sincronización offline: si la factura ya fue creada
+        // con esta referencia, devolver la existente en lugar de duplicarla.
+        if ($request->filled('offline_reference')) {
+            $existing = Invoice::where('offline_reference', $request->offline_reference)
+                ->where('organization_id', Auth::user()->organization_id)
+                ->first();
+
+            if ($existing) {
+                $existing->load('client');
+                return new InvoiceResource($existing);
+            }
+        }
+
         $lockKey = 'create_invoice_' . Auth::id() . '_' . md5(json_encode($request->all()));
         $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos para evitar doble envío
 
@@ -169,6 +182,25 @@ class InvoiceController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             $lock->release();
+
+            // Carrera residual de idempotencia: otro proceso insertó la misma
+            // offline_reference entre el check inicial y el create. Tras el
+            // rollback (fuera de la transacción) la fila commiteada ya es visible.
+            if (
+                $e instanceof \Illuminate\Database\QueryException &&
+                $e->getCode() === '23000' &&
+                $request->filled('offline_reference')
+            ) {
+                $existing = Invoice::where('offline_reference', $request->offline_reference)
+                    ->where('organization_id', Auth::user()->organization_id)
+                    ->first();
+
+                if ($existing) {
+                    $existing->load('client');
+                    return new InvoiceResource($existing);
+                }
+            }
+
             report($e);
             return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
         }
@@ -388,6 +420,17 @@ class InvoiceController extends Controller
         $invoiceData['user_id'] = $userID;
         $invoiceData['organization_id'] = $orgId;
         $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+
+        // Metadatos de venta offline (sincronización desde el POS sin conexión)
+        $isOffline = filter_var($request->is_offline, FILTER_VALIDATE_BOOLEAN);
+        $invoiceData['offline_reference'] = $request->offline_reference;
+        $invoiceData['is_offline'] = $isOffline;
+        $invoiceData['offline_number'] = $request->offline_number;
+
+        if ($isOffline && $request->offline_number) {
+            $offlineTag = "[OFFLINE {$request->offline_number}]";
+            $invoiceData['invoice_note'] = trim($offlineTag . ' ' . ($invoiceData['invoice_note'] ?? ''));
+        }
 
         // Extraer y mapear valores de pago en efectivo directamente a las columnas del modelo
         $paidInNio = 0.0;
