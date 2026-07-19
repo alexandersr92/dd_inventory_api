@@ -156,7 +156,26 @@ class OrganizationController extends Controller
                 return response(['message' => 'User already has an organization'], Response::HTTP_CONFLICT);
             }
 
-            return response(new OrganizationResource($result['organization']), Response::HTTP_CREATED);
+            // Notificaciones (fuera de la transacción; nunca deben romper el registro).
+            $organization = $result['organization'];
+            $ownerEmail = $request->user()->email;
+            \App\Services\AdminNotifier::notifyRoot(
+                'new_account',
+                '🎉 Nueva cuenta en DipleBill: ' . $organization->name,
+                '<h2>Nueva organización registrada</h2>'
+                    . '<p><strong>Nombre:</strong> ' . e($organization->name) . '</p>'
+                    . '<p><strong>Propietario:</strong> ' . e($request->user()->name) . ' (' . e($ownerEmail) . ')</p>'
+                    . '<p><strong>Prueba gratuita:</strong> ' . self::TRIAL_DAYS . ' días.</p>'
+            );
+            \App\Services\AdminNotifier::notifyClient(
+                $ownerEmail,
+                '¡Bienvenido a DipleBill!',
+                '<h2>¡Tu cuenta está lista, ' . e($request->user()->name) . '!</h2>'
+                    . '<p>Creamos <strong>' . e($organization->name) . '</strong> con <strong>' . self::TRIAL_DAYS . ' días</strong> de prueba gratuita.</p>'
+                    . '<p>Ya puedes empezar a facturar. Cualquier duda, estamos para ayudarte.</p>'
+            );
+
+            return response(new OrganizationResource($organization), Response::HTTP_CREATED);
         } catch (\Exception $e) {
             // DB::transaction ya hizo rollback; limpiar el logo subido a disco.
             if ($logoPath) {

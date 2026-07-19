@@ -2,6 +2,10 @@
 
 use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminPlanController;
+use App\Http\Controllers\Admin\AdminPaymentController;
+use App\Http\Controllers\Admin\AdminNotificationController;
+use App\Http\Controllers\Admin\AdminErrorReportController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -21,9 +25,40 @@ Route::prefix('admin')->group(function () {
         Route::post('/clients/{id}/toggle-status', [AdminDashboardController::class, 'toggleClientStatus'])->name('admin.clients.toggle-status');
         Route::post('/clients/{id}/toggle-module/{moduleId}', [AdminDashboardController::class, 'toggleClientModule'])->name('admin.clients.toggle-module');
         Route::post('/clients/{id}/license', [AdminDashboardController::class, 'updateLicense'])->name('admin.clients.license');
+        Route::post('/clients/{id}/plan', [AdminDashboardController::class, 'assignPlan'])->name('admin.clients.plan');
         Route::post('/clients/{id}/destroy', [AdminDashboardController::class, 'destroyClient'])->name('admin.clients.destroy');
         Route::post('/admins', [AdminDashboardController::class, 'storeAdmin'])->name('admin.admins.store');
         
+        // CRUD de planes funcionales (límites asignables a organizaciones)
+        Route::get('/plans', [AdminPlanController::class, 'index'])->name('admin.plans.index');
+        Route::post('/plans', [AdminPlanController::class, 'store'])->name('admin.plans.store');
+        Route::post('/plans/{id}/update', [AdminPlanController::class, 'update'])->name('admin.plans.update');
+        Route::post('/plans/{id}/delete', [AdminPlanController::class, 'destroy'])->name('admin.plans.delete');
+
+        // Pagos: métodos de pago + validación de comprobantes
+        Route::get('/payments', [AdminPaymentController::class, 'index'])->name('admin.payments.index');
+        Route::post('/payments/providers', [AdminPaymentController::class, 'storeProvider'])->name('admin.payments.providers.store');
+        Route::post('/payments/providers/{id}/update', [AdminPaymentController::class, 'updateProvider'])->name('admin.payments.providers.update');
+        Route::post('/payments/providers/{id}/toggle', [AdminPaymentController::class, 'toggleProvider'])->name('admin.payments.providers.toggle');
+        Route::post('/payments/providers/{id}/delete', [AdminPaymentController::class, 'destroyProvider'])->name('admin.payments.providers.delete');
+        Route::get('/payments/{id}/receipt', [AdminPaymentController::class, 'viewReceipt'])->name('admin.payments.receipt');
+        Route::post('/payments/{id}/approve', [AdminPaymentController::class, 'approveSubmission'])->name('admin.payments.approve');
+        Route::post('/payments/{id}/reject', [AdminPaymentController::class, 'rejectSubmission'])->name('admin.payments.reject');
+
+        // Configuración de notificaciones
+        Route::get('/notifications', [AdminNotificationController::class, 'index'])->name('admin.notifications.index');
+        Route::post('/notifications', [AdminNotificationController::class, 'update'])->name('admin.notifications.update');
+        Route::post('/notifications/test', [AdminNotificationController::class, 'test'])->name('admin.notifications.test');
+
+        // Reportes de error (gestión de los reportes enviados por los clientes)
+        Route::get('/error-reports', [AdminErrorReportController::class, 'index'])->name('admin.error-reports.index');
+        Route::get('/error-reports/{id}/screenshot', [AdminErrorReportController::class, 'screenshot'])->name('admin.error-reports.screenshot');
+        Route::post('/error-reports/{id}/resolve', [AdminErrorReportController::class, 'resolve'])->name('admin.error-reports.resolve');
+        Route::post('/error-reports/{id}/delete', [AdminErrorReportController::class, 'destroy'])->name('admin.error-reports.destroy');
+
+        // Historial de auditoría
+        Route::get('/audit', [AdminDashboardController::class, 'auditLog'])->name('admin.audit.index');
+
         Route::get('/settings', [AdminDashboardController::class, 'globalSettings'])->name('admin.settings.index');
         Route::post('/settings', [AdminDashboardController::class, 'updateGlobalSettings'])->name('admin.settings.update');
 

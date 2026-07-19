@@ -5,13 +5,16 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Uuids;
+use App\Traits\Multitenantable;
 
 class CashSession extends Model
 {
     use HasFactory;
     use Uuids;
+    use Multitenantable;
 
     protected $fillable = [
+        'organization_id',
         'store_id',
         'user_id',
         'cash_register_name',

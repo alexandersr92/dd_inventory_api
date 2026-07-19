@@ -20,6 +20,25 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.switch' => \App\Http\Middleware\TenantDatabaseSwitcher::class,
             'module' => \App\Http\Middleware\TenantModuleAccess::class,
         ]);
+
+        // El switch de tenant DEBE correr antes que SubstituteBindings para que el
+        // route-model-binding resuelva ya con el scope de organización activo.
+        // Sin esto, un tenant puede leer/borrar registros de otro por ID directo
+        // (el binding resolvía el modelo sin filtrar por organization_id).
+        $middleware->priority([
+            \Illuminate\Foundation\Http\Middleware\HandlePrecognitiveRequests::class,
+            \Illuminate\Cookie\Middleware\EncryptCookies::class,
+            \Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+            \Illuminate\Session\Middleware\StartSession::class,
+            \Illuminate\View\Middleware\ShareErrorsFromSession::class,
+            \Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests::class,
+            \Illuminate\Routing\Middleware\ThrottleRequests::class,
+            \Illuminate\Routing\Middleware\ThrottleRequestsWithRedis::class,
+            \Illuminate\Contracts\Session\Middleware\AuthenticatesSessions::class,
+            \App\Http\Middleware\TenantDatabaseSwitcher::class,
+            \Illuminate\Routing\Middleware\SubstituteBindings::class,
+            \Illuminate\Auth\Middleware\Authorize::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //

@@ -137,9 +137,16 @@
         <form id="section-json-form" action="{{ route('admin.landing.content.update', 'hero') }}" method="POST" onsubmit="return validateJsonInput()">
             @csrf
             <div class="form-group">
-                <label>Contenido JSON</label>
-                <textarea name="content_raw" id="section-json-textarea" class="form-control" style="min-height: 350px; font-family: monospace; font-size: 13px; line-height: 1.5; color: #a5f3fc; background: rgba(0,0,0,0.3); outline: none; border-color: rgba(255,255,255,0.05);"></textarea>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
+                    <label style="margin:0;">Contenido JSON</label>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <span id="json-live-status" style="font-size: 12px; font-weight: 600;"></span>
+                        <button type="button" onclick="formatJson()" style="background: rgba(255,255,255,0.05); color: var(--text-secondary); border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Formatear</button>
+                    </div>
+                </div>
+                <textarea name="content_raw" id="section-json-textarea" class="form-control" oninput="liveValidateJson()" style="min-height: 350px; font-family: monospace; font-size: 13px; line-height: 1.5; color: #a5f3fc; background: rgba(0,0,0,0.3); outline: none; border-color: rgba(255,255,255,0.05);"></textarea>
                 <div id="json-error-msg" style="color: var(--danger-color); font-size: 12px; margin-top: 8px; font-weight: 600; display: none;"></div>
+                <p style="font-size: 12px; color: var(--text-secondary); margin-top: 8px;">Consejo: usa "Formatear" para ordenar el JSON y detectar errores. El estado (✓ válido / ✗ error) se actualiza mientras escribes. El servidor rechaza cualquier JSON inválido, así que la landing nunca se rompe por un error de sintaxis.</p>
             </div>
 
             <button type="submit" class="btn-primary">
@@ -423,9 +430,37 @@
         }
     }
 
+    // Validación en vivo mientras se escribe: muestra ✓ / ✗ sin bloquear.
+    function liveValidateJson() {
+        const textarea = document.getElementById('section-json-textarea');
+        const status = document.getElementById('json-live-status');
+        try {
+            JSON.parse(textarea.value);
+            status.textContent = '✓ JSON válido';
+            status.style.color = '#34D399';
+        } catch (e) {
+            status.textContent = '✗ JSON con error';
+            status.style.color = 'var(--danger-color)';
+        }
+    }
+
+    // Ordena e indenta el JSON; si es inválido, avisa sin perder el texto.
+    function formatJson() {
+        const textarea = document.getElementById('section-json-textarea');
+        try {
+            textarea.value = JSON.stringify(JSON.parse(textarea.value), null, 2);
+            liveValidateJson();
+        } catch (e) {
+            const errorDiv = document.getElementById('json-error-msg');
+            errorDiv.innerText = 'No se puede formatear: ' + e.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
     // Inicializar el JSON del editor al cargar
     document.addEventListener('DOMContentLoaded', () => {
         loadSectionJson();
+        liveValidateJson();
     });
 </script>
 @endsection

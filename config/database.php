@@ -60,6 +60,15 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            // Ruta del directorio de mysqldump para spatie/laravel-backup.
+            // El proceso web (Herd/Valet) no hereda el PATH del shell, por eso
+            // se indica explícitamente. En servidores con mysqldump en el PATH
+            // se deja DB_DUMP_BINARY_PATH vacío.
+            'dump' => [
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
+                'use_single_transaction' => true,
+                'timeout' => 60 * 5,
+            ],
         ],
 
         'central' => [

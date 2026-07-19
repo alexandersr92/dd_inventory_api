@@ -36,7 +36,10 @@ class TenantDatabaseSwitcher
                         return response()->json([
                             'message' => 'Tu licencia de uso ha expirado.',
                             'error_code' => 'LICENSE_EXPIRED',
-                            'support_message' => $supportMessage
+                            'support_message' => $supportMessage,
+                            // Datos de pago para que el cliente pueda renovar sin salir de la app.
+                            'payment_account' => GlobalSetting::where('key', 'payment_account')->value('value') ?? '',
+                            'payment_whatsapp' => GlobalSetting::where('key', 'payment_whatsapp')->value('value') ?? '',
                         ], Response::HTTP_PAYMENT_REQUIRED);
                     }
                 }
