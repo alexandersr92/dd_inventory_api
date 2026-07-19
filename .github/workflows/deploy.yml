@@ -32,7 +32,7 @@ jobs:
             php artisan down --retry=15 || true
             git pull origin main
             composer install --no-dev --optimize-autoloader --no-interaction
-            php artisan migrate --force
+            php artisan tenants:migrate
             php artisan config:cache
             php artisan route:cache
             php artisan up
