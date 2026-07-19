@@ -4,8 +4,10 @@
 # (Settings -> Secrets and variables -> Actions):
 #   SSH_HOST, SSH_USER, SSH_KEY (clave privada), DEPLOY_PATH
 #
-# El paso `php artisan migrate --force` es el que evita la clase de error
+# El paso `php artisan tenants:migrate` es el que evita la clase de error
 # "Unknown column ..." que ocurrió al desplegar código sin correr migraciones.
+# A diferencia de `migrate --force` (solo la BD central), este comando también
+# migra cada base de datos dedicada de tenant.
 #
 # Activa el workflow quitando el comentario de `push` cuando los secrets estén listos.
 
