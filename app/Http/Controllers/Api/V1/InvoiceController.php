@@ -152,6 +152,18 @@ class InvoiceController extends Controller
             }
         }
 
+        // Límite de facturación mensual del plan. Las ventas offline que se
+        // sincronizan no se bloquean (el ticket físico ya se emitió).
+        if (!filter_var($request->is_offline, FILTER_VALIDATE_BOOLEAN)) {
+            $organization = \App\Models\Organization::find(Auth::user()->organization_id);
+            if ($organization && !\App\Services\PlanLimits::for($organization)->canCreateInvoice()) {
+                return response()->json([
+                    'message' => 'Has alcanzado el límite de facturas mensuales de tu plan. Actualiza tu plan para seguir facturando.',
+                    'error_code' => 'PLAN_LIMIT_INVOICES',
+                ], Response::HTTP_FORBIDDEN);
+            }
+        }
+
         $lockKey = 'create_invoice_' . Auth::id() . '_' . md5(json_encode($request->all()));
         $lock = Cache::lock($lockKey, 5); // Bloqueo de 5 segundos para evitar doble envío
 

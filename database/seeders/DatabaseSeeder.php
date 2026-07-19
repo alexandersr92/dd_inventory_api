@@ -101,6 +101,8 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             EmailTemplatesSeeder::class,
             NotificationEventsSeeder::class,
+            PlansSeeder::class,
+            PaymentProvidersSeeder::class,
         ]);
 
         // 4. Asignar Roles a los Usuarios despues de que RolesAndPermissionsSeeder los haya creado

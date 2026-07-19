@@ -676,6 +676,27 @@
                     @endif
                 </div>
 
+                <!-- Plan asignado -->
+                <div style="margin-bottom: 24px; padding: 16px; border: 1px solid var(--border-color); border-radius: 12px; background: rgba(255,255,255,0.02);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px;">
+                        <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Plan asignado</span>
+                        <strong style="font-size: 14px;">{{ $organization->plan?->name ?? 'Sin plan (límites ilimitados)' }}</strong>
+                    </div>
+                    <form action="{{ route('admin.clients.plan', $organization->id) }}" method="POST" style="display:flex; gap:10px;">
+                        @csrf
+                        <select name="plan_id" required style="flex:1; background: rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:10px 12px; font-size:14px; color: var(--text-primary); outline:none;">
+                            <option value="">Seleccionar plan…</option>
+                            @foreach($plans as $plan)
+                                <option value="{{ $plan->id }}" {{ $organization->plan_id === $plan->id ? 'selected' : '' }}>
+                                    {{ $plan->name }} — {{ number_format($plan->price, 2) }} {{ $plan->currency }} / {{ $plan->duration_months }}m
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="submit" style="background: var(--accent-gradient); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">Asignar</button>
+                    </form>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">Asignar un plan fija los límites (vendedores, sucursales, facturas/mes), define la tenencia y extiende la licencia por la duración del plan.</p>
+                </div>
+
                 @if($errors->any())
                     <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 12px; border-radius: 8px; margin-bottom: 16px; color: var(--danger-color); font-size: 13px;">
                         <ul style="margin: 0; padding-left: 20px;">

@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Uuids;
 
 class Organization extends Model
 {
-    use Uuids, HasFactory;
+    use Uuids, HasFactory, SoftDeletes;
 
     protected $connection = 'central';
 
@@ -25,6 +26,7 @@ class Organization extends Model
         'license_expires_at',
         'support_message',
         'tenancy_type',
+        'plan_id',
     ];
 
     protected function casts(): array
@@ -55,6 +57,11 @@ class Organization extends Model
     public function licenses()
     {
         return $this->hasMany(OrganizationLicense::class);
+    }
+
+    public function plan()
+    {
+        return $this->belongsTo(Plan::class);
     }
 
     public function clients()

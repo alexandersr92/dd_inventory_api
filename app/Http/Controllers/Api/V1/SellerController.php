@@ -61,6 +61,15 @@ class SellerController extends Controller
         $orgId     = Auth::user()->organization_id;
         $validated = $request->validated();
 
+        // Límite de vendedores del plan
+        $organization = \App\Models\Organization::find($orgId);
+        if ($organization && !\App\Services\PlanLimits::for($organization)->canAddSeller()) {
+            return response()->json([
+                'message' => 'Has alcanzado el límite de vendedores de tu plan. Actualiza tu plan para agregar más.',
+                'error_code' => 'PLAN_LIMIT_SELLERS',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         // Unicidad del code dentro de la organización
         $exists = Seller::where('organization_id', $orgId)
             ->where('code', $validated['code'])

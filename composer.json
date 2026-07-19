@@ -10,12 +10,14 @@
     "require": {
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
-        "laravel/framework": "^11.9",
-        "laravel/reverb": "^1.0",
+        "laravel/framework": "^12.0",
+        "laravel/reverb": "^1.7",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.28",
         "laravel/tinker": "^2.9",
         "maatwebsite/excel": "^3.1",
+        "sentry/sentry-laravel": "^4.27",
+        "spatie/laravel-backup": "^9.3",
         "spatie/laravel-permission": "^6.9"
     },
     "require-dev": {

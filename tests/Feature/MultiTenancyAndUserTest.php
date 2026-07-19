@@ -148,12 +148,18 @@ class MultiTenancyAndUserTest extends TestCase
      */
     public function test_tenant_database_switcher_middleware(): void
     {
+        // Se usa la propia BD de testing como "dedicada": desde que el switch de
+        // tenant corre antes del route-model-binding, la petición ejecuta queries
+        // reales contra la BD dedicada, por lo que debe existir. El nombre real es
+        // indiferente para la aserción (verificamos que la config cambió).
+        $dedicatedDb = config('database.connections.mysql.database');
+
         $org = Organization::factory()->create([
             'name' => 'Dedicated Org',
             'email' => 'dedicated@org.com',
             'phone' => '444444444',
             'tenancy_type' => 'dedicated',
-            'db_database' => 'inventory_tenant_test_database',
+            'db_database' => $dedicatedDb,
             'owner_id' => User::factory()->create()->id,
         ]);
 
@@ -166,8 +172,8 @@ class MultiTenancyAndUserTest extends TestCase
 
         Sanctum::actingAs($user);
 
-        // Reset the default mysql connection database configuration to ensure switcher overrides it
-        config(['database.connections.mysql.database' => 'inventory_api']);
+        // Forzar un valor distinto para comprobar que el switcher lo sobreescribe.
+        config(['database.connections.mysql.database' => 'placeholder_db']);
 
         // Send a request to any authenticated route
         $response = $this->getJson('/api/v1/users');
@@ -175,6 +181,6 @@ class MultiTenancyAndUserTest extends TestCase
         $response->assertStatus(200);
 
         // Assert that the connection has switched to the dedicated database name
-        $this->assertEquals('inventory_tenant_test_database', config('database.connections.mysql.database'));
+        $this->assertEquals($dedicatedDb, config('database.connections.mysql.database'));
     }
 }

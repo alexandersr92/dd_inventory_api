@@ -146,6 +146,19 @@ Route::prefix('v1')->group(function () {
         // Expense Categories
         Route::apiResource('expense-categories', \App\Http\Controllers\Api\V1\ExpenseCategoryController::class)->except(['show']);
 
+        // Planes y uso (sin módulo: disponible para toda organización autenticada)
+        Route::get('plans', [\App\Http\Controllers\Api\V1\PlanController::class, 'index']);
+        Route::get('plans/current', [\App\Http\Controllers\Api\V1\PlanController::class, 'current']);
+
+        // Pagos: métodos activos + comprobantes de renovación
+        Route::get('payments/providers', [\App\Http\Controllers\Api\V1\PaymentController::class, 'providers']);
+        Route::post('payments/submit', [\App\Http\Controllers\Api\V1\PaymentController::class, 'submit']);
+        Route::get('payments/my-submissions', [\App\Http\Controllers\Api\V1\PaymentController::class, 'mySubmissions']);
+        Route::get('payments/{id}/receipt', [\App\Http\Controllers\Api\V1\PaymentController::class, 'downloadReceipt']);
+
+        // Reporte de errores desde la app del negocio (llega al panel root).
+        Route::post('error-reports', [\App\Http\Controllers\Api\V1\ErrorReportController::class, 'store']);
+
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {
             Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);

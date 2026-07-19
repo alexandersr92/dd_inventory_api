@@ -1,0 +1,38 @@
+# Deploy del backend a producción vía SSH.
+#
+# PLANTILLA: requiere configurar estos secrets en el repo
+# (Settings -> Secrets and variables -> Actions):
+#   SSH_HOST, SSH_USER, SSH_KEY (clave privada), DEPLOY_PATH
+#
+# El paso `php artisan migrate --force` es el que evita la clase de error
+# "Unknown column ..." que ocurrió al desplegar código sin correr migraciones.
+#
+# Activa el workflow quitando el comentario de `push` cuando los secrets estén listos.
+
+name: Deploy
+
+on:
+  workflow_dispatch: {}
+  # push:
+  #   branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH }}
+            php artisan down --retry=15 || true
+            git pull origin main
+            composer install --no-dev --optimize-autoloader --no-interaction
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan up

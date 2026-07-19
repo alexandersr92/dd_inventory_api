@@ -795,6 +795,88 @@
             </div>
         </div>
 
+        <!-- Métricas de Negocio -->
+        <div class="section-card" style="margin-top: 24px;">
+            <div class="section-header">
+                <h2 class="section-title">Métricas de Negocio</h2>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+                <div style="background: rgba(99,102,241,0.06); border: 1px solid rgba(99,102,241,0.2); border-radius: 12px; padding: 18px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">MRR estimado</div>
+                    <div style="font-size: 24px; font-weight: 800; margin-top: 6px; color: #818CF8;">C$ {{ number_format($business['mrr'], 2) }}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Ingreso recurrente mensualizado</div>
+                </div>
+                <div style="background: rgba(16,185,129,0.06); border: 1px solid rgba(16,185,129,0.2); border-radius: 12px; padding: 18px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Licencias vigentes</div>
+                    <div style="font-size: 24px; font-weight: 800; margin-top: 6px; color: #34D399;">{{ $business['licensedActive'] }}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">{{ $business['licensedExpired'] }} vencidas</div>
+                </div>
+                <div style="background: rgba(245,158,11,0.06); border: 1px solid rgba(245,158,11,0.2); border-radius: 12px; padding: 18px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Por vencer</div>
+                    <div style="font-size: 24px; font-weight: 800; margin-top: 6px; color: #F59E0B;">{{ $business['expiring7'] }} <span style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">en 7d</span></div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">{{ $business['expiring15'] }} en 15d · {{ $business['expiring30'] }} en 30d</div>
+                </div>
+                <div style="background: rgba(59,130,246,0.06); border: 1px solid rgba(59,130,246,0.2); border-radius: 12px; padding: 18px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Cajas abiertas</div>
+                    <div style="font-size: 24px; font-weight: 800; margin-top: 6px; color: #3B82F6;">{{ $business['openCashSessions'] }}</div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Sesiones de caja activas ahora</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px;">
+                    <div style="font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Tenencia</div>
+                    <div style="font-size: 24px; font-weight: 800; margin-top: 6px;">{{ $business['sharedCount'] }} <span style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">compartidas</span></div>
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">{{ $business['dedicatedCount'] }} con BD dedicada</div>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
+                <!-- Facturación por mes -->
+                <div>
+                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--text-secondary);">Facturación últimos meses</h3>
+                    @php $maxAmount = max(1, collect($business['invoicesByMonth'])->max('amount') ?? 1); @endphp
+                    @forelse($business['invoicesByMonth'] as $row)
+                        <div style="margin-bottom: 12px;">
+                            <div style="display:flex; justify-content:space-between; font-size: 12px; margin-bottom: 4px;">
+                                <span style="color: var(--text-secondary);">{{ $row->ym }}</span>
+                                <span>{{ $row->total }} fact · C$ {{ number_format($row->amount, 0) }}</span>
+                            </div>
+                            <div style="height: 8px; background: rgba(255,255,255,0.05); border-radius: 4px; overflow: hidden;">
+                                <div style="height:100%; width: {{ round(($row->amount / $maxAmount) * 100) }}%; background: var(--accent-gradient);"></div>
+                            </div>
+                        </div>
+                    @empty
+                        <p style="color: var(--text-secondary); font-size: 13px;">Sin facturación en el periodo.</p>
+                    @endforelse
+                </div>
+
+                <!-- Ranking de organizaciones -->
+                <div>
+                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 14px; color: var(--text-secondary);">Top organizaciones (mes actual)</h3>
+                    @forelse($business['topOrgs'] as $i => $org)
+                        <div style="display:flex; align-items:center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-color);">
+                            <span style="width: 24px; height: 24px; border-radius: 6px; background: rgba(99,102,241,0.12); color: #818CF8; display:flex; align-items:center; justify-content:center; font-size: 12px; font-weight: 700;">{{ $i + 1 }}</span>
+                            <span style="flex:1; font-size: 13px;">{{ $org['name'] }}</span>
+                            <span style="font-size: 12px; color: var(--text-secondary);">{{ $org['invoices'] }} fact · C$ {{ number_format($org['amount'], 0) }}</span>
+                        </div>
+                    @empty
+                        <p style="color: var(--text-secondary); font-size: 13px;">Sin actividad este mes.</p>
+                    @endforelse
+
+                    @if($business['planDistribution']->isNotEmpty() || $business['noPlanCount'] > 0)
+                        <h3 style="font-size: 14px; font-weight: 600; margin: 20px 0 12px; color: var(--text-secondary);">Distribución por plan</h3>
+                        <div style="display:flex; flex-wrap:wrap; gap: 8px;">
+                            @foreach($business['planDistribution'] as $pd)
+                                <span style="font-size: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 20px;">{{ $pd['name'] }}: <strong>{{ $pd['total'] }}</strong></span>
+                            @endforeach
+                            @if($business['noPlanCount'] > 0)
+                                <span style="font-size: 12px; background: rgba(255,255,255,0.04); border: 1px solid var(--border-color); padding: 4px 10px; border-radius: 20px;">Sin plan: <strong>{{ $business['noPlanCount'] }}</strong></span>
+                            @endif
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
         <!-- Modules Usage Section -->
         <div class="section-card">
             <div class="section-header">

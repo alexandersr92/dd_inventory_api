@@ -188,7 +188,9 @@ class CashSessionController extends Controller
         $expected_usd = $totals['expected_cash_usd'];
         $actual_nio = $request->actual_cash;
         $actual_usd = $request->actual_usd ?? 0;
-        $rate = $request->usd_exchange_rate ?? 0;
+        // Si no se envía la tasa, usar la tasa oficial (setting) en vez de 0.
+        // Con 0, todo el USD esperado se valoraba en 0 y descuadraba el arqueo.
+        $rate = $request->usd_exchange_rate ?? $this->officialExchangeRate();
 
         $actual_total_nio = $actual_nio + ($actual_usd * $rate);
         $expected_total_nio = $expected + ($expected_usd * $rate);
@@ -416,6 +418,36 @@ class CashSessionController extends Controller
     /**
      * Internal calculator helper to aggregate sales, credit abonos, and manual adjustments.
      */
+    private function officialExchangeRate(): float
+    {
+        $val = \App\Models\Setting::where('key', 'usd_exchange_rate')->value('value');
+        return $val ? (float) $val : 36.5;
+    }
+
+    /**
+     * Devuelve el efectivo NETO por moneda que quedó en caja para un pago en
+     * efectivo, restando el vuelto (que siempre se entrega en córdobas).
+     * Acepta ambas nomenclaturas (paid_in_nio / paid_nio) por consistencia con
+     * el resto del proyecto.
+     *
+     * @return array{0: float, 1: float}  [netoNio, netoUsd]
+     */
+    private function netCash(array $meta, float $paidNio, float $paidUsd, float $fallbackNio): array
+    {
+        $nio = $paidNio ?: (float) ($meta['paid_in_nio'] ?? $meta['paid_nio'] ?? 0);
+        $usd = $paidUsd ?: (float) ($meta['paid_in_usd'] ?? $meta['paid_usd'] ?? 0);
+        $change = (float) ($meta['change_nio'] ?? 0);
+
+        // Sin desglose de efectivo: usar el monto neto de la venta/abono.
+        if ($nio <= 0 && $usd <= 0) {
+            return [$fallbackNio, 0.0];
+        }
+
+        // El vuelto en córdobas salió del cajón, así que se resta del NIO
+        // (puede quedar negativo si se pagó en USD y el vuelto fue en córdobas).
+        return [$nio - $change, $usd];
+    }
+
     private function computeSessionTotals(CashSession $session)
     {
         $invoices = Invoice::where('cash_session_id', $session->id)
@@ -430,12 +462,17 @@ class CashSessionController extends Controller
 
         foreach ($invoices as $inv) {
             if ($inv->payment_method === 'CASH') {
-                if ($inv->paid_in_nio > 0 || $inv->paid_in_usd > 0) {
-                    $invoiceCashNio += $inv->paid_in_nio;
-                    $invoiceCashUsd += $inv->paid_in_usd;
-                } else {
-                    $invoiceCashNio += $inv->grand_total;
-                }
+                // Efectivo NETO en caja = recibido - vuelto (el vuelto siempre
+                // se entrega en córdobas). Antes se sumaba paid_in_nio bruto, lo
+                // que inflaba el esperado y generaba faltantes ficticios.
+                [$netNio, $netUsd] = $this->netCash(
+                    is_array($inv->payment_metadata) ? $inv->payment_metadata : [],
+                    (float) $inv->paid_in_nio,
+                    (float) $inv->paid_in_usd,
+                    (float) $inv->grand_total
+                );
+                $invoiceCashNio += $netNio;
+                $invoiceCashUsd += $netUsd;
             } elseif ($inv->payment_method === 'TRANSFER') {
                 $invoiceTransfer += $inv->grand_total;
             } elseif ($inv->payment_method === 'CARD') {
@@ -444,12 +481,9 @@ class CashSessionController extends Controller
                 foreach ($inv->payment_metadata['payments'] as $p) {
                     if (isset($p['method'])) {
                         if ($p['method'] === 'CASH') {
-                            if (isset($p['paid_nio']) || isset($p['paid_usd'])) {
-                                $invoiceCashNio += ($p['paid_nio'] ?? 0);
-                                $invoiceCashUsd += ($p['paid_usd'] ?? 0);
-                            } else {
-                                $invoiceCashNio += $p['amount'];
-                            }
+                            [$netNio, $netUsd] = $this->netCash($p, 0.0, 0.0, (float) ($p['amount'] ?? 0));
+                            $invoiceCashNio += $netNio;
+                            $invoiceCashUsd += $netUsd;
                         } elseif ($p['method'] === 'TRANSFER') {
                             $invoiceTransfer += $p['amount'];
                         } elseif ($p['method'] === 'CARD') {
@@ -467,12 +501,14 @@ class CashSessionController extends Controller
 
         foreach ($creditDetails as $cd) {
             if ($cd->payment_method === 'CASH') {
-                if (is_array($cd->payment_metadata) && (isset($cd->payment_metadata['paid_nio']) || isset($cd->payment_metadata['paid_usd']))) {
-                    $creditCashNio += ($cd->payment_metadata['paid_nio'] ?? 0);
-                    $creditCashUsd += ($cd->payment_metadata['paid_usd'] ?? 0);
-                } else {
-                    $creditCashNio += $cd->amount;
-                }
+                // Para abonos usamos $cd->amount (la porción real aplicada a ESTE
+                // crédito) como base; el payment_metadata puede venir replicado en
+                // pagos que cubren varios créditos, así que no se suma su total.
+                // Solo se resta el vuelto si el desglose corresponde a este abono.
+                $meta = is_array($cd->payment_metadata) ? $cd->payment_metadata : [];
+                [$netNio, $netUsd] = $this->netCash($meta, 0.0, 0.0, (float) $cd->amount);
+                $creditCashNio += $netNio;
+                $creditCashUsd += $netUsd;
             } elseif ($cd->payment_method === 'TRANSFER') {
                 $creditTransfer += $cd->amount;
             } elseif ($cd->payment_method === 'CARD') {
@@ -481,12 +517,9 @@ class CashSessionController extends Controller
                 foreach ($cd->payment_metadata['payments'] as $p) {
                     if (isset($p['method'])) {
                         if ($p['method'] === 'CASH') {
-                            if (isset($p['paid_nio']) || isset($p['paid_usd'])) {
-                                $creditCashNio += ($p['paid_nio'] ?? 0);
-                                $creditCashUsd += ($p['paid_usd'] ?? 0);
-                            } else {
-                                $creditCashNio += $p['amount'];
-                            }
+                            [$netNio, $netUsd] = $this->netCash($p, 0.0, 0.0, (float) ($p['amount'] ?? 0));
+                            $creditCashNio += $netNio;
+                            $creditCashUsd += $netUsd;
                         } elseif ($p['method'] === 'TRANSFER') {
                             $creditTransfer += $p['amount'];
                         } elseif ($p['method'] === 'CARD') {

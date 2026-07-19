@@ -50,6 +50,15 @@ class StoreController extends Controller
 
         $orgID = Auth::user()->organization_id;
 
+        // Límite de sucursales del plan
+        $organization = \App\Models\Organization::find($orgID);
+        if ($organization && !\App\Services\PlanLimits::for($organization)->canAddStore()) {
+            return response([
+                'message' => 'Has alcanzado el límite de sucursales de tu plan. Actualiza tu plan para agregar más.',
+                'error_code' => 'PLAN_LIMIT_STORES',
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         //validate name unique
         $store = Store::where('name', $request->name)->where('organization_id', $orgID)->first();
         if ($store) {

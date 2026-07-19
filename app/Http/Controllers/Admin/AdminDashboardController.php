@@ -34,7 +34,7 @@ class AdminDashboardController extends Controller
         $modulesUsage = Module::withCount('organization')->get();
 
         // 3. Fetch all clients/organizations with their modules and usage statistics
-        $organizations = Organization::with(['user', 'modules'])
+        $organizations = Organization::with(['user', 'modules', 'plan'])
             ->withCount(['invoices', 'credits', 'sellers'])
             ->withSum('invoices as total_invoiced', 'grand_total')
             ->withSum('credits as total_debt', 'debt')
@@ -44,33 +44,11 @@ class AdminDashboardController extends Controller
         // 4. Fetch all platform administrators (root users)
         $admins = Admin::all();
 
-        // 5. Fetch database backups
-        $backups = [];
-        $backupDir = storage_path('app/backups');
-        if (file_exists($backupDir)) {
-            $files = glob($backupDir . '/backup-*');
-            if ($files) {
-                usort($files, function($a, $b) {
-                    return filemtime($b) - filemtime($a);
-                });
-                foreach ($files as $file) {
-                    $name = basename($file);
-                    $size = filesize($file);
-                    if ($size >= 1048576) {
-                        $sizeStr = number_format($size / 1048576, 2) . ' MB';
-                    } elseif ($size >= 1024) {
-                        $sizeStr = number_format($size / 1024, 2) . ' KB';
-                    } else {
-                        $sizeStr = $size . ' B';
-                    }
-                    $backups[] = [
-                        'name' => $name,
-                        'size' => $sizeStr,
-                        'created_at' => date('d/m/Y H:i:s', filemtime($file)),
-                    ];
-                }
-            }
-        }
+        // 5. Fetch database backups (spatie/laravel-backup)
+        $backups = $this->listBackups();
+
+        // 6. Métricas de negocio
+        $business = $this->businessMetrics();
 
         return view('admin.dashboard', compact(
             'totalClients',
@@ -81,8 +59,107 @@ class AdminDashboardController extends Controller
             'organizations',
             'allModules',
             'admins',
-            'backups'
+            'backups',
+            'business'
         ));
+    }
+
+    /**
+     * Métricas de negocio para el dashboard: MRR, licencias por vencer,
+     * activas vs vencidas, distribución por plan/tenencia, facturación por mes,
+     * cajas abiertas y ranking de organizaciones por actividad.
+     */
+    private function businessMetrics(): array
+    {
+        $now = now();
+
+        // MRR: suma de (price / duration_months) de orgs con plan vigente (no vencidas).
+        $activeWithPlan = Organization::with('plan')
+            ->whereNotNull('plan_id')
+            ->where(function ($q) use ($now) {
+                $q->where('is_lifetime', true)
+                  ->orWhere('license_expires_at', '>=', $now);
+            })
+            ->get();
+
+        $mrr = $activeWithPlan->reduce(function ($carry, $org) {
+            if (!$org->plan || $org->plan->duration_months < 1) {
+                return $carry;
+            }
+            return $carry + ($org->plan->price / $org->plan->duration_months);
+        }, 0.0);
+
+        // Licencias por vencer (7 / 15 / 30 días) y estado activo/vencido.
+        $notLifetime = Organization::where('is_lifetime', false)->whereNotNull('license_expires_at');
+        $expiring7 = (clone $notLifetime)->whereBetween('license_expires_at', [$now, (clone $now)->addDays(7)])->count();
+        $expiring15 = (clone $notLifetime)->whereBetween('license_expires_at', [$now, (clone $now)->addDays(15)])->count();
+        $expiring30 = (clone $notLifetime)->whereBetween('license_expires_at', [$now, (clone $now)->addDays(30)])->count();
+
+        $licensedActive = Organization::where(function ($q) use ($now) {
+            $q->where('is_lifetime', true)->orWhere('license_expires_at', '>=', $now);
+        })->count();
+        $licensedExpired = Organization::where('is_lifetime', false)
+            ->where(function ($q) use ($now) {
+                $q->whereNull('license_expires_at')->orWhere('license_expires_at', '<', $now);
+            })->count();
+
+        // Distribución por tenencia.
+        $sharedCount = Organization::where('tenancy_type', 'shared')->count();
+        $dedicatedCount = Organization::where('tenancy_type', 'dedicated')->count();
+
+        // Distribución por plan.
+        $planDistribution = Organization::selectRaw('plan_id, count(*) as total')
+            ->whereNotNull('plan_id')
+            ->groupBy('plan_id')
+            ->with('plan')
+            ->get()
+            ->map(fn ($row) => [
+                'name' => $row->plan?->name ?? 'N/A',
+                'total' => $row->total,
+            ]);
+        $noPlanCount = Organization::whereNull('plan_id')->count();
+
+        // Facturación de los últimos 6 meses (todas las orgs).
+        $invoicesByMonth = \App\Models\Invoice::selectRaw("DATE_FORMAT(created_at, '%Y-%m') as ym, count(*) as total, sum(grand_total) as amount")
+            ->where('created_at', '>=', (clone $now)->subMonths(6)->startOfMonth())
+            ->groupBy('ym')
+            ->orderBy('ym')
+            ->get();
+
+        // Cajas abiertas actualmente.
+        $openCashSessions = \App\Models\CashSession::where('status', 'open')->count();
+
+        // Ranking de organizaciones por facturas del mes actual.
+        $topOrgs = \App\Models\Invoice::selectRaw('organization_id, count(*) as total, sum(grand_total) as amount')
+            ->whereBetween('created_at', [(clone $now)->startOfMonth(), (clone $now)->endOfMonth()])
+            ->groupBy('organization_id')
+            ->orderByDesc('total')
+            ->limit(5)
+            ->get()
+            ->map(function ($row) {
+                $org = Organization::find($row->organization_id);
+                return [
+                    'name' => $org?->name ?? '—',
+                    'invoices' => $row->total,
+                    'amount' => (float) $row->amount,
+                ];
+            });
+
+        return [
+            'mrr' => round($mrr, 2),
+            'expiring7' => $expiring7,
+            'expiring15' => $expiring15,
+            'expiring30' => $expiring30,
+            'licensedActive' => $licensedActive,
+            'licensedExpired' => $licensedExpired,
+            'sharedCount' => $sharedCount,
+            'dedicatedCount' => $dedicatedCount,
+            'planDistribution' => $planDistribution,
+            'noPlanCount' => $noPlanCount,
+            'invoicesByMonth' => $invoicesByMonth,
+            'openCashSessions' => $openCashSessions,
+            'topOrgs' => $topOrgs,
+        ];
     }
 
     /**
@@ -90,15 +167,16 @@ class AdminDashboardController extends Controller
      */
     public function showClient($id)
     {
-        $organization = Organization::with(['user', 'modules'])
+        $organization = Organization::with(['user', 'modules', 'plan'])
             ->withCount(['invoices', 'credits', 'sellers'])
             ->withSum('invoices as total_invoiced', 'grand_total')
             ->withSum('credits as total_debt', 'debt')
             ->findOrFail($id);
 
         $allModules = Module::all();
+        $plans = \App\Models\Plan::where('is_active', true)->orderBy('price')->get();
 
-        return view('admin.clients.show', compact('organization', 'allModules'));
+        return view('admin.clients.show', compact('organization', 'allModules', 'plans'));
     }
 
     /**
@@ -147,6 +225,8 @@ class AdminDashboardController extends Controller
         $organization = Organization::findOrFail($id);
         $type = $request->type;
         $days = (int) $request->days;
+
+        \App\Services\AdminAudit::log('license.' . $type, 'organization', $organization->id, "Licencia '{$type}'" . ($days ? " ({$days} días)" : '') . " en {$organization->name}");
 
         if ($type === 'lifetime') {
             $organization->update([
@@ -216,13 +296,66 @@ class AdminDashboardController extends Controller
         return redirect()->back()->with('success', "Días agregados correctamente. Nueva expiración: {$newExpiresAt->format('d/m/Y')}.");
     }
 
+    /**
+     * Asigna un plan a la organización: fija el plan y el tipo de tenencia, y
+     * extiende la licencia por la duración del plan (en meses).
+     */
+    public function assignPlan(Request $request, $id)
+    {
+        $request->validate([
+            'plan_id' => 'required|uuid|exists:central.plans,id',
+        ]);
+
+        $organization = Organization::findOrFail($id);
+        $plan = \App\Models\Plan::findOrFail($request->plan_id);
+
+        $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
+            ? $organization->license_expires_at
+            : now();
+        $previousExpiresAt = $organization->license_expires_at;
+        $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+
+        $organization->licenses()->create([
+            'type' => 'add',
+            'days' => $plan->duration_months * 30,
+            'previous_expires_at' => $previousExpiresAt,
+            'new_expires_at' => $newExpiresAt,
+        ]);
+
+        $organization->update([
+            'plan_id' => $plan->id,
+            'tenancy_type' => $plan->tenancy_type,
+            'is_lifetime' => false,
+            'license_expires_at' => $newExpiresAt,
+        ]);
+
+        \App\Services\AdminAudit::log('plan.assign', 'organization', $organization->id, "Plan '{$plan->name}' asignado a {$organization->name}");
+
+        return redirect()->back()->with('success', "Plan '{$plan->name}' asignado. Vence: {$newExpiresAt->format('d/m/Y')}.");
+    }
+
+    public function auditLog()
+    {
+        $logs = \App\Models\AdminAuditLog::orderByDesc('created_at')->paginate(50);
+        return view('admin.audit.index', compact('logs'));
+    }
+
     public function globalSettings()
     {
         $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? '';
         $googleClientId = GlobalSetting::where('key', 'google_client_id')->value('value') ?? '';
         $googleClientSecret = GlobalSetting::where('key', 'google_client_secret')->value('value') ?? '';
         $googleRedirectUri = GlobalSetting::where('key', 'google_redirect_uri')->value('value') ?? '';
-        return view('admin.settings.index', compact('supportMessage', 'googleClientId', 'googleClientSecret', 'googleRedirectUri'));
+        $paymentAccount = GlobalSetting::where('key', 'payment_account')->value('value') ?? '';
+        $paymentWhatsapp = GlobalSetting::where('key', 'payment_whatsapp')->value('value') ?? '';
+        return view('admin.settings.index', compact(
+            'supportMessage',
+            'googleClientId',
+            'googleClientSecret',
+            'googleRedirectUri',
+            'paymentAccount',
+            'paymentWhatsapp'
+        ));
     }
 
     public function updateGlobalSettings(Request $request)
@@ -232,27 +365,22 @@ class AdminDashboardController extends Controller
             'google_client_id' => 'nullable|string',
             'google_client_secret' => 'nullable|string',
             'google_redirect_uri' => 'nullable|string',
+            'payment_account' => 'nullable|string',
+            'payment_whatsapp' => 'nullable|string',
         ]);
-        
-        GlobalSetting::updateOrCreate(
-            ['key' => 'license_support_message'],
-            ['value' => $request->license_support_message]
-        );
 
-        GlobalSetting::updateOrCreate(
-            ['key' => 'google_client_id'],
-            ['value' => $request->google_client_id]
-        );
+        $keys = [
+            'license_support_message',
+            'google_client_id',
+            'google_client_secret',
+            'google_redirect_uri',
+            'payment_account',
+            'payment_whatsapp',
+        ];
 
-        GlobalSetting::updateOrCreate(
-            ['key' => 'google_client_secret'],
-            ['value' => $request->google_client_secret]
-        );
-
-        GlobalSetting::updateOrCreate(
-            ['key' => 'google_redirect_uri'],
-            ['value' => $request->google_redirect_uri]
-        );
+        foreach ($keys as $key) {
+            GlobalSetting::updateOrCreate(['key' => $key], ['value' => $request->input($key)]);
+        }
 
         return redirect()->back()->with('success', 'Configuración global actualizada correctamente.');
     }
@@ -344,14 +472,17 @@ class AdminDashboardController extends Controller
             $user->assignRole($ownerRole);
             $user->update(['role_id' => $ownerRole->uuid]);
 
-            // 8. Create owner seller profile and link to user
+            // 8. Create owner seller profile and link to user.
+            // PIN aleatorio (antes era '1234' fijo): se muestra una sola vez al admin
+            // para que lo comunique al cliente; en BD queda hasheado.
+            $ownerPin = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
             $seller = Seller::withoutGlobalScopes()->create([
                 'organization_id' => $organization->id,
                 'name'            => $user->name,
                 'code'            => 'OWNER-' . strtoupper(substr($user->id, 0, 6)),
                 'status'          => 'active',
                 'is_owner'        => true,
-                'pin_hash'        => Hash::make('1234'),
+                'pin_hash'        => Hash::make($ownerPin),
             ]);
             $user->update(['seller_id' => $seller->id]);
 
@@ -359,8 +490,10 @@ class AdminDashboardController extends Controller
 
             DB::connection('central')->commit();
 
+            \App\Services\AdminAudit::log('client.create', 'organization', $organization->id, "Cliente {$organization->name} creado");
+
             return redirect()->route('admin.dashboard', ['tab' => 'clients'])
-                ->with('success', "Cliente '{$organization->name}' y su usuario propietario creados con éxito.");
+                ->with('success', "Cliente '{$organization->name}' creado. PIN del vendedor propietario: {$ownerPin} (anótalo, no se volverá a mostrar).");
 
         } catch (\Throwable $e) {
             DB::connection('central')->rollBack();
@@ -400,13 +533,63 @@ class AdminDashboardController extends Controller
     /**
      * Generate a new database backup.
      */
+    // ---- Backups (spatie/laravel-backup) ----
+
+    private function backupDisk(): string
+    {
+        $disks = config('backup.backup.destination.disks', ['local']);
+        return $disks[0] ?? 'local';
+    }
+
+    private function backupDir(): string
+    {
+        return config('backup.backup.name', 'DipleBill');
+    }
+
+    private function listBackups(): array
+    {
+        $disk = \Illuminate\Support\Facades\Storage::disk($this->backupDisk());
+        $dir = $this->backupDir();
+
+        if (!$disk->exists($dir)) {
+            return [];
+        }
+
+        $files = collect($disk->files($dir))
+            ->filter(fn ($f) => str_ends_with($f, '.zip'))
+            ->sortByDesc(fn ($f) => $disk->lastModified($f))
+            ->values();
+
+        return $files->map(function ($f) use ($disk) {
+            $size = $disk->size($f);
+            if ($size >= 1048576) {
+                $sizeStr = number_format($size / 1048576, 2) . ' MB';
+            } elseif ($size >= 1024) {
+                $sizeStr = number_format($size / 1024, 2) . ' KB';
+            } else {
+                $sizeStr = $size . ' B';
+            }
+            return [
+                'name' => basename($f),
+                'size' => $sizeStr,
+                'created_at' => date('d/m/Y H:i:s', $disk->lastModified($f)),
+            ];
+        })->all();
+    }
+
     public function generateBackup()
     {
+        // El dump + zip puede superar el max_execution_time (30s) del request web,
+        // sobre todo con bases de datos grandes. Se eleva el límite solo para esta
+        // acción manual. (El backup automático corre por el scheduler, sin límite.)
+        @set_time_limit(600);
+        @ignore_user_abort(true);
+
         try {
-            \Illuminate\Support\Facades\Artisan::call('db:backup', ['--compress' => true]);
+            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
             $output = \Illuminate\Support\Facades\Artisan::output();
-            
-            if (str_contains($output, 'error') || str_contains($output, 'Fallo')) {
+
+            if (stripos($output, 'Backup failed') !== false) {
                 return redirect()->route('admin.dashboard', ['tab' => 'backups'])
                     ->withErrors(['error' => 'Error al generar la copia de seguridad: ' . $output]);
             }
@@ -419,28 +602,27 @@ class AdminDashboardController extends Controller
         }
     }
 
-    /**
-     * Download a backup file.
-     */
     public function downloadBackup($filename)
     {
-        // Security check: avoid path traversal
         if (str_contains($filename, '..') || str_contains($filename, '/') || str_contains($filename, '\\')) {
             abort(403, 'Acceso denegado.');
         }
 
-        $filePath = storage_path('app/backups/' . $filename);
+        $disk = \Illuminate\Support\Facades\Storage::disk($this->backupDisk());
+        $path = $this->backupDir() . '/' . $filename;
 
-        if (!file_exists($filePath)) {
+        if (!$disk->exists($path)) {
             abort(404, 'El archivo solicitado no existe.');
         }
 
-        return response()->download($filePath);
+        return $disk->download($path);
     }
 
     /**
-     * Hard-delete an organization and ALL its related data.
-     * Requires the admin to confirm their own password.
+     * Elimina una organización. Por defecto hace SOFT-DELETE (reversible): marca
+     * la org como eliminada y la suspende, conservando sus datos. Solo con el
+     * flag `permanent` hace el borrado definitivo en cascada (irreversible).
+     * En ambos casos exige confirmar la contraseña del admin.
      */
     public function destroyClient(Request $request, $id)
     {
@@ -459,6 +641,18 @@ class AdminDashboardController extends Controller
         $organization = Organization::findOrFail($id);
         $orgId   = $organization->id;
         $orgName = $organization->name;
+
+        // Soft-delete (por defecto): reversible, no destruye datos.
+        if (!$request->boolean('permanent')) {
+            $organization->update(['status' => 'inactive']);
+            $organization->delete(); // marca deleted_at (SoftDeletes)
+            \App\Services\AdminAudit::log('client.soft_delete', 'organization', $orgId, "Organización {$orgName} archivada (soft-delete)");
+
+            return redirect()->route('admin.dashboard', ['tab' => 'clients'])
+                ->with('success', "La organización '{$orgName}' fue archivada. Sus datos se conservan y puede restaurarse.");
+        }
+
+        \App\Services\AdminAudit::log('client.hard_delete', 'organization', $orgId, "Organización {$orgName} ELIMINADA permanentemente");
 
         $central = DB::connection('central');
 
@@ -562,10 +756,11 @@ class AdminDashboardController extends Controller
             abort(403, 'Acceso denegado.');
         }
 
-        $filePath = storage_path('app/backups/' . $filename);
+        $disk = \Illuminate\Support\Facades\Storage::disk($this->backupDisk());
+        $path = $this->backupDir() . '/' . $filename;
 
-        if (file_exists($filePath)) {
-            unlink($filePath);
+        if ($disk->exists($path)) {
+            $disk->delete($path);
             return redirect()->route('admin.dashboard', ['tab' => 'backups'])
                 ->with('success', 'Copia de seguridad eliminada con éxito.');
         }
