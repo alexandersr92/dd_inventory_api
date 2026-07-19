@@ -2,6 +2,7 @@
 FROM php:8.2-fpm
 
 # Instalar dependencias del sistema y extensiones de PHP requeridas por Laravel
+# default-mysql-client provee mysqldump, requerido por spatie/laravel-backup.
 RUN apt-get update && apt-get install -y \
     git \
     curl \
@@ -11,7 +12,8 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     nginx \
-    supervisor
+    supervisor \
+    default-mysql-client
 
 # Limpiar cache
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
