@@ -72,10 +72,17 @@ SENTRY_LARAVEL_DSN=...        # opcional, monitoreo
 TELESCOPE_ENABLED=false
 ```
 
-## 3. CORS
+## 3. CORS — no requiere acción
 
-Asegurar que `config/cors.php` (o `CORS_ALLOWED_ORIGINS`) incluya los dominios reales
-de la app del negocio y del POS, si no las llamadas del navegador fallarán.
+El proyecto no publica `config/cors.php`, así que usa el default de Laravel:
+`allowed_origins => ['*']` en las rutas `api/*` con `supports_credentials => false`.
+Como las apps se autentican con **token Bearer** (no cookies), `*` funciona para
+cualquier dominio y ninguna llamada del navegador falla por CORS — da igual que la
+web y la app estén en dominios distintos. **No hay que tocar nada.**
+
+> Buena práctica (opcional, a futuro): publicar `config/cors.php`
+> (`php artisan config:publish cors`) y listar los dominios exactos en
+> `allowed_origins`. No es necesario para el lanzamiento.
 
 ## 4. Deploy
 
@@ -84,15 +91,23 @@ las migraciones (incl. tenants) corren solas en el entrypoint. No hace falta pas
 
 ## 5. Verificación post-deploy
 
-En la terminal del contenedor Backend:
+**Todo se corre en el contenedor Backend** (Dokploy → servicio Backend → Terminal),
+NO en el de MySQL. `mysqldump` es el *cliente* instalado en la imagen del Backend;
+se conecta por red al servicio MySQL usando `DB_HOST`. Como la BD está en otro
+servicio/proyecto, `DB_HOST` debe ser el hostname interno de ese servicio en la red
+de Dokploy (o el host:puerto expuesto), y ambos deben compartir red.
 
 ```sh
-which mysqldump && mysqldump --version     # cliente MySQL presente
+which mysqldump && mysqldump --version     # cliente MySQL presente en el Backend
+php artisan tinker --execute="DB::select('select 1');"   # el Backend alcanza la BD
 php artisan schedule:list                  # tareas agendadas visibles
 ls -la storage/app/public                  # storage:link OK
-php artisan backup:run --only-db           # genera un backup...
+php artisan backup:run --only-db           # dumpea la BD remota vía mysqldump...
 php artisan backup:list                    # ...y aparece en el disco s3
 ```
+
+> Si `backup:run` falla con "connection refused" o "unknown host", es que el
+> Backend no alcanza el MySQL: revisa `DB_HOST`/red compartida entre servicios.
 
 ## 6. Prueba de RESTORE (no basta con generar el backup)
 
