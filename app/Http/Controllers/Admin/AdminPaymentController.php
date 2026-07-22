@@ -8,6 +8,7 @@ use App\Models\PaymentProvider;
 use App\Models\PaymentSubmission;
 use App\Models\Plan;
 use App\Services\AdminAudit;
+use App\Services\AdminNotifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -72,6 +73,17 @@ class AdminPaymentController extends Controller
 
     // ---- Validación de comprobantes ----
 
+    /** Descarga la factura de suscripción emitida para un comprobante aprobado. */
+    public function downloadInvoice($id)
+    {
+        $invoice = \App\Models\SubscriptionInvoice::where('payment_submission_id', $id)->firstOrFail();
+
+        return response(\App\Services\SubscriptionInvoiceService::renderPdf($invoice), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . \App\Services\SubscriptionInvoiceService::filename($invoice) . '"',
+        ]);
+    }
+
     /** Muestra el comprobante subido por el cliente (imagen o PDF). */
     public function viewReceipt($id)
     {
@@ -100,11 +112,16 @@ class AdminPaymentController extends Controller
 
         // Si el comprobante trae un plan, se asigna y se extiende la licencia por
         // su duración. Reutiliza la misma lógica de asignación del panel.
-        if ($submission->plan_id && ($plan = Plan::find($submission->plan_id))) {
+        $plan = $submission->plan_id ? Plan::find($submission->plan_id) : null;
+        $periodStart = null;
+        $periodEnd = null;
+        if ($plan) {
             $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
                 ? $organization->license_expires_at
                 : now();
             $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+            $periodStart = $baseDate;
+            $periodEnd = $newExpiresAt;
 
             $organization->licenses()->create([
                 'type' => 'add',
@@ -127,21 +144,53 @@ class AdminPaymentController extends Controller
             'reviewed_at' => now(),
         ]);
 
+        // Emitir la factura de DipleBill hacia el cliente (PDF descargable). No debe
+        // romper la aprobación si algo falla.
+        $invoice = null;
+        try {
+            $submission->loadMissing('provider');
+            $invoice = \App\Services\SubscriptionInvoiceService::createFromSubmission(
+                $submission,
+                $organization,
+                $plan,
+                $periodStart,
+                $periodEnd,
+                \Illuminate\Support\Facades\Auth::guard('admin')->id()
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudo emitir la factura de suscripción: ' . $e->getMessage());
+        }
+
         AdminAudit::log('payment.approve', 'organization', $organization->id,
             "Comprobante aprobado de {$organization->name}" . ($submission->plan_id ? " (plan renovado)" : ''));
 
-        // Notificar al cliente y avisar internamente de la renovación.
+        // Notificar al cliente (con la factura PDF adjunta) y avisar internamente.
         $planName = $submission->plan?->name;
         $expiresLabel = $organization->license_expires_at?->format('d/m/Y');
-        AdminNotifier::notifyClient(
-            $organization->user?->email ?? $organization->email,
-            '✅ Tu renovación fue aprobada — DipleBill',
-            '<h2>¡Renovación confirmada!</h2>'
-                . '<p>Validamos tu comprobante y tu licencia quedó activa.</p>'
-                . ($planName ? '<p><strong>Plan:</strong> ' . e($planName) . '</p>' : '')
-                . ($expiresLabel ? '<p><strong>Válida hasta:</strong> ' . e($expiresLabel) . '</p>' : '')
-                . '<p>¡Gracias por seguir con nosotros!</p>'
-        );
+        $clientEmail = $organization->user?->email ?? $organization->email;
+        $bodyHtml = '<h2>¡Renovación confirmada!</h2>'
+            . '<p>Validamos tu comprobante y tu licencia quedó activa.</p>'
+            . ($planName ? '<p><strong>Plan:</strong> ' . e($planName) . '</p>' : '')
+            . ($expiresLabel ? '<p><strong>Válida hasta:</strong> ' . e($expiresLabel) . '</p>' : '')
+            . ($invoice ? '<p>Adjuntamos tu factura <strong>N° ' . e($invoice->number) . '</strong>. También puedes descargarla desde tu panel, en la sección <em>Licencia</em>.</p>' : '')
+            . '<p>¡Gracias por seguir con nosotros!</p>';
+
+        if ($clientEmail && AdminNotifier::clientEnabled()) {
+            try {
+                if ($invoice) {
+                    \Illuminate\Support\Facades\Mail::to($clientEmail)->sendNow(new \App\Mail\SubscriptionInvoiceMail(
+                        '✅ Tu factura de DipleBill (' . $invoice->number . ')',
+                        $bodyHtml,
+                        \App\Services\SubscriptionInvoiceService::renderPdf($invoice),
+                        \App\Services\SubscriptionInvoiceService::filename($invoice)
+                    ));
+                } else {
+                    AdminNotifier::notifyClient($clientEmail, '✅ Tu renovación fue aprobada — DipleBill', $bodyHtml);
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('No se pudo enviar la factura al cliente: ' . $e->getMessage());
+            }
+        }
         AdminNotifier::notifyRoot(
             'renewal',
             '🔁 Licencia renovada: ' . $organization->name,

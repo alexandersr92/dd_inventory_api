@@ -98,6 +98,7 @@
             <th style="padding:10px 12px; border-bottom:1px solid var(--border-color);">Monto</th>
             <th style="padding:10px 12px; border-bottom:1px solid var(--border-color);">Estado</th>
             <th style="padding:10px 12px; border-bottom:1px solid var(--border-color);">Revisado</th>
+            <th style="padding:10px 12px; border-bottom:1px solid var(--border-color);">Factura</th>
         </tr></thead>
         <tbody>
             @foreach($recent as $s)
@@ -109,6 +110,13 @@
                     <span style="font-size:11px; padding:2px 8px; border-radius:6px; {{ $s->status === 'approved' ? 'background:rgba(16,185,129,0.12); color:#34D399;' : 'background:rgba(239,68,68,0.12); color:#f87171;' }}">{{ $s->status === 'approved' ? 'Aprobado' : 'Rechazado' }}</span>
                 </td>
                 <td style="padding:10px 12px; border-bottom:1px solid var(--border-color); color:var(--text-secondary);">{{ $s->reviewed_at?->format('d/m/Y H:i') }}</td>
+                <td style="padding:10px 12px; border-bottom:1px solid var(--border-color);">
+                    @if($s->status === 'approved')
+                        <a href="{{ route('admin.payments.invoice', $s->id) }}" target="_blank" style="color:#818CF8; text-decoration:none; font-weight:600;">Ver factura ↗</a>
+                    @else
+                        <span style="color:var(--text-secondary);">—</span>
+                    @endif
+                </td>
             </tr>
             @endforeach
         </tbody>

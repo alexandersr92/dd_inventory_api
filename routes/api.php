@@ -156,6 +156,10 @@ Route::prefix('v1')->group(function () {
         Route::get('payments/my-submissions', [\App\Http\Controllers\Api\V1\PaymentController::class, 'mySubmissions']);
         Route::get('payments/{id}/receipt', [\App\Http\Controllers\Api\V1\PaymentController::class, 'downloadReceipt']);
 
+        // Facturas de suscripción emitidas por DipleBill al cliente (descargables).
+        Route::get('subscription-invoices', [\App\Http\Controllers\Api\V1\SubscriptionInvoiceController::class, 'index']);
+        Route::get('subscription-invoices/{id}/download', [\App\Http\Controllers\Api\V1\SubscriptionInvoiceController::class, 'download']);
+
         // Reporte de errores desde la app del negocio (llega al panel root).
         Route::post('error-reports', [\App\Http\Controllers\Api\V1\ErrorReportController::class, 'store']);
 
