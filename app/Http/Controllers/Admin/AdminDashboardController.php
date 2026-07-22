@@ -563,33 +563,42 @@ class AdminDashboardController extends Controller
 
     private function listBackups(): array
     {
-        $disk = \Illuminate\Support\Facades\Storage::disk($this->backupDisk());
-        $dir = $this->backupDir();
+        // Listar backups nunca debe tumbar el dashboard: si el disco no se puede
+        // leer (permisos), la carpeta no existe aún, o el disco (p.ej. s3) está
+        // mal configurado, degradamos a lista vacía en lugar de lanzar un 500.
+        try {
+            $disk = \Illuminate\Support\Facades\Storage::disk($this->backupDisk());
+            $dir = $this->backupDir();
 
-        if (!$disk->exists($dir)) {
+            if (!$disk->exists($dir)) {
+                return [];
+            }
+
+            $files = collect($disk->files($dir))
+                ->filter(fn ($f) => str_ends_with($f, '.zip'))
+                ->sortByDesc(fn ($f) => $disk->lastModified($f))
+                ->values();
+
+            return $files->map(function ($f) use ($disk) {
+                $size = $disk->size($f);
+                if ($size >= 1048576) {
+                    $sizeStr = number_format($size / 1048576, 2) . ' MB';
+                } elseif ($size >= 1024) {
+                    $sizeStr = number_format($size / 1024, 2) . ' KB';
+                } else {
+                    $sizeStr = $size . ' B';
+                }
+                return [
+                    'name' => basename($f),
+                    'size' => $sizeStr,
+                    'created_at' => date('d/m/Y H:i:s', $disk->lastModified($f)),
+                ];
+            })->all();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('No se pudieron listar los backups: ' . $e->getMessage());
+
             return [];
         }
-
-        $files = collect($disk->files($dir))
-            ->filter(fn ($f) => str_ends_with($f, '.zip'))
-            ->sortByDesc(fn ($f) => $disk->lastModified($f))
-            ->values();
-
-        return $files->map(function ($f) use ($disk) {
-            $size = $disk->size($f);
-            if ($size >= 1048576) {
-                $sizeStr = number_format($size / 1048576, 2) . ' MB';
-            } elseif ($size >= 1024) {
-                $sizeStr = number_format($size / 1024, 2) . ' KB';
-            } else {
-                $sizeStr = $size . ' B';
-            }
-            return [
-                'name' => basename($f),
-                'size' => $sizeStr,
-                'created_at' => date('d/m/Y H:i:s', $disk->lastModified($f)),
-            ];
-        })->all();
     }
 
     public function generateBackup()
