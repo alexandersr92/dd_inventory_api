@@ -68,6 +68,11 @@ return [
                 'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
                 'use_single_transaction' => true,
                 'timeout' => 60 * 5,
+                // El cliente MariaDB intenta TLS y verifica el cert; el MySQL de
+                // Dokploy usa uno autofirmado -> "self-signed certificate". El
+                // tráfico es interno de Docker, así que el dump va sin SSL.
+                // Sobreescribible con DB_DUMP_SSL_OPTION="" si el server exige TLS.
+                'add_extra_option' => env('DB_DUMP_SSL_OPTION', '--skip-ssl'),
             ],
         ],
 
@@ -89,6 +94,12 @@ return [
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 PDO::MYSQL_ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
+            'dump' => [
+                'dump_binary_path' => env('DB_DUMP_BINARY_PATH', ''),
+                'use_single_transaction' => true,
+                'timeout' => 60 * 5,
+                'add_extra_option' => env('DB_DUMP_SSL_OPTION', '--skip-ssl'),
+            ],
         ],
 
         'mariadb' => [
