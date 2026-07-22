@@ -41,8 +41,11 @@ RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-d
 # Dar permisos a las carpetas de almacenamiento
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# Copiar configuración de Nginx
+# Copiar configuración de Nginx. En Debian, 'apt install nginx' deja activo un
+# sitio por defecto (sites-enabled/default) marcado default_server que serviría
+# la página "Welcome to nginx!" en lugar de la app: hay que quitarlo.
 COPY ./docker/nginx/conf.d/app.conf /etc/nginx/conf.d/default.conf
+RUN rm -f /etc/nginx/sites-enabled/default
 # Copiar configuración de Supervisor
 COPY ./docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
