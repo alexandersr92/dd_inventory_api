@@ -19,6 +19,14 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Telescope es dev-only (require-dev); en producción se instala con
+        // --no-dev y NO debe grabar. Sin este guard, cada BD de tenant crea
+        // tablas telescope_* inútiles, y en el pasado el histórico infló la BD
+        // hasta 16 GB. Solo se crean cuando el paquete está realmente instalado.
+        if (! class_exists(\Laravel\Telescope\TelescopeServiceProvider::class)) {
+            return;
+        }
+
         $schema = Schema::connection($this->getConnection());
 
         $schema->create('telescope_entries', function (Blueprint $table) {
