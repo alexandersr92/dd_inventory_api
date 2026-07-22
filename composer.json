@@ -15,6 +15,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.28",
         "laravel/tinker": "^2.9",
+        "league/flysystem-aws-s3-v3": "^3.0",
         "maatwebsite/excel": "^3.1",
         "sentry/sentry-laravel": "^4.27",
         "spatie/laravel-backup": "^9.3",
