@@ -603,26 +603,27 @@ class AdminDashboardController extends Controller
 
     public function generateBackup()
     {
-        // El dump + zip puede superar el max_execution_time (30s) del request web,
-        // sobre todo con bases de datos grandes. Se eleva el límite solo para esta
-        // acción manual. (El backup automático corre por el scheduler, sin límite.)
-        @set_time_limit(600);
-        @ignore_user_abort(true);
-
+        // El dump + zip de una base grande tarda minutos: correrlo dentro del
+        // request agota el timeout del proxy/nginx (~60s) y devuelve 504 aunque
+        // el backup siga bien. Se lanza en SEGUNDO PLANO (proceso detach, como
+        // www-data) y el request responde al instante; el zip aparece en la
+        // lista al terminar. El backup diario ya corre por el scheduler (CLI).
         try {
-            \Illuminate\Support\Facades\Artisan::call('backup:run', ['--only-db' => true]);
-            $output = \Illuminate\Support\Facades\Artisan::output();
+            $cmd = sprintf(
+                'nohup php %s backup:run --only-db < /dev/null >> %s 2>&1 &',
+                escapeshellarg(base_path('artisan')),
+                escapeshellarg(storage_path('logs/backup.log'))
+            );
 
-            if (stripos($output, 'Backup failed') !== false) {
-                return redirect()->route('admin.dashboard', ['tab' => 'backups'])
-                    ->withErrors(['error' => 'Error al generar la copia de seguridad: ' . $output]);
-            }
+            \Symfony\Component\Process\Process::fromShellCommandline($cmd, base_path())
+                ->setTimeout(15)
+                ->run();
 
             return redirect()->route('admin.dashboard', ['tab' => 'backups'])
-                ->with('success', 'Copia de seguridad de la base de datos generada correctamente.');
-        } catch (\Exception $e) {
+                ->with('success', 'Copia de seguridad iniciada en segundo plano. Aparecerá en la lista en 1–2 minutos según el tamaño de la base; refresca para verla.');
+        } catch (\Throwable $e) {
             return redirect()->route('admin.dashboard', ['tab' => 'backups'])
-                ->withErrors(['error' => 'Error al ejecutar comando de backup: ' . $e->getMessage()]);
+                ->withErrors(['error' => 'No se pudo iniciar el backup: ' . $e->getMessage()]);
         }
     }
 
