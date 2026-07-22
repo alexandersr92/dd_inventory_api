@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\GlobalSetting;
 use App\Models\PaymentProvider;
 use Illuminate\Database\Seeder;
 
@@ -11,9 +10,7 @@ class PaymentProvidersSeeder extends Seeder
     public function run(): void
     {
         // Método por defecto: transferencia bancaria con validación por comprobante.
-        // Toma la cuenta ya configurada en settings si existe.
-        $account = GlobalSetting::where('key', 'payment_account')->value('value');
-
+        // El admin edita las instrucciones reales en Pagos → Métodos de pago.
         PaymentProvider::firstOrCreate(
             ['driver' => 'transfer'],
             [
@@ -22,9 +19,7 @@ class PaymentProvidersSeeder extends Seeder
                 'is_default' => true,
                 'mode' => 'live',
                 'supports_receipt' => true,
-                'instructions' => $account
-                    ? "Realiza tu pago a: {$account}\nLuego sube el comprobante para validar tu renovación."
-                    : "Realiza tu transferencia y sube el comprobante para validar tu renovación.",
+                'instructions' => 'Realiza tu transferencia y sube el comprobante para validar tu renovación.',
             ]
         );
     }

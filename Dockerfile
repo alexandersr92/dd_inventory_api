@@ -21,6 +21,9 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 # Instalar extensiones de PHP
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
+# Límites de subida (comprobantes/capturas). Sobrescribe los defaults de PHP.
+COPY ./docker/php/uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
+
 # Obtener Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
@@ -30,19 +33,24 @@ WORKDIR /var/www
 # Copiar archivos del proyecto
 COPY . /var/www
 
-# Instalar dependencias de composer (optimizadas para prod)
-RUN composer install --no-interaction --prefer-dist --optimize-autoloader
+# Instalar dependencias de composer SOLO de producción (sin dev: fuera Telescope,
+# Pint, Sail, etc. que no deben correr ni exponerse en producción).
+RUN composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
 
 # Dar permisos a las carpetas de almacenamiento
 RUN chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
 
-# Copiar configuración de Nginx (Crearemos este archivo en el Paso 1.1)
+# Copiar configuración de Nginx
 COPY ./docker/nginx/conf.d/app.conf /etc/nginx/conf.d/default.conf
-# Copiar configuración de Supervisor (Crearemos este archivo en el Paso 1.2)
+# Copiar configuración de Supervisor
 COPY ./docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Entrypoint de arranque (storage:link, migraciones, caches) antes de supervisord.
+COPY ./docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 # Exponer el puerto 80
 EXPOSE 80
 
-# Comando de inicio (Inicia Supervisor que gestiona Nginx y PHP)
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# El entrypoint prepara el estado y luego hace exec de supervisord.
+CMD ["/usr/local/bin/entrypoint.sh"]

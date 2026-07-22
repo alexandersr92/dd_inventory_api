@@ -96,6 +96,9 @@ class AdminNotifier
     private static function deliver(string $email, string $subject, string $bodyHtml, string $audience): void
     {
         try {
+            // Usar el SMTP configurado en el panel (no el MAIL_* del .env, que por
+            // defecto es 'log'). Si no hay SMTP válido, cae a 'log' sin romper.
+            MailConfigurator::applyConfiguration();
             Mail::to($email)->sendNow(new DynamicSystemMail($subject, $bodyHtml));
         } catch (\Throwable $e) {
             Log::warning("AdminNotifier[$audience] falló para {$email}: " . $e->getMessage());

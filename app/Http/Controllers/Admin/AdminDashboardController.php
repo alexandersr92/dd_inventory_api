@@ -346,15 +346,22 @@ class AdminDashboardController extends Controller
         $googleClientId = GlobalSetting::where('key', 'google_client_id')->value('value') ?? '';
         $googleClientSecret = GlobalSetting::where('key', 'google_client_secret')->value('value') ?? '';
         $googleRedirectUri = GlobalSetting::where('key', 'google_redirect_uri')->value('value') ?? '';
-        $paymentAccount = GlobalSetting::where('key', 'payment_account')->value('value') ?? '';
-        $paymentWhatsapp = GlobalSetting::where('key', 'payment_whatsapp')->value('value') ?? '';
+        // Datos del emisor para las facturas de suscripción.
+        $company = [
+            'company_legal_name' => GlobalSetting::where('key', 'company_legal_name')->value('value') ?? 'DipleBill',
+            'company_ruc'        => GlobalSetting::where('key', 'company_ruc')->value('value') ?? '',
+            'company_address'    => GlobalSetting::where('key', 'company_address')->value('value') ?? '',
+            'company_phone'      => GlobalSetting::where('key', 'company_phone')->value('value') ?? '',
+            'company_email'      => GlobalSetting::where('key', 'company_email')->value('value') ?? '',
+            'company_website'    => GlobalSetting::where('key', 'company_website')->value('value') ?? '',
+        ];
+
         return view('admin.settings.index', compact(
             'supportMessage',
             'googleClientId',
             'googleClientSecret',
             'googleRedirectUri',
-            'paymentAccount',
-            'paymentWhatsapp'
+            'company'
         ));
     }
 
@@ -365,8 +372,12 @@ class AdminDashboardController extends Controller
             'google_client_id' => 'nullable|string',
             'google_client_secret' => 'nullable|string',
             'google_redirect_uri' => 'nullable|string',
-            'payment_account' => 'nullable|string',
-            'payment_whatsapp' => 'nullable|string',
+            'company_legal_name' => 'nullable|string',
+            'company_ruc' => 'nullable|string',
+            'company_address' => 'nullable|string',
+            'company_phone' => 'nullable|string',
+            'company_email' => 'nullable|email',
+            'company_website' => 'nullable|string',
         ]);
 
         $keys = [
@@ -374,8 +385,12 @@ class AdminDashboardController extends Controller
             'google_client_id',
             'google_client_secret',
             'google_redirect_uri',
-            'payment_account',
-            'payment_whatsapp',
+            'company_legal_name',
+            'company_ruc',
+            'company_address',
+            'company_phone',
+            'company_email',
+            'company_website',
         ];
 
         foreach ($keys as $key) {

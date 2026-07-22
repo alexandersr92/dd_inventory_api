@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Mail\LicenseExpiringMail;
-use App\Models\GlobalSetting;
 use App\Models\Organization;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
@@ -26,10 +25,8 @@ class NotifyExpiringLicenses extends Command
             ->filter()
             ->all();
 
-        $paymentInfo = [
-            'account' => GlobalSetting::where('key', 'payment_account')->value('value') ?? '',
-            'whatsapp' => GlobalSetting::where('key', 'payment_whatsapp')->value('value') ?? '',
-        ];
+        // Usar el SMTP configurado en el panel (no el MAIL_* del .env).
+        \App\Services\MailConfigurator::applyConfiguration();
 
         $sent = 0;
         $summary = [];
@@ -55,8 +52,7 @@ class NotifyExpiringLicenses extends Command
                 Mail::to($email)->send(new LicenseExpiringMail(
                     name: $org->user?->name ?? $org->name,
                     daysLeft: $days,
-                    expiresAt: $org->license_expires_at->format('d/m/Y'),
-                    paymentInfo: $paymentInfo
+                    expiresAt: $org->license_expires_at->format('d/m/Y')
                 ));
                 $sent++;
             }

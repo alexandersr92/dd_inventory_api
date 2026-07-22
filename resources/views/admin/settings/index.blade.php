@@ -72,32 +72,46 @@
             />
         </div>
 
-        <h2 style="font-size: 16px; font-weight: 600; margin-top: 36px; margin-bottom: 24px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">Datos de Pago (Renovación de Licencias)</h2>
+        <h2 style="font-size: 16px; font-weight: 600; margin-top: 36px; margin-bottom: 24px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">Datos del emisor (Facturas de suscripción)</h2>
 
         <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 20px;">
-            Estos datos se muestran a los clientes en la pantalla de licencia vencida, en su panel de licencia y en los correos de aviso de vencimiento, para que puedan renovar.
+            Estos datos aparecen como emisor en la factura PDF que se genera y se envía al cliente cuando apruebas su comprobante de pago.
         </p>
 
-        <div style="margin-bottom: 20px;">
-            <label style="display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">Cuenta para transferencia</label>
-            <input
-                type="text"
-                name="payment_account"
-                value="{{ old('payment_account', $paymentAccount) }}"
-                style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;"
-                placeholder="Ej. BAC Córdobas 123456789 a nombre de DipleBill"
-            />
+        @php
+            $fld = 'width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;';
+            $lbl = 'display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;';
+        @endphp
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
+            <div>
+                <label style="{{ $lbl }}">Razón social / Nombre</label>
+                <input type="text" name="company_legal_name" value="{{ old('company_legal_name', $company['company_legal_name']) }}" style="{{ $fld }}" placeholder="Ej. DipleBill S.A.">
+            </div>
+            <div>
+                <label style="{{ $lbl }}">RUC / N° fiscal</label>
+                <input type="text" name="company_ruc" value="{{ old('company_ruc', $company['company_ruc']) }}" style="{{ $fld }}" placeholder="Ej. J0310000000000">
+            </div>
         </div>
 
-        <div style="margin-bottom: 28px;">
-            <label style="display: block; font-size: 13px; font-weight: 500; color: var(--text-primary); margin-bottom: 8px;">WhatsApp de pagos</label>
-            <input
-                type="text"
-                name="payment_whatsapp"
-                value="{{ old('payment_whatsapp', $paymentWhatsapp) }}"
-                style="width: 100%; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--text-primary); outline: none;"
-                placeholder="Ej. +505 8899 7391"
-            />
+        <div style="margin-bottom:20px;">
+            <label style="{{ $lbl }}">Dirección</label>
+            <input type="text" name="company_address" value="{{ old('company_address', $company['company_address']) }}" style="{{ $fld }}" placeholder="Ej. Managua, Nicaragua">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:28px;">
+            <div>
+                <label style="{{ $lbl }}">Teléfono</label>
+                <input type="text" name="company_phone" value="{{ old('company_phone', $company['company_phone']) }}" style="{{ $fld }}" placeholder="+505 ...">
+            </div>
+            <div>
+                <label style="{{ $lbl }}">Correo</label>
+                <input type="email" name="company_email" value="{{ old('company_email', $company['company_email']) }}" style="{{ $fld }}" placeholder="facturacion@diplebill.com">
+            </div>
+            <div>
+                <label style="{{ $lbl }}">Sitio web</label>
+                <input type="text" name="company_website" value="{{ old('company_website', $company['company_website']) }}" style="{{ $fld }}" placeholder="www.diplebill.com">
+            </div>
         </div>
 
         <button type="submit" style="background: rgba(99, 102, 241, 0.1); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.4); padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">

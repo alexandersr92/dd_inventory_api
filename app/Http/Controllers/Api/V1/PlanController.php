@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
-use App\Models\GlobalSetting;
 use App\Models\Organization;
 use App\Models\Plan;
 use App\Services\PlanLimits;
@@ -34,9 +33,6 @@ class PlanController extends Controller
             'is_lifetime' => (bool) $organization->is_lifetime,
             'license_expires_at' => $organization->license_expires_at,
             'usage' => PlanLimits::for($organization)->usage(),
-            // Datos de contacto para renovar/mejorar (mientras no haya pasarela).
-            'payment_account' => GlobalSetting::where('key', 'payment_account')->value('value') ?? '',
-            'payment_whatsapp' => GlobalSetting::where('key', 'payment_whatsapp')->value('value') ?? '',
         ]);
     }
 }

@@ -42,6 +42,7 @@ Route::prefix('admin')->group(function () {
         Route::post('/payments/providers/{id}/toggle', [AdminPaymentController::class, 'toggleProvider'])->name('admin.payments.providers.toggle');
         Route::post('/payments/providers/{id}/delete', [AdminPaymentController::class, 'destroyProvider'])->name('admin.payments.providers.delete');
         Route::get('/payments/{id}/receipt', [AdminPaymentController::class, 'viewReceipt'])->name('admin.payments.receipt');
+        Route::get('/payments/{id}/invoice', [AdminPaymentController::class, 'downloadInvoice'])->name('admin.payments.invoice');
         Route::post('/payments/{id}/approve', [AdminPaymentController::class, 'approveSubmission'])->name('admin.payments.approve');
         Route::post('/payments/{id}/reject', [AdminPaymentController::class, 'rejectSubmission'])->name('admin.payments.reject');
 
