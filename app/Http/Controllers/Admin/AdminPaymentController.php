@@ -28,7 +28,10 @@ class AdminPaymentController extends Controller
             ->limit(20)
             ->get();
 
-        return view('admin.payments.index', compact('providers', 'pending', 'recent'));
+        // Para asignar plan al aprobar comprobantes que no lo traen.
+        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+
+        return view('admin.payments.index', compact('providers', 'pending', 'recent', 'plans'));
     }
 
     // ---- CRUD de métodos de pago ----
@@ -110,31 +113,42 @@ class AdminPaymentController extends Controller
                 ->withErrors(['error' => 'La organización ya no existe.']);
         }
 
-        // Si el comprobante trae un plan, se asigna y se extiende la licencia por
-        // su duración. Reutiliza la misma lógica de asignación del panel.
-        $plan = $submission->plan_id ? Plan::find($submission->plan_id) : null;
-        $periodStart = null;
-        $periodEnd = null;
-        if ($plan) {
-            $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
-                ? $organization->license_expires_at
-                : now();
-            $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
-            $periodStart = $baseDate;
-            $periodEnd = $newExpiresAt;
+        // Resolver el plan a aplicar: el del comprobante, o el que el admin
+        // seleccione en el formulario si el comprobante no traía uno. SIN plan no
+        // se puede extender la licencia, así que no se permite aprobar: antes se
+        // marcaba "aprobado/renovado" sin extender ni un día (mensaje engañoso).
+        $planId = $submission->plan_id ?: $request->input('plan_id');
+        $plan = $planId ? Plan::find($planId) : null;
 
-            $organization->licenses()->create([
-                'type' => 'add',
-                'days' => $plan->duration_months * 30,
-                'previous_expires_at' => $organization->license_expires_at,
-                'new_expires_at' => $newExpiresAt,
-            ]);
-            $organization->update([
-                'plan_id' => $plan->id,
-                'tenancy_type' => $plan->tenancy_type,
-                'is_lifetime' => false,
-                'license_expires_at' => $newExpiresAt,
-            ]);
+        if (!$plan) {
+            return redirect()->route('admin.payments.index')
+                ->withErrors(['error' => 'Este comprobante no tiene un plan asociado. Selecciona el plan a aplicar antes de aprobar (sin plan no se puede extender la licencia).']);
+        }
+
+        // Extender la licencia por la duración del plan (misma lógica del panel).
+        $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
+            ? $organization->license_expires_at
+            : now();
+        $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+        $periodStart = $baseDate;
+        $periodEnd = $newExpiresAt;
+
+        $organization->licenses()->create([
+            'type' => 'add',
+            'days' => $plan->duration_months * 30,
+            'previous_expires_at' => $organization->license_expires_at,
+            'new_expires_at' => $newExpiresAt,
+        ]);
+        $organization->update([
+            'plan_id' => $plan->id,
+            'tenancy_type' => $plan->tenancy_type,
+            'is_lifetime' => false,
+            'license_expires_at' => $newExpiresAt,
+        ]);
+
+        // Si el comprobante no traía plan, persistirlo ahora para la factura y la trazabilidad.
+        if (!$submission->plan_id) {
+            $submission->plan_id = $plan->id;
         }
 
         $submission->update([
@@ -165,7 +179,7 @@ class AdminPaymentController extends Controller
             "Comprobante aprobado de {$organization->name}" . ($submission->plan_id ? " (plan renovado)" : ''));
 
         // Notificar al cliente (con la factura PDF adjunta) y avisar internamente.
-        $planName = $submission->plan?->name;
+        $planName = $plan->name;
         $expiresLabel = $organization->license_expires_at?->format('d/m/Y');
         $clientEmail = $organization->user?->email ?? $organization->email;
         $bodyHtml = '<h2>¡Renovación confirmada!</h2>'

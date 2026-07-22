@@ -44,8 +44,17 @@
                 <a href="{{ route('admin.payments.receipt', $s->id) }}" target="_blank" style="background: rgba(99,102,241,0.1); color:#818CF8; border:1px solid rgba(99,102,241,0.4); padding:8px 14px; border-radius:8px; font-weight:600; font-size:13px; text-decoration:none;">Ver comprobante</a>
             </div>
             <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
-                <form action="{{ route('admin.payments.approve', $s->id) }}" method="POST" onsubmit="return confirm('¿Aprobar y renovar la licencia de {{ $s->organization?->name }}?')">
+                <form action="{{ route('admin.payments.approve', $s->id) }}" method="POST" onsubmit="return confirm('¿Aprobar y renovar la licencia de {{ $s->organization?->name }}?')" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     @csrf
+                    @unless($s->plan_id)
+                        {{-- El comprobante no trae plan: el admin DEBE elegir uno; sin plan no se extiende la licencia. --}}
+                        <select name="plan_id" required style="padding:9px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-weight:600;">
+                            <option value="">— Elegir plan a aplicar —</option>
+                            @foreach($plans as $plan)
+                                <option value="{{ $plan->id }}">{{ $plan->name }} · {{ $plan->duration_months }} mes(es) · {{ number_format($plan->price, 2) }} {{ $plan->currency }}</option>
+                            @endforeach
+                        </select>
+                    @endunless
                     <button type="submit" style="background: var(--success-gradient); color:#fff; border:none; padding:9px 18px; border-radius:8px; font-weight:600; cursor:pointer;">Aprobar y renovar</button>
                 </form>
                 <button onclick="openReject('{{ $s->id }}')" style="background: rgba(239,68,68,0.1); color: var(--danger-color); border:1px solid rgba(239,68,68,0.3); padding:9px 18px; border-radius:8px; font-weight:600; cursor:pointer;">Rechazar</button>

@@ -71,8 +71,20 @@ class OrganizationController extends Controller
                     return ['conflict' => true];
                 }
 
-                // 1. Crear la organización
-                $organization = Organization::create($request->all());
+                // 1. Crear la organización. SOLO campos de perfil: la licencia
+                // (trial) se otorga aparte más abajo. Nunca aceptar
+                // license_expires_at / is_lifetime / plan_id / tenancy_type / status
+                // desde el request del cliente — si no, un dueño podría
+                // auto-otorgarse licencia o marcarse is_lifetime (bypass de cobro).
+                $organization = Organization::create([
+                    'name'        => $request->name,
+                    'email'       => $request->email,
+                    'phone'       => $request->phone,
+                    'website'     => $request->website,
+                    'description' => $request->description,
+                    'owner_id'    => $owner_id,
+                    'status'      => 'active',
+                ]);
 
                 if ($logoPath) {
                     $organization->logo = $logoPath;
@@ -240,7 +252,10 @@ class OrganizationController extends Controller
             $organization->logo = $request->file('logo')->store('organizationLogo', 'public');
         }
 
-        $organization->update($request->all());
+        // Solo campos de perfil editables por el dueño. Nunca license_expires_at,
+        // is_lifetime, plan_id, tenancy_type ni status desde el request del cliente
+        // (esos los controla el panel/aprobación de pagos; si no, bypass de cobro).
+        $organization->update($request->only(['name', 'email', 'phone', 'website', 'description']));
 
         return response(new OrganizationResource($organization), Response::HTTP_ACCEPTED);
     }
