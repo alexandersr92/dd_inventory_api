@@ -257,7 +257,10 @@ return [
     'monitor_backups' => [
         [
             'name' => env('BACKUP_ARCHIVE_NAME', 'DipleBill'),
-            'disks' => ['local'],
+            // Vigilar el MISMO disco al que se respalda (BACKUP_DISK). Estaba fijo
+            // en 'local', así que en producción (BACKUP_DISK=s3) el monitor de
+            // salud revisaba un disco vacío y reportaba backups inexistentes.
+            'disks' => [env('BACKUP_DISK', 'local')],
             'health_checks' => [
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumAgeInDays::class => 1,
                 \Spatie\Backup\Tasks\Monitor\HealthChecks\MaximumStorageInMegabytes::class => 5000,
