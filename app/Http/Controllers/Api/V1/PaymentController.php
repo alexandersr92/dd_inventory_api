@@ -36,7 +36,7 @@ class PaymentController extends Controller
         $request->validate([
             'plan_id' => 'nullable|uuid|exists:central.plans,id',
             'provider_id' => 'nullable|uuid|exists:central.payment_providers,id',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:1',
             'reference' => 'nullable|string|max:255',
             'receipt' => 'required|file|mimes:jpeg,png,jpg,pdf|max:5120',
         ]);

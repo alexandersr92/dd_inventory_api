@@ -125,38 +125,62 @@ class AdminPaymentController extends Controller
                 ->withErrors(['error' => 'Este comprobante no tiene un plan asociado. Selecciona el plan a aplicar antes de aprobar (sin plan no se puede extender la licencia).']);
         }
 
-        // Extender la licencia por la duración del plan (misma lógica del panel).
-        $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
-            ? $organization->license_expires_at
-            : now();
-        $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
-        $periodStart = $baseDate;
-        $periodEnd = $newExpiresAt;
+        // Sección crítica bajo lock: re-verificar que el comprobante sigue
+        // 'pending' y extender la licencia UNA sola vez. Sin este lock, dos
+        // aprobaciones concurrentes (o un doble clic) extenderían 2x la licencia.
+        $periodStart = null;
+        $periodEnd = null;
+        $race = false;
 
-        $organization->licenses()->create([
-            'type' => 'add',
-            'days' => $plan->duration_months * 30,
-            'previous_expires_at' => $organization->license_expires_at,
-            'new_expires_at' => $newExpiresAt,
-        ]);
-        $organization->update([
-            'plan_id' => $plan->id,
-            'tenancy_type' => $plan->tenancy_type,
-            'is_lifetime' => false,
-            'license_expires_at' => $newExpiresAt,
-        ]);
+        \Illuminate\Support\Facades\DB::connection('central')->transaction(function () use ($id, $plan, $request, &$submission, &$organization, &$periodStart, &$periodEnd, &$race) {
+            $locked = PaymentSubmission::where('id', $id)->lockForUpdate()->first();
+            if (!$locked || $locked->status !== 'pending') {
+                $race = true;
+                return;
+            }
 
-        // Si el comprobante no traía plan, persistirlo ahora para la factura y la trazabilidad.
-        if (!$submission->plan_id) {
-            $submission->plan_id = $plan->id;
+            // Releer la organización bloqueada para calcular la nueva expiración
+            // sobre el valor vigente (no uno stale).
+            $organization = Organization::where('id', $organization->id)->lockForUpdate()->first();
+
+            $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
+                ? $organization->license_expires_at
+                : now();
+            $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+            $periodStart = $baseDate;
+            $periodEnd = $newExpiresAt;
+
+            $organization->licenses()->create([
+                'type' => 'add',
+                // Días reales agregados (addMonths no siempre son 30): registrar el
+                // diff exacto en vez de meses*30, que descuadraba el historial.
+                'days' => (int) $baseDate->diffInDays($newExpiresAt),
+                'previous_expires_at' => $organization->license_expires_at,
+                'new_expires_at' => $newExpiresAt,
+            ]);
+            $organization->update([
+                'plan_id' => $plan->id,
+                'tenancy_type' => $plan->tenancy_type,
+                'is_lifetime' => false,
+                'license_expires_at' => $newExpiresAt,
+            ]);
+
+            $locked->update([
+                'status' => 'approved',
+                'admin_notes' => $request->admin_notes,
+                'reviewed_by' => \Illuminate\Support\Facades\Auth::guard('admin')->id(),
+                'reviewed_at' => now(),
+                // Persistir el plan resuelto si el comprobante no lo traía.
+                'plan_id' => $locked->plan_id ?: $plan->id,
+            ]);
+
+            $submission = $locked;
+        });
+
+        if ($race) {
+            return redirect()->route('admin.payments.index')
+                ->withErrors(['error' => 'Este comprobante ya fue revisado.']);
         }
-
-        $submission->update([
-            'status' => 'approved',
-            'admin_notes' => $request->admin_notes,
-            'reviewed_by' => \Illuminate\Support\Facades\Auth::guard('admin')->id(),
-            'reviewed_at' => now(),
-        ]);
 
         // Emitir la factura de DipleBill hacia el cliente (PDF descargable). No debe
         // romper la aprobación si algo falla.
