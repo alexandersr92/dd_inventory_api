@@ -26,7 +26,6 @@ use App\Http\Controllers\Api\V1\MovementController;
 use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\DashboardController;
-use App\Http\Controllers\Api\V1\LandingAdminController;
 use App\Http\Controllers\Api\V1\LandingPublicController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\SocialAuthController;
@@ -152,7 +151,9 @@ Route::prefix('v1')->group(function () {
 
         // Pagos: métodos activos + comprobantes de renovación
         Route::get('payments/providers', [\App\Http\Controllers\Api\V1\PaymentController::class, 'providers']);
-        Route::post('payments/submit', [\App\Http\Controllers\Api\V1\PaymentController::class, 'submit']);
+        // Throttle contra spam de archivos de 5MB y de correos a root (6/min).
+        Route::post('payments/submit', [\App\Http\Controllers\Api\V1\PaymentController::class, 'submit'])
+            ->middleware('throttle:6,1');
         Route::get('payments/my-submissions', [\App\Http\Controllers\Api\V1\PaymentController::class, 'mySubmissions']);
         Route::get('payments/{id}/receipt', [\App\Http\Controllers\Api\V1\PaymentController::class, 'downloadReceipt']);
 
@@ -206,14 +207,11 @@ Route::prefix('v1')->group(function () {
         Route::post('woocommerce/integration', [WooCommerceIntegrationController::class, 'store']);
         Route::post('woocommerce/integration/test', [WooCommerceIntegrationController::class, 'testConnection']);
 
-        // Landing Page Admin Routes
-        Route::post('/landing/admin/media', [LandingAdminController::class, 'uploadMedia']);
-        Route::get('/landing/admin/media', [LandingAdminController::class, 'getMedia']);
-        Route::delete('/landing/admin/media/{id}', [LandingAdminController::class, 'deleteMedia']);
-        Route::put('/landing/admin/content/{key}', [LandingAdminController::class, 'saveSectionContent']);
-        Route::post('/landing/admin/plans', [LandingAdminController::class, 'managePlan']);
-        Route::put('/landing/admin/plans/{id}', [LandingAdminController::class, 'managePlan']);
-        Route::delete('/landing/admin/plans/{id}', [LandingAdminController::class, 'deletePlan']);
+        // Landing Page Admin: ELIMINADAS. Estas rutas quedaban bajo auth:sanctum
+        // (cualquier dueño de tenant autenticado) y sin ninguna autorización, así
+        // que un cliente cualquiera podía editar la landing GLOBAL. La edición de
+        // la landing vive en el panel root (guard 'admin', AdminLandingController,
+        // ver routes/web.php). Ningún frontend consumía estos endpoints.
 
         // Notifications Module
         Route::get('notifications', [NotificationController::class, 'index']);

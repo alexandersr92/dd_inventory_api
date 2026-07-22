@@ -46,6 +46,14 @@ class PaymentController extends Controller
             return response()->json(['message' => 'No tienes una organización asociada.'], Response::HTTP_FORBIDDEN);
         }
 
+        // Una sola submission pendiente por organización: evita el spam de archivos
+        // de 5MB y de correos a root, y la confusión de comprobantes duplicados.
+        if (PaymentSubmission::where('organization_id', $orgId)->where('status', 'pending')->exists()) {
+            return response()->json([
+                'message' => 'Ya tienes un comprobante pendiente de validación. Espera a que lo revisemos antes de enviar otro.',
+            ], Response::HTTP_CONFLICT);
+        }
+
         // Comprobantes en disco privado (no accesibles públicamente).
         $path = $request->file('receipt')->store("payment_receipts/{$orgId}", 'local');
 

@@ -14,7 +14,8 @@ Route::get('/', function () {
 Route::prefix('admin')->group(function () {
     // Public login/logout routes
     Route::get('/login', [AdminAuthController::class, 'showLoginForm'])->name('admin.login');
-    Route::post('/login', [AdminAuthController::class, 'login']);
+    // Throttle contra fuerza bruta del super-admin (5 intentos/min por IP).
+    Route::post('/login', [AdminAuthController::class, 'login'])->middleware('throttle:5,1');
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 
     // Protected dashboard & client actions routes
