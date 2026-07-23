@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
+use App\Services\MailConfigurator;
 use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Auth;
@@ -149,8 +150,17 @@ class LoginController extends Controller
             'must_change_password' => false
         ]);
 
-        //dd($user);
         if ($user) {
+            // Enviar el correo de verificación. No bloquea el registro si el
+            // correo falla (el usuario igual entra al trial). El SMTP se
+            // configura desde el panel y va sin cola → envío síncrono.
+            try {
+                MailConfigurator::applyConfiguration();
+                $user->sendEmailVerificationNotification();
+            } catch (\Throwable $e) {
+                report($e);
+            }
+
             return response()->json([
                 'data' => [
                     'attributes' => [
@@ -162,6 +172,30 @@ class LoginController extends Controller
                 ]
             ], Response::HTTP_CREATED); //201
         }
+    }
+
+    /**
+     * Reenvía el correo de verificación al usuario autenticado.
+     */
+    public function resendVerificationEmail(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->hasVerifiedEmail()) {
+            return response()->json(['message' => 'Tu correo ya está verificado.'], Response::HTTP_OK);
+        }
+
+        try {
+            MailConfigurator::applyConfiguration();
+            $user->sendEmailVerificationNotification();
+        } catch (\Throwable $e) {
+            report($e);
+            return response()->json([
+                'message' => 'No se pudo enviar el correo de verificación. Intenta más tarde.'
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return response()->json(['message' => 'Correo de verificación reenviado.'], Response::HTTP_OK);
     }
 
     public function validationToken(Request $request)

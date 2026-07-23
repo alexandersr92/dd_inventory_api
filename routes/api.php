@@ -56,6 +56,11 @@ Route::prefix('v1')->group(function () {
     Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
     Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle']);
 
+    // Reenviar el correo de verificación. Autenticado pero SIN tenant.switch:
+    // un usuario recién registrado aún no tiene organización.
+    Route::post('/email/verification-notification', [LoginController::class, 'resendVerificationEmail'])
+        ->middleware(['auth:sanctum', 'throttle:6,1']);
+
     // Public Landing Page Routes
     Route::get('/landing/content', [LandingPublicController::class, 'getPublicContent']);
     Route::get('/landing/plans', [LandingPublicController::class, 'getPublicPlans']);

@@ -6,10 +6,35 @@ use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Admin\AdminPaymentController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminErrorReportController;
+use App\Models\User;
+use Illuminate\Auth\Events\Verified;
+use Illuminate\Http\Request;
 
 Route::get('/', function () {
     return view('welcome');
 });
+
+// Verificación de correo. El enlace firmado llega en el correo de registro; no
+// requiere sesión iniciada (la firma temporal ES la autorización). El middleware
+// 'signed' valida firma y expiración; abajo se compara el hash del correo.
+Route::get('/email/verify/{id}/{hash}', function (Request $request, string $id, string $hash) {
+    $user = User::find($id);
+
+    if (! $user || ! hash_equals(sha1($user->getEmailForVerification()), $hash)) {
+        abort(403, 'El enlace de verificación no es válido o ya expiró.');
+    }
+
+    $alreadyVerified = $user->hasVerifiedEmail();
+    if (! $alreadyVerified) {
+        $user->markEmailAsVerified();
+        event(new Verified($user));
+    }
+
+    return view('emails.verified', [
+        'appUrl' => config('app.frontend_url'),
+        'alreadyVerified' => $alreadyVerified,
+    ]);
+})->middleware('signed')->name('verification.verify');
 
 Route::prefix('admin')->group(function () {
     // Public login/logout routes
