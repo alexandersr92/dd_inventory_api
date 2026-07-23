@@ -102,6 +102,7 @@ class DatabaseSeeder extends Seeder
             EmailTemplatesSeeder::class,
             NotificationEventsSeeder::class,
             PlansSeeder::class,
+            LandingPlanSeeder::class,
             PaymentProvidersSeeder::class,
         ]);
 
