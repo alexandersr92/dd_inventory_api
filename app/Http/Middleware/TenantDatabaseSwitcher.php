@@ -31,6 +31,24 @@ class TenantDatabaseSwitcher
     ];
 
     /**
+     * Rutas que un cajero necesita para CERRAR una caja abierta y cuadrar la
+     * gaveta aunque la licencia del dueño haya vencido a mitad de turno. Si no,
+     * el arqueo del día queda atrapado y el efectivo sin conciliar. No dan
+     * acceso a vender ni abrir nuevas cajas: solo leer la sesión/config del
+     * turno en curso y finalizarlo. Método => patrones de path (Request::is()).
+     */
+    private const SHIFT_CLOSE_EXEMPT_ROUTES = [
+        'GET' => [
+            'api/v1/cash-sessions/active',
+            'api/v1/settings',
+            'api/v1/expense-categories',
+        ],
+        'POST' => [
+            'api/v1/cash-sessions/close',
+        ],
+    ];
+
+    /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next): Response
@@ -54,7 +72,7 @@ class TenantDatabaseSwitcher
                         // los métodos de pago, subir su comprobante y descargar su
                         // factura. Si bloqueáramos estas rutas aquí quedaría
                         // atrapado sin forma de pagar. El resto sí se bloquea.
-                        if (!$request->is(...self::LICENSE_EXEMPT_ROUTES)) {
+                        if (!$request->is(...self::LICENSE_EXEMPT_ROUTES) && !$this->isShiftCloseExempt($request)) {
                             $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? 'Tu licencia ha expirado. Contacta a soporte.';
                             return response()->json([
                                 'message' => 'Tu licencia de uso ha expirado.',
@@ -80,5 +98,17 @@ class TenantDatabaseSwitcher
         }
 
         return $next($request);
+    }
+
+    /**
+     * ¿La petición es una de las lecturas/acciones que un cajero necesita para
+     * cerrar su turno, exentas del bloqueo por licencia vencida? El match es por
+     * método + path para no exponer, p. ej., el POST/PUT de settings.
+     */
+    private function isShiftCloseExempt(Request $request): bool
+    {
+        $patterns = self::SHIFT_CLOSE_EXEMPT_ROUTES[$request->method()] ?? [];
+
+        return $patterns !== [] && $request->is(...$patterns);
     }
 }
