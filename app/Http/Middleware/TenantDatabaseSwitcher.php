@@ -18,6 +18,11 @@ class TenantDatabaseSwitcher
      * dominio); ver Illuminate\Http\Request::is().
      */
     private const LICENSE_EXEMPT_ROUTES = [
+        // validateToken debe pasar aunque la licencia esté vencida: si no, el
+        // guard del frontend toma la sesión como inválida y expulsa al usuario a
+        // /login, sin poder llegar a la pantalla de renovación. Devolver el perfil
+        // no da acceso a features (cada una sigue bloqueada con su propio 402).
+        'api/v1/validateToken',
         'api/v1/plans',
         'api/v1/plans/*',
         'api/v1/payments/*',

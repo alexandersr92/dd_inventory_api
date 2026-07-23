@@ -92,7 +92,9 @@ class OrganizationController extends Controller
                 }
 
                 // 1b. Otorgar licencia de prueba (las licencias se manejan por días)
-                $trialExpiresAt = now()->addDays(self::TRIAL_DAYS);
+                // Hasta el FIN del día de corte (no la hora exacta de registro),
+                // para no cortar el trial a mitad de una jornada de trabajo.
+                $trialExpiresAt = now()->addDays(self::TRIAL_DAYS)->endOfDay();
                 $organization->licenses()->create([
                     'type' => 'add',
                     'days' => self::TRIAL_DAYS,
