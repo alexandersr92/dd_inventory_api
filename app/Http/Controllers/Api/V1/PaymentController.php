@@ -35,6 +35,7 @@ class PaymentController extends Controller
     {
         $request->validate([
             'plan_id' => 'nullable|uuid|exists:central.plans,id',
+            'billing_cycle' => 'nullable|in:monthly,annual',
             'provider_id' => 'nullable|uuid|exists:central.payment_providers,id',
             'amount' => 'required|numeric|min:1',
             'reference' => 'nullable|string|max:255',
@@ -62,6 +63,7 @@ class PaymentController extends Controller
         $submission = PaymentSubmission::create([
             'organization_id' => $orgId,
             'plan_id' => $plan?->id,
+            'billing_cycle' => $request->billing_cycle ?? 'monthly',
             'provider_id' => $request->provider_id
                 ?? PaymentProvider::where('is_default', true)->value('id'),
             'amount' => $request->amount,
@@ -78,7 +80,8 @@ class PaymentController extends Controller
             '💳 Comprobante por validar: ' . ($org?->name ?? 'Organización'),
             '<h2>Nuevo comprobante de pago</h2>'
                 . '<p><strong>Organización:</strong> ' . e($org?->name ?? '—') . '</p>'
-                . '<p><strong>Plan:</strong> ' . e($plan?->name ?? 'Renovación') . '</p>'
+                . '<p><strong>Plan:</strong> ' . e($plan?->name ?? 'Renovación')
+                . ' (' . (($request->billing_cycle ?? 'monthly') === 'annual' ? 'Anual' : 'Mensual') . ')</p>'
                 . '<p><strong>Monto:</strong> ' . number_format((float) $request->amount, 2) . ' ' . e($plan?->currency ?? 'NIO') . '</p>'
                 . ($request->reference ? '<p><strong>Referencia:</strong> ' . e($request->reference) . '</p>' : '')
                 . '<p>Valídalo en el panel: <em>Pagos → Comprobantes por validar</em>.</p>'

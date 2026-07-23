@@ -15,7 +15,7 @@ class PlanController extends Controller
     public function index()
     {
         return response()->json([
-            'data' => Plan::where('is_active', true)->orderBy('price')->get(),
+            'data' => Plan::where('is_active', true)->orderBy('price_monthly')->get(),
         ]);
     }
 

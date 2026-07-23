@@ -16,26 +16,44 @@ class Plan extends Model
     protected $fillable = [
         'name',
         'slug',
-        'duration_months',
         'max_sellers',
         'max_stores',
         'max_monthly_invoices',
         'tenancy_type',
-        'price',
+        'price_monthly',
+        'price_annual',
         'currency',
         'is_active',
+        'is_featured',
     ];
 
     protected function casts(): array
     {
         return [
-            'duration_months' => 'integer',
             'max_sellers' => 'integer',
             'max_stores' => 'integer',
             'max_monthly_invoices' => 'integer',
-            'price' => 'float',
+            'price_monthly' => 'float',
+            'price_annual' => 'float',
             'is_active' => 'boolean',
+            'is_featured' => 'boolean',
         ];
+    }
+
+    /**
+     * Meses de licencia según el ciclo de cobro elegido.
+     */
+    public static function monthsForCycle(string $cycle): int
+    {
+        return $cycle === 'annual' ? 12 : 1;
+    }
+
+    /**
+     * Precio del plan para el ciclo indicado.
+     */
+    public function priceForCycle(string $cycle): float
+    {
+        return (float) ($cycle === 'annual' ? $this->price_annual : $this->price_monthly);
     }
 
     public function organizations()

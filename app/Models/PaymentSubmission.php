@@ -14,6 +14,7 @@ class PaymentSubmission extends Model
     protected $fillable = [
         'organization_id',
         'plan_id',
+        'billing_cycle',
         'provider_id',
         'amount',
         'currency',

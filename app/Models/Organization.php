@@ -27,6 +27,7 @@ class Organization extends Model
         'support_message',
         'tenancy_type',
         'plan_id',
+        'billing_cycle',
     ];
 
     protected function casts(): array

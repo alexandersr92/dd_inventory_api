@@ -682,19 +682,23 @@
                         <span style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Plan asignado</span>
                         <strong style="font-size: 14px;">{{ $organization->plan?->name ?? 'Sin plan (límites ilimitados)' }}</strong>
                     </div>
-                    <form action="{{ route('admin.clients.plan', $organization->id) }}" method="POST" style="display:flex; gap:10px;">
+                    <form action="{{ route('admin.clients.plan', $organization->id) }}" method="POST" style="display:flex; gap:10px; flex-wrap:wrap;">
                         @csrf
-                        <select name="plan_id" required style="flex:1; background: rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:10px 12px; font-size:14px; color: var(--text-primary); outline:none;">
+                        <select name="plan_id" required style="flex:1; min-width:180px; background: rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:10px 12px; font-size:14px; color: var(--text-primary); outline:none;">
                             <option value="">Seleccionar plan…</option>
                             @foreach($plans as $plan)
                                 <option value="{{ $plan->id }}" {{ $organization->plan_id === $plan->id ? 'selected' : '' }}>
-                                    {{ $plan->name }} — {{ number_format($plan->price, 2) }} {{ $plan->currency }} / {{ $plan->duration_months }}m
+                                    {{ $plan->name }} — {{ number_format($plan->price_monthly, 2) }}/mes · {{ number_format($plan->price_annual, 2) }}/año {{ $plan->currency }}
                                 </option>
                             @endforeach
                         </select>
+                        <select name="billing_cycle" style="background: rgba(255,255,255,0.03); border:1px solid var(--border-color); border-radius:8px; padding:10px 12px; font-size:14px; color: var(--text-primary); outline:none;">
+                            <option value="monthly" {{ $organization->billing_cycle === 'monthly' ? 'selected' : '' }}>Mensual (+1 mes)</option>
+                            <option value="annual" {{ $organization->billing_cycle === 'annual' ? 'selected' : '' }}>Anual (+12 meses)</option>
+                        </select>
                         <button type="submit" style="background: var(--accent-gradient); color:#fff; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer;">Asignar</button>
                     </form>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">Asignar un plan fija los límites (vendedores, sucursales, facturas/mes), define la tenencia y extiende la licencia por la duración del plan.</p>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-top: 10px;">Asignar un plan fija los límites (vendedores, sucursales, facturas/mes), define la tenencia y extiende la licencia según el ciclo elegido (mensual = 1 mes, anual = 12 meses).</p>
                 </div>
 
                 @if($errors->any())

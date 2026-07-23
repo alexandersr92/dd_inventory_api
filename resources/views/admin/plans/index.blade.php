@@ -28,7 +28,8 @@
                 </div>
                 <span style="font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px; {{ $plan->is_active ? 'background: rgba(16,185,129,0.12); color:#34D399;' : 'background: rgba(156,163,175,0.12); color: var(--text-secondary);' }}">{{ $plan->is_active ? 'Activo' : 'Inactivo' }}</span>
             </div>
-            <p style="font-size: 24px; font-weight: 800; margin: 8px 0;">{{ number_format($plan->price, 2) }} <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">{{ $plan->currency }} / {{ $plan->duration_months }} meses</span></p>
+            <p style="font-size: 24px; font-weight: 800; margin: 8px 0 2px;">{{ number_format($plan->price_monthly, 2) }} <span style="font-size: 13px; color: var(--text-secondary); font-weight: 500;">{{ $plan->currency }} / mes</span></p>
+            <p style="font-size: 13px; color: var(--text-secondary); margin: 0 0 6px;">Anual: <strong style="color: var(--text-primary);">{{ number_format($plan->price_annual, 2) }} {{ $plan->currency }}</strong>@if($plan->is_featured) &nbsp;·&nbsp; <span style="color:#818CF8; font-weight:600;">Destacado</span>@endif</p>
             <ul style="list-style:none; padding:0; margin: 16px 0; font-size: 13px; color: var(--text-secondary); display:flex; flex-direction:column; gap:6px;">
                 <li>Vendedores: <strong style="color: var(--text-primary);">{{ is_null($plan->max_sellers) ? 'Ilimitado' : $plan->max_sellers }}</strong></li>
                 <li>Sucursales: <strong style="color: var(--text-primary);">{{ is_null($plan->max_stores) ? 'Ilimitado' : $plan->max_stores }}</strong></li>
@@ -61,8 +62,8 @@
             <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Nombre</label><input name="name" id="p_name" required style="{{ $fld }}"></div>
             <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Slug (opcional)</label><input name="slug" id="p_slug" style="{{ $fld }}" placeholder="se genera automático"></div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Duración (meses)</label><input name="duration_months" id="p_duration" type="number" min="1" required style="{{ $fld }}"></div>
-                <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Precio</label><input name="price" id="p_price" type="number" step="0.01" min="0" required style="{{ $fld }}"></div>
+                <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Precio mensual</label><input name="price_monthly" id="p_price_monthly" type="number" step="0.01" min="0" required style="{{ $fld }}"></div>
+                <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Precio anual</label><input name="price_annual" id="p_price_annual" type="number" step="0.01" min="0" required style="{{ $fld }}"></div>
                 <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Máx. vendedores</label><input name="max_sellers" id="p_sellers" type="number" min="0" style="{{ $fld }}" placeholder="vacío = ilimitado"></div>
                 <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Máx. sucursales</label><input name="max_stores" id="p_stores" type="number" min="0" style="{{ $fld }}" placeholder="vacío = ilimitado"></div>
                 <div style="margin-bottom:14px;"><label style="{{ $lbl }}">Máx. facturas/mes</label><input name="max_monthly_invoices" id="p_invoices" type="number" min="0" style="{{ $fld }}" placeholder="vacío = ilimitado"></div>
@@ -74,10 +75,15 @@
                     <option value="dedicated">Base de datos dedicada</option>
                 </select>
             </div>
-            <div style="margin-bottom:20px; display:flex; align-items:center; gap:8px;">
+            <div style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">
                 <input type="hidden" name="is_active" value="0">
                 <input type="checkbox" name="is_active" id="p_active" value="1" checked>
                 <label for="p_active" style="font-size:13px;">Plan activo</label>
+            </div>
+            <div style="margin-bottom:20px; display:flex; align-items:center; gap:8px;">
+                <input type="hidden" name="is_featured" value="0">
+                <input type="checkbox" name="is_featured" id="p_featured" value="1">
+                <label for="p_featured" style="font-size:13px;">Destacado en la landing (Más popular)</label>
             </div>
             <div style="display:flex; gap:10px;">
                 <button type="button" onclick="closePlanForm()" style="flex:1; background: rgba(255,255,255,0.05); color: var(--text-secondary); border:1px solid var(--border-color); padding:10px; border-radius:8px; font-weight:600; cursor:pointer;">Cancelar</button>
@@ -101,14 +107,15 @@
         document.getElementById('planForm').action = '/admin/plans/' + plan.id + '/update';
         document.getElementById('p_name').value = plan.name;
         document.getElementById('p_slug').value = plan.slug;
-        document.getElementById('p_duration').value = plan.duration_months;
-        document.getElementById('p_price').value = plan.price;
+        document.getElementById('p_price_monthly').value = plan.price_monthly;
+        document.getElementById('p_price_annual').value = plan.price_annual;
         document.getElementById('p_sellers').value = plan.max_sellers ?? '';
         document.getElementById('p_stores').value = plan.max_stores ?? '';
         document.getElementById('p_invoices').value = plan.max_monthly_invoices ?? '';
         document.getElementById('p_currency').value = plan.currency;
         document.getElementById('p_tenancy').value = plan.tenancy_type;
         document.getElementById('p_active').checked = !!plan.is_active;
+        document.getElementById('p_featured').checked = !!plan.is_featured;
         document.getElementById('planModal').style.display = 'flex';
     }
     function closePlanForm() { document.getElementById('planModal').style.display = 'none'; }
