@@ -73,7 +73,8 @@ class AdminDashboardController extends Controller
     {
         $now = now();
 
-        // MRR: suma de (price / duration_months) de orgs con plan vigente (no vencidas).
+        // MRR: equivalente mensual de cada org con plan vigente. Si contrató anual,
+        // se prorratea el precio anual a 12 meses; si mensual, el precio mensual.
         $activeWithPlan = Organization::with('plan')
             ->whereNotNull('plan_id')
             ->where(function ($q) use ($now) {
@@ -83,10 +84,13 @@ class AdminDashboardController extends Controller
             ->get();
 
         $mrr = $activeWithPlan->reduce(function ($carry, $org) {
-            if (!$org->plan || $org->plan->duration_months < 1) {
+            if (!$org->plan) {
                 return $carry;
             }
-            return $carry + ($org->plan->price / $org->plan->duration_months);
+            $monthly = ($org->billing_cycle === 'annual')
+                ? ($org->plan->price_annual / 12)
+                : $org->plan->price_monthly;
+            return $carry + (float) $monthly;
         }, 0.0);
 
         // Licencias por vencer (7 / 15 / 30 días) y estado activo/vencido.
@@ -174,7 +178,7 @@ class AdminDashboardController extends Controller
             ->findOrFail($id);
 
         $allModules = Module::all();
-        $plans = \App\Models\Plan::where('is_active', true)->orderBy('price')->get();
+        $plans = \App\Models\Plan::where('is_active', true)->orderBy('price_monthly')->get();
 
         return view('admin.clients.show', compact('organization', 'allModules', 'plans'));
     }
@@ -304,20 +308,23 @@ class AdminDashboardController extends Controller
     {
         $request->validate([
             'plan_id' => 'required|uuid|exists:central.plans,id',
+            'billing_cycle' => 'nullable|in:monthly,annual',
         ]);
 
         $organization = Organization::findOrFail($id);
         $plan = \App\Models\Plan::findOrFail($request->plan_id);
+        $cycle = $request->billing_cycle ?? 'monthly';
+        $months = \App\Models\Plan::monthsForCycle($cycle);
 
         $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
             ? $organization->license_expires_at
             : now();
         $previousExpiresAt = $organization->license_expires_at;
-        $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+        $newExpiresAt = $baseDate->copy()->addMonths($months);
 
         $organization->licenses()->create([
             'type' => 'add',
-            'days' => $plan->duration_months * 30,
+            'days' => (int) $baseDate->diffInDays($newExpiresAt),
             'previous_expires_at' => $previousExpiresAt,
             'new_expires_at' => $newExpiresAt,
         ]);
@@ -327,9 +334,10 @@ class AdminDashboardController extends Controller
             'tenancy_type' => $plan->tenancy_type,
             'is_lifetime' => false,
             'license_expires_at' => $newExpiresAt,
+            'billing_cycle' => $cycle,
         ]);
 
-        \App\Services\AdminAudit::log('plan.assign', 'organization', $organization->id, "Plan '{$plan->name}' asignado a {$organization->name}");
+        \App\Services\AdminAudit::log('plan.assign', 'organization', $organization->id, "Plan '{$plan->name}' ({$cycle}) asignado a {$organization->name}");
 
         return redirect()->back()->with('success', "Plan '{$plan->name}' asignado. Vence: {$newExpiresAt->format('d/m/Y')}.");
     }

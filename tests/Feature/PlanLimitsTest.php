@@ -40,7 +40,6 @@ class PlanLimitsTest extends TestCase
         $plan = Plan::create([
             'slug' => 'test-1-store',
             'name' => 'Test',
-            'duration_months' => 3,
             'max_stores' => 1,
             'tenancy_type' => 'shared',
         ]);
@@ -69,7 +68,6 @@ class PlanLimitsTest extends TestCase
         $plan = Plan::create([
             'slug' => 'test-usage',
             'name' => 'Test',
-            'duration_months' => 6,
             'max_stores' => 3,
             'tenancy_type' => 'shared',
         ]);

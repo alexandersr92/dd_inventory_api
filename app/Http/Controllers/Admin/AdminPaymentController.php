@@ -29,7 +29,7 @@ class AdminPaymentController extends Controller
             ->get();
 
         // Para asignar plan al aprobar comprobantes que no lo traen.
-        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+        $plans = Plan::where('is_active', true)->orderBy('price_monthly')->get();
 
         return view('admin.payments.index', compact('providers', 'pending', 'recent', 'plans'));
     }
@@ -146,7 +146,9 @@ class AdminPaymentController extends Controller
             $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
                 ? $organization->license_expires_at
                 : now();
-            $newExpiresAt = $baseDate->copy()->addMonths($plan->duration_months);
+            // La duración sale del ciclo elegido por el cliente, no del plan.
+            $months = \App\Models\Plan::monthsForCycle($submission->billing_cycle ?? 'monthly');
+            $newExpiresAt = $baseDate->copy()->addMonths($months);
             $periodStart = $baseDate;
             $periodEnd = $newExpiresAt;
 
@@ -163,6 +165,7 @@ class AdminPaymentController extends Controller
                 'tenancy_type' => $plan->tenancy_type,
                 'is_lifetime' => false,
                 'license_expires_at' => $newExpiresAt,
+                'billing_cycle' => $submission->billing_cycle ?? 'monthly',
             ]);
 
             $locked->update([

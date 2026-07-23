@@ -51,7 +51,7 @@
                         <select name="plan_id" required style="padding:9px 12px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-secondary); color:var(--text-primary); font-weight:600;">
                             <option value="">— Elegir plan a aplicar —</option>
                             @foreach($plans as $plan)
-                                <option value="{{ $plan->id }}">{{ $plan->name }} · {{ $plan->duration_months }} mes(es) · {{ number_format($plan->price, 2) }} {{ $plan->currency }}</option>
+                                <option value="{{ $plan->id }}">{{ $plan->name }} · {{ number_format($plan->price_monthly, 2) }}/mes · {{ number_format($plan->price_annual, 2) }}/año {{ $plan->currency }}</option>
                             @endforeach
                         </select>
                     @endunless
