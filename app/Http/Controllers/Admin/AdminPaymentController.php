@@ -28,7 +28,10 @@ class AdminPaymentController extends Controller
             ->limit(20)
             ->get();
 
-        return view('admin.payments.index', compact('providers', 'pending', 'recent'));
+        // Para asignar plan al aprobar comprobantes que no lo traen.
+        $plans = Plan::where('is_active', true)->orderBy('price')->get();
+
+        return view('admin.payments.index', compact('providers', 'pending', 'recent', 'plans'));
     }
 
     // ---- CRUD de métodos de pago ----
@@ -110,12 +113,36 @@ class AdminPaymentController extends Controller
                 ->withErrors(['error' => 'La organización ya no existe.']);
         }
 
-        // Si el comprobante trae un plan, se asigna y se extiende la licencia por
-        // su duración. Reutiliza la misma lógica de asignación del panel.
-        $plan = $submission->plan_id ? Plan::find($submission->plan_id) : null;
+        // Resolver el plan a aplicar: el del comprobante, o el que el admin
+        // seleccione en el formulario si el comprobante no traía uno. SIN plan no
+        // se puede extender la licencia, así que no se permite aprobar: antes se
+        // marcaba "aprobado/renovado" sin extender ni un día (mensaje engañoso).
+        $planId = $submission->plan_id ?: $request->input('plan_id');
+        $plan = $planId ? Plan::find($planId) : null;
+
+        if (!$plan) {
+            return redirect()->route('admin.payments.index')
+                ->withErrors(['error' => 'Este comprobante no tiene un plan asociado. Selecciona el plan a aplicar antes de aprobar (sin plan no se puede extender la licencia).']);
+        }
+
+        // Sección crítica bajo lock: re-verificar que el comprobante sigue
+        // 'pending' y extender la licencia UNA sola vez. Sin este lock, dos
+        // aprobaciones concurrentes (o un doble clic) extenderían 2x la licencia.
         $periodStart = null;
         $periodEnd = null;
-        if ($plan) {
+        $race = false;
+
+        \Illuminate\Support\Facades\DB::connection('central')->transaction(function () use ($id, $plan, $request, &$submission, &$organization, &$periodStart, &$periodEnd, &$race) {
+            $locked = PaymentSubmission::where('id', $id)->lockForUpdate()->first();
+            if (!$locked || $locked->status !== 'pending') {
+                $race = true;
+                return;
+            }
+
+            // Releer la organización bloqueada para calcular la nueva expiración
+            // sobre el valor vigente (no uno stale).
+            $organization = Organization::where('id', $organization->id)->lockForUpdate()->first();
+
             $baseDate = ($organization->license_expires_at && $organization->license_expires_at->isFuture())
                 ? $organization->license_expires_at
                 : now();
@@ -125,7 +152,9 @@ class AdminPaymentController extends Controller
 
             $organization->licenses()->create([
                 'type' => 'add',
-                'days' => $plan->duration_months * 30,
+                // Días reales agregados (addMonths no siempre son 30): registrar el
+                // diff exacto en vez de meses*30, que descuadraba el historial.
+                'days' => (int) $baseDate->diffInDays($newExpiresAt),
                 'previous_expires_at' => $organization->license_expires_at,
                 'new_expires_at' => $newExpiresAt,
             ]);
@@ -135,14 +164,23 @@ class AdminPaymentController extends Controller
                 'is_lifetime' => false,
                 'license_expires_at' => $newExpiresAt,
             ]);
-        }
 
-        $submission->update([
-            'status' => 'approved',
-            'admin_notes' => $request->admin_notes,
-            'reviewed_by' => \Illuminate\Support\Facades\Auth::guard('admin')->id(),
-            'reviewed_at' => now(),
-        ]);
+            $locked->update([
+                'status' => 'approved',
+                'admin_notes' => $request->admin_notes,
+                'reviewed_by' => \Illuminate\Support\Facades\Auth::guard('admin')->id(),
+                'reviewed_at' => now(),
+                // Persistir el plan resuelto si el comprobante no lo traía.
+                'plan_id' => $locked->plan_id ?: $plan->id,
+            ]);
+
+            $submission = $locked;
+        });
+
+        if ($race) {
+            return redirect()->route('admin.payments.index')
+                ->withErrors(['error' => 'Este comprobante ya fue revisado.']);
+        }
 
         // Emitir la factura de DipleBill hacia el cliente (PDF descargable). No debe
         // romper la aprobación si algo falla.
@@ -165,7 +203,7 @@ class AdminPaymentController extends Controller
             "Comprobante aprobado de {$organization->name}" . ($submission->plan_id ? " (plan renovado)" : ''));
 
         // Notificar al cliente (con la factura PDF adjunta) y avisar internamente.
-        $planName = $submission->plan?->name;
+        $planName = $plan->name;
         $expiresLabel = $organization->license_expires_at?->format('d/m/Y');
         $clientEmail = $organization->user?->email ?? $organization->email;
         $bodyHtml = '<h2>¡Renovación confirmada!</h2>'

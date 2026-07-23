@@ -13,6 +13,24 @@ use App\Models\GlobalSetting;
 class TenantDatabaseSwitcher
 {
     /**
+     * Rutas de renovación que siguen accesibles con la licencia vencida, para
+     * que el cliente pueda pagar y salir del bloqueo. Patrones de path (sin
+     * dominio); ver Illuminate\Http\Request::is().
+     */
+    private const LICENSE_EXEMPT_ROUTES = [
+        // validateToken debe pasar aunque la licencia esté vencida: si no, el
+        // guard del frontend toma la sesión como inválida y expulsa al usuario a
+        // /login, sin poder llegar a la pantalla de renovación. Devolver el perfil
+        // no da acceso a features (cada una sigue bloqueada con su propio 402).
+        'api/v1/validateToken',
+        'api/v1/plans',
+        'api/v1/plans/*',
+        'api/v1/payments/*',
+        'api/v1/subscription-invoices',
+        'api/v1/subscription-invoices/*',
+    ];
+
+    /**
      * Handle an incoming request.
      */
     public function handle(Request $request, Closure $next): Response
@@ -32,12 +50,18 @@ class TenantDatabaseSwitcher
 
                 if (!$organization->is_lifetime) {
                     if (!$organization->license_expires_at || $organization->license_expires_at < now()) {
-                        $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? 'Tu licencia ha expirado. Contacta a soporte.';
-                        return response()->json([
-                            'message' => 'Tu licencia de uso ha expirado.',
-                            'error_code' => 'LICENSE_EXPIRED',
-                            'support_message' => $supportMessage,
-                        ], Response::HTTP_PAYMENT_REQUIRED);
+                        // Un cliente con licencia vencida DEBE poder renovar: ver
+                        // los métodos de pago, subir su comprobante y descargar su
+                        // factura. Si bloqueáramos estas rutas aquí quedaría
+                        // atrapado sin forma de pagar. El resto sí se bloquea.
+                        if (!$request->is(...self::LICENSE_EXEMPT_ROUTES)) {
+                            $supportMessage = GlobalSetting::where('key', 'license_support_message')->value('value') ?? 'Tu licencia ha expirado. Contacta a soporte.';
+                            return response()->json([
+                                'message' => 'Tu licencia de uso ha expirado.',
+                                'error_code' => 'LICENSE_EXPIRED',
+                                'support_message' => $supportMessage,
+                            ], Response::HTTP_PAYMENT_REQUIRED);
+                        }
                     }
                 }
 

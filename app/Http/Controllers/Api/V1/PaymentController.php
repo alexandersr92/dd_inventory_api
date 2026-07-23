@@ -36,7 +36,7 @@ class PaymentController extends Controller
         $request->validate([
             'plan_id' => 'nullable|uuid|exists:central.plans,id',
             'provider_id' => 'nullable|uuid|exists:central.payment_providers,id',
-            'amount' => 'required|numeric|min:0',
+            'amount' => 'required|numeric|min:1',
             'reference' => 'nullable|string|max:255',
             'receipt' => 'required|file|mimes:jpeg,png,jpg,pdf|max:5120',
         ]);
@@ -44,6 +44,14 @@ class PaymentController extends Controller
         $orgId = Auth::user()->organization_id;
         if (!$orgId) {
             return response()->json(['message' => 'No tienes una organización asociada.'], Response::HTTP_FORBIDDEN);
+        }
+
+        // Una sola submission pendiente por organización: evita el spam de archivos
+        // de 5MB y de correos a root, y la confusión de comprobantes duplicados.
+        if (PaymentSubmission::where('organization_id', $orgId)->where('status', 'pending')->exists()) {
+            return response()->json([
+                'message' => 'Ya tienes un comprobante pendiente de validación. Espera a que lo revisemos antes de enviar otro.',
+            ], Response::HTTP_CONFLICT);
         }
 
         // Comprobantes en disco privado (no accesibles públicamente).
