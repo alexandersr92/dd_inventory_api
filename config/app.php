@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // URL de la app del cliente (SPA del dueño). Destino tras verificar el correo.
+    'frontend_url' => env('FRONTEND_URL', 'https://app.diplebill.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

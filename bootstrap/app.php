@@ -13,6 +13,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // La app solo se sirve detrás del proxy de Dokploy (Traefik). Confiar en
+        // él para leer X-Forwarded-* → esquema/host reales (links https correctos,
+        // enlaces de verificación firmados válidos) y IP real del cliente (para
+        // que el throttle por IP no agrupe a todos bajo la IP del proxy).
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

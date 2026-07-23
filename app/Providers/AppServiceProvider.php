@@ -26,6 +26,17 @@ class AppServiceProvider extends ServiceProvider
             \Illuminate\Support\Facades\URL::forceScheme('https');
         }
 
+        // Correo de verificación en español (reemplaza la plantilla por defecto de Laravel).
+        \Illuminate\Auth\Notifications\VerifyEmail::toMailUsing(function ($notifiable, string $url) {
+            return (new \Illuminate\Notifications\Messages\MailMessage)
+                ->subject('Verifica tu correo · DipleBill')
+                ->greeting('¡Hola' . ($notifiable->name ? ' ' . $notifiable->name : '') . '!')
+                ->line('Gracias por registrarte en DipleBill. Confirma tu correo para asegurar tu cuenta y recibir los avisos de tu licencia y pagos.')
+                ->action('Verificar mi correo', $url)
+                ->line('El enlace vence en 60 minutos. Si no creaste esta cuenta, puedes ignorar este mensaje.')
+                ->salutation('— El equipo de DipleBill');
+        });
+
         // Register Policies
 
         \Illuminate\Support\Facades\Gate::policy(\App\Models\Store::class, \App\Policies\StorePolicy::class);
