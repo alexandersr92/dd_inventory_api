@@ -24,6 +24,8 @@ class CreditResource extends JsonResource
                 'payment_method' => $payment->payment_method ?? 'CASH',
                 'payment_metadata' => $payment->payment_metadata,
                 'cash_session_id' => $payment->cash_session_id,
+                'voided_at' => $payment->voided_at,
+                'void_reason' => $payment->void_reason,
                 'created_at' => $payment->created_at,
                 'updated_at' => $payment->updated_at,
             ];

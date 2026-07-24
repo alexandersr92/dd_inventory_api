@@ -180,6 +180,7 @@ Route::prefix('v1')->group(function () {
         Route::middleware('module:credits')->group(function () {
             Route::get('credits/search-active', [CreditController::class, 'searchActive']);
             Route::post('credits/payment', [CreditController::class, 'payment']);
+            Route::post('credits/payment/{id}/void', [CreditController::class, 'voidPayment']);
             Route::apiResource('credits', CreditController::class)->except(['store', 'update', 'destroy']);
             Route::get('credits-by-client', [CreditController::class, 'indexByClient']);
             Route::get('credits-by-client/{client_id}', [CreditController::class, 'indexByClientID']);
