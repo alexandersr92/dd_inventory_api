@@ -453,7 +453,10 @@ class CashSessionController extends Controller
         $invoices = Invoice::where('cash_session_id', $session->id)
             ->whereNotIn('invoice_status', ['proforma', 'canceled'])
             ->get();
-        $creditDetails = CreditDetail::where('cash_session_id', $session->id)->get();
+        // Los abonos anulados no cuentan en el arqueo.
+        $creditDetails = CreditDetail::where('cash_session_id', $session->id)
+            ->whereNull('voided_at')
+            ->get();
         
         $invoiceCashNio = 0.0;
         $invoiceCashUsd = 0.0;

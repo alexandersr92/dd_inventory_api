@@ -10,6 +10,7 @@ use App\Http\Resources\CreditCollection;
 use App\Http\Resources\CreditByClientCollection;
 use App\Http\Resources\CreditResource;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 class CreditController extends Controller
 {
@@ -250,6 +251,60 @@ class CreditController extends Controller
         }
      
         return response()->json($updatedCredits, 200);
+    }
+
+    /**
+     * Anula un abono (pago de crédito). Anulación suave y auditable: NO borra el
+     * registro, marca voided_at y restaura la deuda del crédito. El abono anulado
+     * deja de contar en el arqueo de caja de sesiones ABIERTAS; las cajas ya
+     * cerradas no se recalculan (su arqueo queda congelado).
+     */
+    public function voidPayment(Request $request, $id)
+    {
+        $this->authorize('payment', Credit::class);
+
+        $orgID = Auth::user()->organization_id;
+
+        $detail = CreditDetail::whereHas('credit', function ($q) use ($orgID) {
+            $q->where('organization_id', $orgID);
+        })->find($id);
+
+        if (!$detail) {
+            return response()->json(['message' => 'Abono no encontrado.'], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($detail->voided_at) {
+            return response()->json(['message' => 'Este abono ya fue anulado.'], Response::HTTP_CONFLICT);
+        }
+
+        DB::transaction(function () use ($detail, $orgID, $request) {
+            $credit = Credit::where('id', $detail->credit_id)
+                ->where('organization_id', $orgID)
+                ->lockForUpdate()
+                ->first();
+
+            if ($credit) {
+                // Restaurar la deuda sin exceder el total del crédito. Si estaba
+                // saldado, vuelve a estar activo porque ahora debe de nuevo.
+                $credit->debt = min((float) $credit->total, (float) $credit->debt + (float) $detail->amount);
+                if ($credit->credit_status === 'paid' && $credit->debt > 0) {
+                    $credit->credit_status = 'active';
+                }
+                $credit->save();
+            }
+
+            $detail->voided_at = now();
+            $detail->voided_by = Auth::id();
+            $detail->void_reason = $request->input('reason');
+            $detail->save();
+        });
+
+        $credit = Credit::where('id', $detail->credit_id)->where('organization_id', $orgID)->first();
+
+        return response()->json([
+            'message' => 'Abono anulado. La deuda del crédito fue restaurada.',
+            'credit' => $credit ? new CreditResource($credit) : null,
+        ], Response::HTTP_OK);
     }
 
 }

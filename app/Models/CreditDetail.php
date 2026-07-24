@@ -20,10 +20,14 @@ class CreditDetail extends Model
         'payment_method',
         'payment_metadata',
         'cash_session_id',
+        'voided_at',
+        'voided_by',
+        'void_reason',
     ];
 
     protected $casts = [
         'payment_metadata' => 'array',
+        'voided_at' => 'datetime',
     ];
 
     public function credit()
