@@ -309,7 +309,7 @@
                                         discount: '{{ $plan->discount }}',
                                         is_featured: {{ $plan->is_featured ? 1 : 0 }},
                                         status: '{{ $plan->status }}',
-                                        features: {!! json_encode($plan->features) !!}
+                                        features: @json($plan->features)
                                     })">
                                     Editar
                                 </button>
@@ -398,7 +398,7 @@
     }
 
     // Datos de las secciones precargadas para el editor JSON
-    const rawSections = {!! json_encode($sections) !!};
+    const rawSections = @json($sections);
 
     function loadSectionJson() {
         const key = document.getElementById('section-selector').value;

@@ -19,6 +19,12 @@ class DashboardController extends Controller
 {
     public function metrics(Request $request)
     {
+        // SEGURIDAD: el dashboard expone finanzas org-wide. Gate con report.index
+        // (owner/manager lo tienen; un cajero no) para no exponerlas a cualquier rol.
+        if (!Auth::user()->can('report.index')) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
+
         $storeId = $request->query('store_id');
         $refresh = $request->query('refresh') === 'true';
         $dateFrom = $request->query('date_from');
@@ -272,6 +278,11 @@ class DashboardController extends Controller
 
     public function chart(Request $request)
     {
+        // SEGURIDAD: mismo gate que metrics() (finanzas org-wide).
+        if (!Auth::user()->can('report.index')) {
+            return response()->json(['message' => 'No autorizado.'], 403);
+        }
+
         $metric = $request->query('metric', 'sales');
         $range = $request->query('range', '6m');
         $freq = $request->query('freq', 'monthly');
