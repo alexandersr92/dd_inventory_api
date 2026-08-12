@@ -276,7 +276,8 @@ class InventoryController extends Controller
             ? $request->store_ids 
             : ($request->store_id ? (array) $request->store_id : null);
 
-        $updateData = $request->all();
+        // SEGURIDAD: no aceptar organization_id del request (mass-assignment cross-tenant).
+        $updateData = $request->except(['organization_id']);
         if ($storeIds !== null) {
             $updateData['store_id'] = count($storeIds) > 0 ? $storeIds[0] : null;
         }

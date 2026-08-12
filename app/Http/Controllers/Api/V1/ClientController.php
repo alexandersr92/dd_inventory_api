@@ -122,7 +122,9 @@ class ClientController extends Controller
     {
         $this->authorize('update', Client::class);
 
-        $client->update($request->all());
+        // SEGURIDAD: nunca aceptar organization_id del request (mass-assignment
+        // cross-tenant). El tenant se fija server-side al crear.
+        $client->update($request->except(['organization_id']));
         return response(
             new ClientResource($client),
             Response::HTTP_OK

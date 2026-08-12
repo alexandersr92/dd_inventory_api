@@ -197,7 +197,8 @@ class ProductController extends Controller
         ]);
 
         $oldPrice = $product->price;
-        $data = $request->all();
+        // SEGURIDAD: no aceptar organization_id del request (mass-assignment cross-tenant).
+        $data = $request->except(['organization_id']);
 
         // Si se edita para una sucursal, no modificamos el precio base global
         if ($request->filled('inventory')) {

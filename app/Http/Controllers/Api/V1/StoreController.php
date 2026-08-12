@@ -136,7 +136,12 @@ class StoreController extends Controller
         }
 
 
-        $store->update($request->all());
+        // SEGURIDAD: nunca aceptar del request organization_id (cross-tenant) ni la
+        // numeración fiscal / estado (invoice_number/prefix/status/user_id): esos
+        // los controla el servidor. $request->all() los dejaba manipulables.
+        $store->update($request->except([
+            'organization_id', 'invoice_number', 'invoice_prefix', 'status', 'user_id',
+        ]));
 
         return response(
             new StoreResource($store),
@@ -221,7 +226,10 @@ class StoreController extends Controller
     {
         $this->authorize('update', $store);
 
-        $store->update($request->all());
+        // SEGURIDAD: mismo blindaje que update() contra mass-assignment.
+        $store->update($request->except([
+            'organization_id', 'invoice_number', 'invoice_prefix', 'status', 'user_id',
+        ]));
 
         return response(
             new StoreResource($store),
