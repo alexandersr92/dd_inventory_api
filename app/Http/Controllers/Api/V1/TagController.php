@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Tag;
+use App\Models\Product;
 
 
 use App\Http\Requests\StoreTagRequest;
@@ -13,11 +14,15 @@ use App\Http\Resources\TagResource;
 
 
 
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class TagController extends Controller
 {
+    // SEGURIDAD: reusa product.* — antes no autorizaba nada.
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
@@ -35,6 +40,7 @@ class TagController extends Controller
      */
     public function store(StoreTagRequest $request)
     {
+        $this->authorize('create', Product::class);
         $orgId = Auth::user()->organization_id;
 
         $Tag = new Tag();
@@ -55,6 +61,7 @@ class TagController extends Controller
      */
     public function update(UpdateTagRequest $request, Tag $Tag)
     {
+        $this->authorize('update', Product::class);
 
         $Tag->name = $request->name;
         $Tag->save();
@@ -70,6 +77,7 @@ class TagController extends Controller
      */
     public function destroy(Tag $Tag)
     {
+        $this->authorize('delete', Product::class);
 
         $Tag->delete();
 

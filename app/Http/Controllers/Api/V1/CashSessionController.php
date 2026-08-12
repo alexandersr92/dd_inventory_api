@@ -134,6 +134,15 @@ class CashSessionController extends Controller
 
         $session = CashSession::findOrFail($request->cash_session_id);
 
+        // SEGURIDAD: solo el dueño de la sesión (o el owner de la org) puede
+        // inyectar movimientos. Sin esto, cualquier usuario del tenant metía
+        // "gastos" en la caja abierta de otro cajero.
+        if (!$this->userOwnsSessionOrIsOwner($session)) {
+            return response()->json([
+                'message' => 'No autorizado sobre esta sesión de caja.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         if ($session->status !== 'open') {
             return response()->json([
                 'message' => 'La sesión de caja está cerrada.'
@@ -176,6 +185,15 @@ class CashSessionController extends Controller
         ]);
 
         $session = CashSession::findOrFail($request->cash_session_id);
+
+        // SEGURIDAD: solo el dueño de la sesión (o el owner de la org) puede
+        // cerrarla. Sin esto, cualquiera cerraba la caja de otro cajero con un
+        // actual_cash falso, generando descuadres/incriminaciones.
+        if (!$this->userOwnsSessionOrIsOwner($session)) {
+            return response()->json([
+                'message' => 'No autorizado sobre esta sesión de caja.'
+            ], Response::HTTP_FORBIDDEN);
+        }
 
         if ($session->status !== 'open') {
             return response()->json([
@@ -413,6 +431,18 @@ class CashSessionController extends Controller
             'expected_usd' => $expected_usd,
             'difference' => $diff,
         ]);
+    }
+
+    /**
+     * ¿El usuario autenticado es dueño de esta sesión de caja, o el owner de la org?
+     */
+    private function userOwnsSessionOrIsOwner(CashSession $session): bool
+    {
+        $user = Auth::user();
+        if ($session->user_id === $user->id) {
+            return true;
+        }
+        return $user->organization && $user->id === $user->organization->owner_id;
     }
 
     /**
