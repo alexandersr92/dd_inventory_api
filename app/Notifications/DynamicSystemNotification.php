@@ -140,8 +140,11 @@ class DynamicSystemNotification extends Notification
                     $formattedNum = number_format((float)$val, 2);
                     $val = $currency ? $currency . ' ' . $formattedNum : $formattedNum;
                 }
+                // SEGURIDAD: el body se renderiza como HTML ({!! $body !!}).
+                // Escapar el VALOR inyectado (no el template) evita inyección de
+                // HTML/phishing con datos del tenant (client_name, etc.).
                 $subject = str_replace($placeholder, (string)$val, $subject);
-                $body = str_replace($placeholder, (string)$val, $body);
+                $body = str_replace($placeholder, e((string)$val), $body);
             }
         }
 

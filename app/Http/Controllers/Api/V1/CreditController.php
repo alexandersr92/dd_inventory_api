@@ -265,19 +265,23 @@ class CreditController extends Controller
 
         $orgID = Auth::user()->organization_id;
 
-        $detail = CreditDetail::whereHas('credit', function ($q) use ($orgID) {
-            $q->where('organization_id', $orgID);
-        })->find($id);
+        // SEGURIDAD (TOCTOU): antes voided_at se chequeaba FUERA de la transacción
+        // y solo se bloqueaba la fila credit -> dos anulaciones concurrentes
+        // restauraban la deuda dos veces. Ahora el detalle se bloquea
+        // (lockForUpdate) y se re-chequea voided_at DENTRO de la transacción.
+        $result = DB::transaction(function () use ($id, $orgID, $request) {
+            $detail = CreditDetail::whereHas('credit', function ($q) use ($orgID) {
+                $q->where('organization_id', $orgID);
+            })->lockForUpdate()->find($id);
 
-        if (!$detail) {
-            return response()->json(['message' => 'Abono no encontrado.'], Response::HTTP_NOT_FOUND);
-        }
+            if (!$detail) {
+                return ['status' => Response::HTTP_NOT_FOUND, 'message' => 'Abono no encontrado.', 'credit_id' => null];
+            }
 
-        if ($detail->voided_at) {
-            return response()->json(['message' => 'Este abono ya fue anulado.'], Response::HTTP_CONFLICT);
-        }
+            if ($detail->voided_at) {
+                return ['status' => Response::HTTP_CONFLICT, 'message' => 'Este abono ya fue anulado.', 'credit_id' => $detail->credit_id];
+            }
 
-        DB::transaction(function () use ($detail, $orgID, $request) {
             $credit = Credit::where('id', $detail->credit_id)
                 ->where('organization_id', $orgID)
                 ->lockForUpdate()
@@ -297,9 +301,15 @@ class CreditController extends Controller
             $detail->voided_by = Auth::id();
             $detail->void_reason = $request->input('reason');
             $detail->save();
+
+            return ['status' => Response::HTTP_OK, 'message' => null, 'credit_id' => $detail->credit_id];
         });
 
-        $credit = Credit::where('id', $detail->credit_id)->where('organization_id', $orgID)->first();
+        if ($result['status'] !== Response::HTTP_OK) {
+            return response()->json(['message' => $result['message']], $result['status']);
+        }
+
+        $credit = Credit::where('id', $result['credit_id'])->where('organization_id', $orgID)->first();
 
         return response()->json([
             'message' => 'Abono anulado. La deuda del crédito fue restaurada.',

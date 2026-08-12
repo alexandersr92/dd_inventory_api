@@ -49,6 +49,17 @@ class InvoiceController extends Controller
 
         $query = Invoice::where('organization_id', $orgId);
 
+        // SEGURIDAD: restringir a las tiendas asignadas del usuario. null = ve todas
+        // (owner o store.index). Antes solo se filtraba por organization_id, así que
+        // un usuario de la tienda A veía las ventas de todas las tiendas.
+        $allowedStoreIds = Auth::user()->allowedStoreIds();
+        if ($allowedStoreIds !== null) {
+            if ($store_id !== null && !in_array($store_id, $allowedStoreIds, true)) {
+                return response()->json(['message' => 'No autorizado para esta tienda.'], Response::HTTP_FORBIDDEN);
+            }
+            $query->whereIn('store_id', $allowedStoreIds);
+        }
+
         // Agregar filtro por tienda
         if ($store_id) {
             $query->where('store_id', $store_id);
@@ -687,13 +698,23 @@ class InvoiceController extends Controller
         $this->authorize('viewAny', Invoice::class);
 
         $orgId = Auth::user()->organization_id;
-        $invoices = Invoice::where('organization_id', $orgId)
-            ->where('store_id', $request->store_id)
-            ->get();
 
-            
+        // SEGURIDAD: no exportar ventas de una tienda que no es del usuario.
+        $allowedStoreIds = Auth::user()->allowedStoreIds();
+        if ($allowedStoreIds !== null && $request->store_id !== null
+            && !in_array($request->store_id, $allowedStoreIds, true)) {
+            return response()->json(['message' => 'No autorizado para esta tienda.'], Response::HTTP_FORBIDDEN);
+        }
 
-        
+        $exportQuery = Invoice::where('organization_id', $orgId);
+        if ($allowedStoreIds !== null) {
+            $exportQuery->whereIn('store_id', $allowedStoreIds);
+        }
+        if ($request->store_id) {
+            $exportQuery->where('store_id', $request->store_id);
+        }
+        $invoices = $exportQuery->get();
+
        return Excel::download(new InvoiceExport($invoices), 'reporte_invoices.xlsx');
     }
 }

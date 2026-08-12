@@ -330,7 +330,14 @@ class InventoryController extends Controller
 
     public function getProductByStore(Store $store, Request $request){
         $this->authorize('viewAny', Inventory::class);
-            
+
+        // SEGURIDAD: un usuario restringido no puede consultar el stock/precios de
+        // una tienda que no tiene asignada (null = ve todas).
+        $allowedStoreIds = Auth::user()->allowedStoreIds();
+        if ($allowedStoreIds !== null && !in_array($store->id, $allowedStoreIds, true)) {
+            return response()->json(['message' => 'No autorizado para esta tienda.'], Response::HTTP_FORBIDDEN);
+        }
+
         $search = $request->query('search');
 
         $inventoryDetails = InventoryDetail::whereHas('inventory', function ($q) use ($store) {
@@ -359,7 +366,12 @@ class InventoryController extends Controller
         $this->authorize('viewAny', Inventory::class);
 
         $orgId = Auth::user()->organization_id;
-        $inventory = InventoryDetail::where('inventory_id', $request->inventory_id)
+
+        // SEGURIDAD: resolver el inventory por el modelo tenant-scoped
+        // (Multitenantable) -> 404 si pertenece a otro tenant. Antes se consultaba
+        // InventoryDetail por un inventory_id crudo, sin scope de organización.
+        $inventoryModel = Inventory::findOrFail($request->inventory_id);
+        $inventory = InventoryDetail::where('inventory_id', $inventoryModel->id)
             ->get();
 
     //    $newData = new InventoryExportCollection($inventory); 

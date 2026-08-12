@@ -89,4 +89,22 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(Store::class, 'user_store')->using(UserStore::class);
     }
+
+    /**
+     * IDs de las tiendas que este usuario puede ver/consultar.
+     *
+     * Devuelve null cuando el usuario NO está restringido por tienda: el owner de
+     * la organización o cualquiera con permiso 'store.index' ve todas (misma regla
+     * que StoreController::index). Para el resto, devuelve solo sus tiendas
+     * asignadas — así las listas/exports no filtran solo por organization_id
+     * (lo que dejaba a un usuario de la tienda A ver las ventas de la tienda B).
+     */
+    public function allowedStoreIds(): ?array
+    {
+        $isOwner = $this->organization && $this->id === $this->organization->owner_id;
+        if ($isOwner || $this->hasPermissionTo('store.index')) {
+            return null;
+        }
+        return $this->stores()->pluck('stores.id')->all();
+    }
 }
