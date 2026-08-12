@@ -34,6 +34,8 @@ class StoreStoreRequest extends FormRequest
             'ruc' => ['nullable', 'string', 'max:255'],
             'store_currency' => ['string', 'max:3'],
             'print_json' => ['nullable', 'array'],
+            // SEGURIDAD: el logo se guarda en el disco público servido por nginx.
+            'print_logo' => ['nullable', 'image', 'mimes:jpeg,jpg,png,webp,gif', 'max:5120'],
 
         ];
     }

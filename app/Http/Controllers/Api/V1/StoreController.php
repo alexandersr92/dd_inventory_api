@@ -178,7 +178,13 @@ class StoreController extends Controller
     {
         $this->authorize('update', $store);
 
-        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
+        // SEGURIDAD: validar tipo/tamaño real antes de escribir en el disco
+        // público (nginx ejecuta *.php ahí). 'image' + mimes sin svg bloquea
+        // ejecutables y svg con scripts.
+        $request->validate([
+            'print_logo' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:5120',
+        ]);
+
         if ($request->hasFile('print_logo')) {
             $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
         }

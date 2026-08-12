@@ -250,7 +250,12 @@ class OrganizationController extends Controller
 
         $this->validateUniqueFields($request, $organization->id);
 
+        // SEGURIDAD: si viene un archivo de logo, validarlo antes de escribirlo en
+        // el disco público (nginx ejecuta *.php ahí; svg puede llevar scripts).
         if ($request->hasFile('logo')) {
+            $request->validate([
+                'logo' => 'image|mimes:jpeg,jpg,png,webp,gif|max:5120',
+            ]);
             $organization->logo = $request->file('logo')->store('organizationLogo', 'public');
         }
 

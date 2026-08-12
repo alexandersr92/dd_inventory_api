@@ -298,8 +298,17 @@ class ProductController extends Controller
 
     public function addImageToProduct(Request $request, Product $product)
     {
+        $this->authorize('update', $product);
 
-        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
+        // SEGURIDAD: validar tipo/tamaño real. El disco 'public' es servido por
+        // nginx, que ejecuta cualquier *.php bajo /var/www/public. La regla
+        // 'image' + whitelist de mimes (sin svg) impide que se escriba un
+        // archivo ejecutable/scriptable; la extensión almacenada se deriva del
+        // contenido validado.
+        $request->validate([
+            'image' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:5120',
+        ]);
+
         if ($request->hasFile('image')) {
             $product->image = $request->file('image')->store('productsImages', 'public');
         }
