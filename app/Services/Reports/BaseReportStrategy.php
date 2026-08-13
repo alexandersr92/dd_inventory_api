@@ -75,7 +75,10 @@ abstract class BaseReportStrategy
             $fileName = 'report_' . $report->id . '_' . time() . '.pdf';
             $filePath = 'reports/' . $fileName;
             
-            Storage::disk('public')->put($filePath, $pdf->output());
+            // SEGURIDAD: disco PRIVADO (local). Antes 'public' dejaba los PDFs
+            // financieros accesibles sin auth en /storage/reports/... Se sirven
+            // solo por ReportController::download (que verifica ownership).
+            Storage::disk('local')->put($filePath, $pdf->output());
 
             // 5. Actualizar el registro como completado
             $report->update([

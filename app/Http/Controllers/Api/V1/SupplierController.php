@@ -127,7 +127,8 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $supplier->update($request->all());
+        // SEGURIDAD: no aceptar organization_id del request.
+        $supplier->update($request->except(['organization_id']));
 
         return response(
             new SupplierResource($supplier),
@@ -216,7 +217,14 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $contact->update($contactRequest->all());
+        // SEGURIDAD: SupplierContact no tiene global scope de tenant, así que el
+        // route-binding resuelve contactos de cualquier supplier/tenant. Exigir
+        // que el contacto pertenezca a ESTE supplier.
+        if ($contact->supplier_id !== $supplier->id) {
+            return response()->json(['message' => 'Contact not found'], Response::HTTP_NOT_FOUND);
+        }
+
+        $contact->update($contactRequest->except(['organization_id', 'supplier_id']));
 
         return response(
             $contact,
@@ -236,9 +244,10 @@ class SupplierController extends Controller
             return response()->json(['message' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
-
-
-
+        // SEGURIDAD: el contacto debe pertenecer a este supplier (ver contactUpdate).
+        if ($contact->supplier_id !== $supplier->id) {
+            return response()->json(['message' => 'Contact not found'], Response::HTTP_NOT_FOUND);
+        }
 
         $contact->delete();
 

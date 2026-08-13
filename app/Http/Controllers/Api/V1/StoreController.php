@@ -136,7 +136,12 @@ class StoreController extends Controller
         }
 
 
-        $store->update($request->all());
+        // SEGURIDAD: nunca aceptar del request organization_id (cross-tenant) ni la
+        // numeración fiscal / estado (invoice_number/prefix/status/user_id): esos
+        // los controla el servidor. $request->all() los dejaba manipulables.
+        $store->update($request->except([
+            'organization_id', 'invoice_number', 'invoice_prefix', 'status', 'user_id',
+        ]));
 
         return response(
             new StoreResource($store),
@@ -178,7 +183,13 @@ class StoreController extends Controller
     {
         $this->authorize('update', $store);
 
-        // FIXME: Manejo directo de archivos - debería usar endpoint dedicado de upload
+        // SEGURIDAD: validar tipo/tamaño real antes de escribir en el disco
+        // público (nginx ejecuta *.php ahí). 'image' + mimes sin svg bloquea
+        // ejecutables y svg con scripts.
+        $request->validate([
+            'print_logo' => 'required|image|mimes:jpeg,jpg,png,webp,gif|max:5120',
+        ]);
+
         if ($request->hasFile('print_logo')) {
             $store->print_logo = $request->file('print_logo')->store('stote_print_logo', 'public');
         }
@@ -215,7 +226,10 @@ class StoreController extends Controller
     {
         $this->authorize('update', $store);
 
-        $store->update($request->all());
+        // SEGURIDAD: mismo blindaje que update() contra mass-assignment.
+        $store->update($request->except([
+            'organization_id', 'invoice_number', 'invoice_prefix', 'status', 'user_id',
+        ]));
 
         return response(
             new StoreResource($store),

@@ -25,6 +25,12 @@ class WooCommerceIntegration extends Model
         'status',
     ];
 
+    // SEGURIDAD: el secret no debe salir en respuestas JSON (antes cualquier rol
+    // de la org lo leía en claro vía GET /woocommerce/integration).
+    protected $hidden = [
+        'woo_consumer_secret',
+    ];
+
     protected $casts = [
         'status' => 'boolean',
     ];

@@ -110,8 +110,9 @@ class MailConfigurator
 
         foreach ($data as $key => $val) {
             $placeholder = '{' . $key . '}';
-            $subject = str_replace($placeholder, $val, $subject);
-            $body = str_replace($placeholder, $val, $body);
+            // SEGURIDAD: escapar el valor inyectado en el body HTML (ver DynamicSystemNotification).
+            $subject = str_replace($placeholder, (string) $val, $subject);
+            $body = str_replace($placeholder, e((string) $val), $body);
         }
 
         // 4. Dispatch the mail

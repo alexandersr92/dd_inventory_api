@@ -19,17 +19,31 @@ class InventoryExport implements FromCollection, WithHeadings, WithColumnFormatt
     {
         return collect($this->products)->map(function ($product) {
             return [
-                $product['product_name'] ?? '',
+                self::csvSafe($product['product_name'] ?? ''),
                 (string)$product['quantity'] ?? '0',
-                $product['status'] ?? '',
+                self::csvSafe($product['status'] ?? ''),
                 $product['price'] ?? '0',
                 $product['cost'] ?? '0',
-                (string) $product['barcode'] ?? '',
-                (string)$product['sku'] ?? '',
-                $product['tags'] ?? '',
-                $product['category'] ?? '',
+                self::csvSafe((string) ($product['barcode'] ?? '')),
+                self::csvSafe((string) ($product['sku'] ?? '')),
+                self::csvSafe($product['tags'] ?? ''),
+                self::csvSafe($product['category'] ?? ''),
             ];
         });
+    }
+
+    /**
+     * SEGURIDAD (CSV/formula injection): un valor que empieza con = + - @ (o tab/CR)
+     * es interpretado como fórmula por Excel/LibreOffice al abrir el archivo. Se le
+     * antepone un apóstrofo para forzar que se trate como texto.
+     */
+    public static function csvSafe($value): string
+    {
+        $value = (string) $value;
+        if ($value !== '' && in_array($value[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $value;
+        }
+        return $value;
     }
 
     public function headings(): array

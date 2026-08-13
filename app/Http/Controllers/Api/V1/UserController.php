@@ -248,6 +248,18 @@ class UserController extends Controller
             return response()->json(['message' => 'Role does not belong to your organization'], Response::HTTP_FORBIDDEN);
         }
 
+        // SEGURIDAD: no permitir asignar (a otro o a sí mismo) un rol con permisos
+        // que el actor no posee -> si no, un usuario con user.update se auto-asigna
+        // el rol Owner y escala privilegios.
+        $rolePermissions = $role->permissions->pluck('name')->all();
+        $ownPermissions = Auth::user()->getAllPermissions()->pluck('name')->all();
+        $escalated = array_values(array_diff($rolePermissions, $ownPermissions));
+        if (!empty($escalated)) {
+            return response()->json([
+                'message' => 'No puedes asignar un rol con más permisos que los tuyos.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         $user->roles()->detach();
         $user->assignRole($role);
         $user->update(['role_id' => $role->uuid]);

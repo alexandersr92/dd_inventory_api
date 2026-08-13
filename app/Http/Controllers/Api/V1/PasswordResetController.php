@@ -47,7 +47,8 @@ class PasswordResetController extends Controller
         }
 
         // Generar código de 6 dígitos
-        $code = (string) rand(100000, 999999);
+        // SEGURIDAD: random_int es criptográficamente seguro (rand() es predecible).
+        $code = (string) random_int(100000, 999999);
 
         // Eliminar tokens previos de este correo
         DB::connection('central')

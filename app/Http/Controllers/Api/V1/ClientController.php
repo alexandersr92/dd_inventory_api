@@ -61,7 +61,13 @@ class ClientController extends Controller
         if ($request->has('store_id')) {
             $order = $request->query('order', 'asc');
             $store = $request->query('store_id');
-    
+
+            // SEGURIDAD: un usuario restringido no puede pedir los clientes de una
+            // tienda que no tiene asignada (null = ve todas: owner o store.index).
+            $allowedStoreIds = Auth::user()->allowedStoreIds();
+            if ($allowedStoreIds !== null && !in_array($store, $allowedStoreIds, true)) {
+                return response()->json(['message' => 'No autorizado para esta tienda.'], Response::HTTP_FORBIDDEN);
+            }
 
             //get clients for a specific store, store and client are related many to many
             $clients = Client::whereHas('stores', function ($query) use ($store) {
@@ -122,7 +128,9 @@ class ClientController extends Controller
     {
         $this->authorize('update', Client::class);
 
-        $client->update($request->all());
+        // SEGURIDAD: nunca aceptar organization_id del request (mass-assignment
+        // cross-tenant). El tenant se fija server-side al crear.
+        $client->update($request->except(['organization_id']));
         return response(
             new ClientResource($client),
             Response::HTTP_OK

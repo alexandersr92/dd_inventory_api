@@ -94,11 +94,11 @@ class ReportController extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
-        if (!$report->file_path || !Storage::disk('public')->exists($report->file_path)) {
+        if (!$report->file_path || !Storage::disk('local')->exists($report->file_path)) {
             return response()->json(['message' => 'File not found'], 404);
         }
 
-        return Storage::disk('public')->download($report->file_path, $report->name . '.pdf');
+        return Storage::disk('local')->download($report->file_path, $report->name . '.pdf');
     }
 
     /**
@@ -115,8 +115,8 @@ class ReportController extends Controller
         }
 
         // Eliminar archivo físico si existe
-        if ($report->file_path && Storage::disk('public')->exists($report->file_path)) {
-            Storage::disk('public')->delete($report->file_path);
+        if ($report->file_path && Storage::disk('local')->exists($report->file_path)) {
+            Storage::disk('local')->delete($report->file_path);
         }
 
         $report->delete();

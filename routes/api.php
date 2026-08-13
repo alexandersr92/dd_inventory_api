@@ -50,11 +50,13 @@ Route::prefix('v1')->group(function () {
         return response()->json(['ok' => true, 'ts' => now()->timestamp]);
     });
 
-    Route::post('/login', [LoginController::class, 'login']);
-    Route::post('/register', [LoginController::class, 'registerOwner']);
-    Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword']);
-    Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
-    Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle']);
+    // SEGURIDAD: throttle en los endpoints públicos de auth (fuerza bruta / abuso).
+    // Con trustProxies pineado, el límite es por IP real del cliente.
+    Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/register', [LoginController::class, 'registerOwner'])->middleware('throttle:10,1');
+    Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword'])->middleware('throttle:6,1');
+    Route::post('/reset-password', [PasswordResetController::class, 'resetPassword'])->middleware('throttle:6,1');
+    Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle'])->middleware('throttle:10,1');
 
     // Reenviar el correo de verificación. Autenticado pero SIN tenant.switch:
     // un usuario recién registrado aún no tiene organización.

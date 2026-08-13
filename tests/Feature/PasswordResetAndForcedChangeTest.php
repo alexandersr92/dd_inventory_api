@@ -202,17 +202,16 @@ class PasswordResetAndForcedChangeTest extends TestCase
 
         $this->actingAs($user, 'sanctum');
 
-        // Mockear Socialite
-        $googleUser = \Mockery::mock('Laravel\Socialite\Two\User');
-        $googleUser->shouldReceive('getId')->andReturn('mock_google_id_linked_12345');
-        $googleUser->shouldReceive('getEmail')->andReturn('user_mocked_linked@gmail.com');
-        $googleUser->shouldReceive('getAvatar')->andReturn('https://lh3.googleusercontent.com/a/default-user=s96-c');
-        $googleUser->shouldReceive('getName')->andReturn('Mocked Linked User');
-
-        $provider = \Mockery::mock('Laravel\Socialite\Contracts\Provider');
-        $provider->shouldReceive('userFromToken')->with('mock_token_12345')->andReturn($googleUser);
-
-        \Laravel\Socialite\Facades\Socialite::shouldReceive('driver')->with('google')->andReturn($provider);
+        // Mockear la verificación del ID token de Google (antes se mockeaba
+        // Socialite::userFromToken; ahora se verifica el ID token server-side).
+        $this->mock(\App\Services\GoogleIdTokenVerifier::class, function ($mock) {
+            $mock->shouldReceive('verify')->with('mock_token_12345')->andReturn([
+                'sub' => 'mock_google_id_linked_12345',
+                'email' => 'user_mocked_linked@gmail.com',
+                'name' => 'Mocked Linked User',
+                'picture' => 'https://lh3.googleusercontent.com/a/default-user=s96-c',
+            ]);
+        });
 
         $response = $this->postJson('/api/v1/user/google/link', [
             'token' => 'mock_token_12345'

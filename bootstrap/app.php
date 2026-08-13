@@ -17,7 +17,15 @@ return Application::configure(basePath: dirname(__DIR__))
         // él para leer X-Forwarded-* → esquema/host reales (links https correctos,
         // enlaces de verificación firmados válidos) y IP real del cliente (para
         // que el throttle por IP no agrupe a todos bajo la IP del proxy).
-        $middleware->trustProxies(at: '*');
+        //
+        // SEGURIDAD: NO confiar en '*' (cualquier upstream podría spoofear
+        // X-Forwarded-For y evadir el throttle por IP). Confiar solo en la red
+        // privada donde vive Traefik; ajustable con TRUSTED_PROXIES (ej. la IP/CIDR
+        // exacta del contenedor del proxy).
+        $trustedProxies = env('TRUSTED_PROXIES', '10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,fc00::/7');
+        $middleware->trustProxies(
+            at: array_map('trim', explode(',', $trustedProxies))
+        );
 
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,

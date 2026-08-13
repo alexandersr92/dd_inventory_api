@@ -5,48 +5,50 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
-use Laravel\Socialite\Facades\Socialite;
 use Symfony\Component\HttpFoundation\Response;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 use App\Services\GoogleOAuthConfigurator;
+use App\Services\GoogleIdTokenVerifier;
 
 class SocialAuthController extends Controller
 {
+    public function __construct(private GoogleIdTokenVerifier $idTokenVerifier)
+    {
+    }
+
     /**
-     * Autenticar o registrar un usuario usando Google OAuth (Token-based).
+     * Autenticar o registrar un usuario usando Google OAuth.
+     *
+     * SEGURIDAD: exige un *ID token* de Google (JWT firmado), NO un access token.
+     * El ID token se verifica del lado del servidor (firma + aud + iss +
+     * email_verified) para cerrar el confused-deputy que permitía usar un
+     * access token de otra app para tomar la cuenta.
      */
     public function handleGoogle(Request $request)
     {
         $request->validate([
-            'token' => 'required|string', // Token de acceso o ID token enviado desde el frontend
+            'token' => 'required|string', // ID token (JWT) emitido por Google para esta app
             'device_name' => 'required|string',
         ]);
 
-        // Aplicar la configuración dinámica guardada en BD
+        // Aplicar la configuración dinámica guardada en BD (client_id/secret)
         GoogleOAuthConfigurator::applyConfiguration();
 
         try {
-            // Obtener datos del usuario desde Google usando el token proveído
-            $googleUser = Socialite::driver('google')->userFromToken($request->token);
-        } catch (\Exception $e) {
+            $googleUser = $this->idTokenVerifier->verify($request->token);
+        } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Token de Google inválido o expirado.',
+                'message' => 'Token de Google inválido o no autorizado para esta aplicación.',
                 'error' => $e->getMessage()
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if (!$googleUser || !$googleUser->getEmail()) {
-            return response()->json([
-                'message' => 'No se pudo obtener información del perfil de Google.'
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $email = $googleUser->getEmail();
-        $googleId = $googleUser->getId();
-        $avatar = $googleUser->getAvatar();
-        $name = $googleUser->getName() ?? 'Usuario Google';
+        $email = $googleUser['email'];
+        $googleId = $googleUser['sub'];
+        $avatar = $googleUser['picture'];
+        $name = $googleUser['name'] ?? 'Usuario Google';
 
         // 1. Buscar si el usuario ya está vinculado a este google_id
         $user = User::where('google_id', $googleId)->first();
@@ -154,28 +156,22 @@ class SocialAuthController extends Controller
     public function linkGoogle(Request $request)
     {
         $request->validate([
-            'token' => 'required|string',
+            'token' => 'required|string', // ID token (JWT) de Google
         ]);
 
         GoogleOAuthConfigurator::applyConfiguration();
 
         try {
-            $googleUser = Socialite::driver('google')->userFromToken($request->token);
-        } catch (\Exception $e) {
+            $googleUser = $this->idTokenVerifier->verify($request->token);
+        } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Token de Google inválido o expirado.',
+                'message' => 'Token de Google inválido o no autorizado para esta aplicación.',
                 'error' => $e->getMessage()
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if (!$googleUser || !$googleUser->getEmail()) {
-            return response()->json([
-                'message' => 'No se pudo obtener información del perfil de Google.'
-            ], Response::HTTP_UNPROCESSABLE_ENTITY);
-        }
-
-        $googleId = $googleUser->getId();
-        $avatar = $googleUser->getAvatar();
+        $googleId = $googleUser['sub'];
+        $avatar = $googleUser['picture'];
         $currentUser = $request->user();
 
         // Verificar si la cuenta de Google ya está vinculada a otro usuario

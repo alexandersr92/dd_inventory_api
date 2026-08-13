@@ -46,7 +46,10 @@ return [
     |
     */
 
-    'expiration' => null,
+    // SEGURIDAD: acotar la vida del token (antes null = infinito). 90 días por
+    // defecto: suficiente para el POS offline sin dejar tokens eternos si se
+    // filtran. Ajustable con SANCTUM_EXPIRATION_MINUTES.
+    'expiration' => (int) env('SANCTUM_EXPIRATION_MINUTES', 60 * 24 * 90),
 
     /*
     |--------------------------------------------------------------------------

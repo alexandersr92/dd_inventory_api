@@ -56,13 +56,20 @@ class RoleController extends Controller
             return response()->json(['message' => 'Role name already exists'], Response::HTTP_CONFLICT);
         }
 
+        // SEGURIDAD: no permitir otorgar permisos que el actor no posee (evita
+        // que un sub-rol con role.store se auto-fabrique un rol con permisos
+        // superiores a los suyos).
+        $this->assertCanGrantPermissions($request->permissions ?? []);
+
         $orgID = Auth::user()->organization_id;
-        $request->merge(['organization_id' => $orgID]);
-        $role = Role::create($request->all());
+        // Campos server-side explícitos: organization_id nunca desde el request.
+        $role = Role::create([
+            'name' => $request->name,
+            'guard_name' => $request->guard_name,
+            'organization_id' => $orgID,
+        ]);
 
-
-        $permissions = $request->permissions;
-        $role->syncPermissions($permissions);
+        $role->syncPermissions($request->permissions);
         return response()->json(new RoleResource($role), Response::HTTP_CREATED);
     }
 
@@ -79,7 +86,12 @@ class RoleController extends Controller
         if (Role::where('name', $request->name)->where('organization_id', Auth::user()->organization_id)->where('uuid', '!=', $role->uuid)->exists()) {
             return response()->json(['message' => 'Role name already exists'], Response::HTTP_CONFLICT);
         }
-        $role->update($request->all());
+
+        // SEGURIDAD: mismo límite de subconjunto que en store().
+        $this->assertCanGrantPermissions($request->permissions ?? []);
+
+        // Whitelist explícito: nunca aceptar organization_id del request.
+        $role->update(['name' => $request->name]);
         $role->syncPermissions($request->permissions);
         return response()->json(new RoleResource($role), Response::HTTP_OK);
     }
@@ -88,7 +100,27 @@ class RoleController extends Controller
     {
         $this->authorize('delete', $role);
 
+        // SEGURIDAD: Role vive en la conexión 'central' y NO tiene global scope
+        // de tenant, así que el route-binding resuelve roles de cualquier
+        // organización. Sin este chequeo un admin borra el rol de otro tenant.
+        if ($role->organization_id != Auth::user()->organization_id) {
+            return response()->json(['message' => 'Role not found'], Response::HTTP_NOT_FOUND);
+        }
+
         $role->delete();
         return response()->json(null, Response::HTTP_NO_CONTENT);
+    }
+
+    /**
+     * Rechaza cualquier permiso solicitado que el usuario autenticado no posea.
+     * El Owner (que tiene todos los permisos) pasa siempre.
+     */
+    private function assertCanGrantPermissions(array $requested): void
+    {
+        $ownPermissions = Auth::user()->getAllPermissions()->pluck('name')->all();
+        $notAllowed = array_values(array_diff($requested, $ownPermissions));
+        if (!empty($notAllowed)) {
+            abort(Response::HTTP_FORBIDDEN, 'No puedes otorgar permisos que tú no posees: ' . implode(', ', $notAllowed));
+        }
     }
 }

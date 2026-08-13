@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\Product;
 
 
 use App\Http\Requests\StoreCategoryRequest;
@@ -13,11 +14,16 @@ use App\Http\Resources\CategoryResource;
 
 
 
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
 class CategoryController extends Controller
 {
+    // SEGURIDAD: este controlador no autorizaba nada -> un usuario sin permisos
+    // de producto podía borrar/renombrar toda la taxonomía. Reusa product.*.
+    use AuthorizesRequests;
+
     /**
      * Display a listing of the resource.
      */
@@ -35,6 +41,7 @@ class CategoryController extends Controller
      */
     public function store(StoreCategoryRequest $request)
     {
+        $this->authorize('create', Product::class);
         $orgId = Auth::user()->organization_id;
 
         $category = new Category();
@@ -55,6 +62,7 @@ class CategoryController extends Controller
      */
     public function update(UpdateCategoryRequest $request, Category $category)
     {
+        $this->authorize('update', Product::class);
 
         $category->name = $request->name;
         $category->save();
@@ -70,6 +78,7 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
+        $this->authorize('delete', Product::class);
 
         $category->delete();
 

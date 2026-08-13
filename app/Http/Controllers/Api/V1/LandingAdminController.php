@@ -16,7 +16,7 @@ class LandingAdminController extends Controller
     public function uploadMedia(Request $request)
     {
         $request->validate([
-            'file' => 'required|image|mimes:jpeg,png,jpg,gif,svg,webp|max:5120',
+            'file' => 'required|image|mimes:jpeg,png,jpg,gif,webp|max:5120',
         ]);
 
         $file = $request->file('file');
