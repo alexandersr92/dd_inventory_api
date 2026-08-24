@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\V1\DashboardController;
 use App\Http\Controllers\Api\V1\LandingPublicController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\SocialAuthController;
+use App\Http\Controllers\Api\V1\TerminalActivationController;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
@@ -57,6 +58,7 @@ Route::prefix('v1')->group(function () {
     Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword'])->middleware('throttle:6,1');
     Route::post('/reset-password', [PasswordResetController::class, 'resetPassword'])->middleware('throttle:6,1');
     Route::post('/auth/google', [SocialAuthController::class, 'handleGoogle'])->middleware('throttle:10,1');
+    Route::post('/terminals/claim-link', [TerminalActivationController::class, 'claimLink'])->middleware('throttle:10,1');
 
     // Reenviar el correo de verificación. Autenticado pero SIN tenant.switch:
     // un usuario recién registrado aún no tiene organización.
@@ -201,6 +203,7 @@ Route::prefix('v1')->group(function () {
             Route::delete('/sellers/{seller}/remove-stores', [SellerController::class, 'removeStores']);
             Route::post('/sellers/seller-login', [SellerController::class, 'sellerLogin']);
             Route::post('/sellers/generate-owner', [SellerController::class, 'generateOwnerSeller']);
+            Route::post('/terminals/magic-links', [TerminalActivationController::class, 'generateLink']);
         });
 
         // Module: reports
