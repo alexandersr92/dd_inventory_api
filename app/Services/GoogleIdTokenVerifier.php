@@ -43,9 +43,7 @@ class GoogleIdTokenVerifier
             // DB not reachable or table missing
         }
 
-        $fallbackClientId = '470254113600-3k9adm7v38t5rs78il1kfndoen238l72.apps.googleusercontent.com';
-
-        $allRaw = array_filter([$configClientId, $envClientId, $dbClientId, $fallbackClientId]);
+        $allRaw = array_filter([$configClientId, $envClientId, $dbClientId]);
         $allowedClientIds = [];
         foreach ($allRaw as $raw) {
             foreach (explode(',', (string) $raw) as $id) {
