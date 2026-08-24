@@ -340,10 +340,11 @@ class PurchasesController extends Controller
         $this->authorize('create', Purchases::class);
      
         $request->validate([
-            'file' => 'required|file|mimes:xlsx',
+            'file' => 'required|file|mimes:xlsx,xls,csv,txt',
         ]);
 
         $file = $request->file('file');
+        $orgId = Auth::user()->organization_id;
 
         // Arrays para los resultados
         $validExisting = [];
@@ -351,25 +352,27 @@ class PurchasesController extends Controller
         $invalid = [];
 
         // Leer archivo en chunks para evitar problemas de memoria
-        Excel::import(new class($validExisting, $validNew, $invalid) implements \Maatwebsite\Excel\Concerns\ToCollection {
+        Excel::import(new class($validExisting, $validNew, $invalid, $orgId) implements \Maatwebsite\Excel\Concerns\ToCollection {
             private $validExisting;
             private $validNew;
             private $invalid;
+            private $orgId;
 
-            public function __construct(&$validExisting, &$validNew, &$invalid)
+            public function __construct(&$validExisting, &$validNew, &$invalid, $orgId)
             {
                 $this->validExisting = &$validExisting;
                 $this->validNew = &$validNew;
                 $this->invalid = &$invalid;
+                $this->orgId = $orgId;
             }
 
             public function collection(Collection $rows)
             {
                 foreach ($rows->skip(1) as $index => $row) { // Saltar encabezados
-                    $sku = trim($row[0]);
-                    $price = trim($row[5]);
-                    $quantity = trim($row[6]);
-                    $cost = trim($row[7]);
+                    $sku = trim((string) ($row[0] ?? ''));
+                    $price = trim((string) ($row[5] ?? ''));
+                    $quantity = trim((string) ($row[6] ?? ''));
+                    $cost = trim((string) ($row[7] ?? ''));
 
                     $errors = [];
 
@@ -383,44 +386,44 @@ class PurchasesController extends Controller
                         $errors[] = 'El SKU está vacío';
                     }
 
-                    if (empty($price) || !is_numeric(str_replace('C$', '', $price))) {
+                    $cleanPrice = str_replace(['C$', '$', ' '], '', $price);
+                    if ($cleanPrice === '' || !is_numeric($cleanPrice)) {
                         $errors[] = 'El precio no es válido';
                     }
 
-                    if (empty($quantity) || !is_numeric($quantity)) {
+                    if ($quantity === '' || !is_numeric($quantity)) {
                         $errors[] = 'La cantidad no es válida';
                     }
 
-                    if (empty($cost) || !is_numeric(str_replace('C$', '', $cost))) {
+                    $cleanCost = str_replace(['C$', '$', ' '], '', $cost);
+                    if ($cleanCost === '' || !is_numeric($cleanCost)) {
                         $errors[] = 'El costo no es válido';
                     }
 
-                    // Verificar si existe el SKU en la base de datos
-                    $exists = Product::where('sku', $sku)->exists();
+                    // Verificar si existe el SKU en la base de datos para esta organización
+                    $product = Product::where('organization_id', $this->orgId)->where('sku', $sku)->first();
 
                     if (empty($errors)) {
                         // Datos válidos
-                        if ($exists) {
+                        if ($product) {
                             $this->validExisting[] = [
-                                'product_id' => Product::where('sku', $sku)->first()->id,
+                                'product_id' => $product->id,
                                 'sku' => $sku,
-                                'product_name' => trim($row[3]),
-                                'barcode' => trim($row[4]),
-                                'quantity' => (int)$quantity,
-                                'price' => (float)str_replace('C$', '', $price),
-                                'cost' => (float)str_replace('C$', '', $cost),
+                                'product_name' => trim((string) ($row[3] ?? '')),
+                                'barcode' => trim((string) ($row[4] ?? '')),
+                                'quantity' => (float)$quantity,
+                                'price' => (float)$cleanPrice,
+                                'cost' => (float)$cleanCost,
                             ];
-
-                            
                         } else {
                             $this->validNew[] = [
                                 'product_id' => null,
                                 'sku' => $sku,
-                                'product_name' => trim($row[3]),
-                                'barcode' => trim($row[4]),
-                                'price' => (float)str_replace('C$', '', $price),
-                                'quantity' => (int)$quantity,
-                                'cost' => (float)str_replace('C$', '', $cost),
+                                'product_name' => trim((string) ($row[3] ?? '')),
+                                'barcode' => trim((string) ($row[4] ?? '')),
+                                'price' => (float)$cleanPrice,
+                                'quantity' => (float)$quantity,
+                                'cost' => (float)$cleanCost,
                             ];
                         }
                     } else {
@@ -430,8 +433,8 @@ class PurchasesController extends Controller
                             'errors' => $errors,
                             'data' => [
                                 'sku' => $sku,
-                                'product_name' => trim($row[3]),
-                                'barcode' => trim($row[4]),
+                                'product_name' => trim((string) ($row[3] ?? '')),
+                                'barcode' => trim((string) ($row[4] ?? '')),
                                 'price' => $price,
                                 'quantity' => $quantity,
                                 'cost' => $cost,
