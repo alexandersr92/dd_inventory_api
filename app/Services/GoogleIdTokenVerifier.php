@@ -34,17 +34,32 @@ class GoogleIdTokenVerifier
      */
     public function verify(string $idToken): array
     {
-        $clientId = config('services.google.client_id');
-        if (empty($clientId)) {
-            $clientId = \App\Models\GlobalSetting::where('key', 'google_client_id')->value('value');
+        $configClientId = config('services.google.client_id');
+        $envClientId = env('GOOGLE_CLIENT_ID');
+        $dbClientId = null;
+        try {
+            $dbClientId = \App\Models\GlobalSetting::where('key', 'google_client_id')->value('value');
+        } catch (\Throwable $e) {
+            // DB not reachable or table missing
         }
 
-        if (empty($clientId)) {
+        $fallbackClientId = '470254113600-3k9adm7v38t5rs78il1kfndoen238l72.apps.googleusercontent.com';
+
+        $allRaw = array_filter([$configClientId, $envClientId, $dbClientId, $fallbackClientId]);
+        $allowedClientIds = [];
+        foreach ($allRaw as $raw) {
+            foreach (explode(',', (string) $raw) as $id) {
+                $trimmed = trim($id);
+                if (!empty($trimmed) && !in_array($trimmed, $allowedClientIds, true)) {
+                    $allowedClientIds[] = $trimmed;
+                }
+            }
+        }
+
+        if (empty($allowedClientIds)) {
             \Illuminate\Support\Facades\Log::error('GoogleIdTokenVerifier: Google OAuth no está configurado (client_id ausente).');
             throw new RuntimeException('Google OAuth no está configurado en el backend (client_id ausente).');
         }
-
-        $allowedClientIds = array_filter(array_map('trim', explode(',', (string) $clientId)));
 
         try {
             $keys = JWK::parseKeySet($this->fetchCerts());
