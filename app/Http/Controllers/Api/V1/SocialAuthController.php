@@ -39,8 +39,9 @@ class SocialAuthController extends Controller
         try {
             $googleUser = $this->idTokenVerifier->verify($request->token);
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('SocialAuthController handleGoogle error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Token de Google inválido o no autorizado para esta aplicación.',
+                'message' => $e->getMessage(),
                 'error' => $e->getMessage()
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
@@ -164,8 +165,9 @@ class SocialAuthController extends Controller
         try {
             $googleUser = $this->idTokenVerifier->verify($request->token);
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('SocialAuthController linkGoogle error: ' . $e->getMessage());
             return response()->json([
-                'message' => 'Token de Google inválido o no autorizado para esta aplicación.',
+                'message' => $e->getMessage(),
                 'error' => $e->getMessage()
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
