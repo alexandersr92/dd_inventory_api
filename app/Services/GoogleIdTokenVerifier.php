@@ -36,27 +36,62 @@ class GoogleIdTokenVerifier
     {
         $clientId = config('services.google.client_id');
         if (empty($clientId)) {
-            throw new RuntimeException('Google OAuth no está configurado (client_id ausente).');
+            $clientId = \App\Models\GlobalSetting::where('key', 'google_client_id')->value('value');
         }
+
+        if (empty($clientId)) {
+            \Illuminate\Support\Facades\Log::error('GoogleIdTokenVerifier: Google OAuth no está configurado (client_id ausente).');
+            throw new RuntimeException('Google OAuth no está configurado en el backend (client_id ausente).');
+        }
+
+        $allowedClientIds = array_filter(array_map('trim', explode(',', (string) $clientId)));
 
         try {
             $keys = JWK::parseKeySet($this->fetchCerts());
             // JWT::decode valida firma + exp + nbf/iat.
             $claims = (array) JWT::decode($idToken, $keys);
         } catch (\Throwable $e) {
-            throw new RuntimeException('ID token de Google inválido o expirado.', 0, $e);
+            \Illuminate\Support\Facades\Log::error('GoogleIdTokenVerifier: JWT decode error: ' . $e->getMessage(), [
+                'exception' => $e->getMessage()
+            ]);
+            throw new RuntimeException('ID token de Google inválido o expirado (' . $e->getMessage() . ').', 0, $e);
         }
 
-        // aud: cierra el confused-deputy — el token debe haber sido emitido para NUESTRO client_id.
+        // aud / azp: cierra el confused-deputy — el token debe haber sido emitido para NUESTRO client_id.
         $aud = $claims['aud'] ?? null;
-        if ($aud !== $clientId) {
-            throw new RuntimeException('El ID token no fue emitido para esta aplicación.');
+        $azp = $claims['azp'] ?? null;
+
+        $tokenAudiences = array_filter(array_merge(
+            is_array($aud) ? $aud : [$aud],
+            is_array($azp) ? [$azp] : []
+        ));
+
+        $matched = false;
+        foreach ($allowedClientIds as $allowedId) {
+            if (in_array($allowedId, $tokenAudiences, true)) {
+                $matched = true;
+                break;
+            }
+        }
+
+        if (!$matched) {
+            \Illuminate\Support\Facades\Log::warning('GoogleIdTokenVerifier: Audience mismatch', [
+                'token_aud' => $aud,
+                'token_azp' => $azp,
+                'allowed_client_ids' => $allowedClientIds,
+            ]);
+            $received = is_array($aud) ? implode(', ', $aud) : (string)$aud;
+            throw new RuntimeException('El ID token no fue emitido para esta aplicación (Client ID recibido: ' . $received . ').');
         }
 
         // iss
         $iss = $claims['iss'] ?? null;
         if (!in_array($iss, self::ALLOWED_ISS, true)) {
-            throw new RuntimeException('Emisor del ID token no confiable.');
+            \Illuminate\Support\Facades\Log::warning('GoogleIdTokenVerifier: Issuer mismatch', [
+                'token_iss' => $iss,
+                'allowed_iss' => self::ALLOWED_ISS,
+            ]);
+            throw new RuntimeException('Emisor del ID token no confiable (' . $iss . ').');
         }
 
         // email verificado
