@@ -116,10 +116,25 @@ class InventoryController extends Controller
             ->with(['product.categories', 'product.tags']);
 
         if ($search) {
-            $query->whereHas('product', function ($q) use ($search) {
-                $q->where('name', 'like', "%$search%")
-                ->orWhere('sku', 'like', "%$search%")
-                ->orWhere('barcode', 'like', "%$search%");
+            $terms = array_values(array_filter(explode(' ', trim($search)), fn($t) => strlen(trim($t)) > 0));
+            $query->whereHas('product', function ($q) use ($search, $terms) {
+                $q->where(function ($sub) use ($search, $terms) {
+                    $sub->where('name', 'like', "%$search%")
+                        ->orWhere('sku', 'like', "%$search%")
+                        ->orWhere('barcode', 'like', "%$search%");
+
+                    if (count($terms) > 1) {
+                        $sub->orWhere(function ($multiQ) use ($terms) {
+                            foreach ($terms as $term) {
+                                $multiQ->where(function ($termQ) use ($term) {
+                                    $termQ->where('name', 'like', "%$term%")
+                                          ->orWhere('sku', 'like', "%$term%")
+                                          ->orWhere('barcode', 'like', "%$term%");
+                                });
+                            }
+                        });
+                    }
+                });
             });
         }
 
@@ -180,10 +195,25 @@ class InventoryController extends Controller
             })->get();
         } else if ($request->has('search')){
             $search = $request->query('search');
-            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($search) {
-                $query->where('name', 'like', '%' . $search . '%')
-                    ->orWhere('sku', 'like', '%' . $search . '%')
-                    ->orWhere('barcode', 'like', '%' . $search . '%');
+            $terms = array_values(array_filter(explode(' ', trim($search)), fn($t) => strlen(trim($t)) > 0));
+            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($search, $terms) {
+                $query->where(function ($sub) use ($search, $terms) {
+                    $sub->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('sku', 'like', '%' . $search . '%')
+                        ->orWhere('barcode', 'like', '%' . $search . '%');
+
+                    if (count($terms) > 1) {
+                        $sub->orWhere(function ($multiQ) use ($terms) {
+                            foreach ($terms as $term) {
+                                $multiQ->where(function ($termQ) use ($term) {
+                                    $termQ->where('name', 'like', "%$term%")
+                                          ->orWhere('sku', 'like', "%$term%")
+                                          ->orWhere('barcode', 'like', "%$term%");
+                                });
+                            }
+                        });
+                    }
+                });
             })->get();
         } else if ($request->has('category')) {
             $category = $request->query('category');
