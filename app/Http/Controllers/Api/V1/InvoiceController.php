@@ -120,8 +120,12 @@ class InvoiceController extends Controller
 
      
         if($seller_id) {
-          
             $query->where('seller_id', $seller_id);
+        }
+
+        $cash_session_id = $request->query('cash_session_id');
+        if ($cash_session_id) {
+            $query->where('cash_session_id', $cash_session_id);
         }
 
 

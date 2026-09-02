@@ -129,12 +129,18 @@ class ProductController extends Controller
         }
 
         if ($request->has('suppliers')) {
-            $suppliers = explode(',', $request->suppliers);
+            $rawSuppliers = $request->suppliers;
+            $suppliersList = is_array($rawSuppliers)
+                ? $rawSuppliers
+                : (is_string($rawSuppliers) ? explode(',', $rawSuppliers) : [$rawSuppliers]);
 
-            foreach ($suppliers as $supplier) {
-                // Asegúrate de que el proveedor exista antes de adjuntarlo
-                if (Supplier::find($supplier)) {
-                    $product->suppliers()->attach($supplier);
+            foreach ($suppliersList as $s) {
+                $supplierId = is_array($s) ? ($s['id'] ?? null) : trim((string)$s);
+                if (!empty($supplierId)) {
+                    $foundSupplier = Supplier::find($supplierId);
+                    if ($foundSupplier) {
+                        $product->suppliers()->attach($foundSupplier->id);
+                    }
                 }
             }
         }
@@ -241,42 +247,56 @@ class ProductController extends Controller
 
 
         if ($request->has('categories')) {
-            $categories = explode(',', $request->categories);
+            $rawCategories = $request->input('categories');
+            $categoriesList = is_array($rawCategories)
+                ? $rawCategories
+                : (is_string($rawCategories) && strlen(trim($rawCategories)) > 0 ? explode(',', $rawCategories) : []);
 
-            $product->categories()->detach();
-
-            foreach ($categories as $category) {
-                // Asegúrate de que la categoría exista antes de adjuntarla
-                if (Category::find($category)) {
-                    $product->categories()->attach($category);
+            $validCategoryIds = [];
+            foreach ($categoriesList as $category) {
+                $catId = is_array($category) ? ($category['id'] ?? null) : trim((string)$category);
+                if (!empty($catId) && Category::find($catId)) {
+                    $validCategoryIds[] = $catId;
                 }
             }
+            $product->categories()->sync($validCategoryIds);
         }
 
         if ($request->has('tags')) {
-            $tags = explode(',', $request->tags);
+            $rawTags = $request->input('tags');
+            $tagsList = is_array($rawTags)
+                ? $rawTags
+                : (is_string($rawTags) && strlen(trim($rawTags)) > 0 ? explode(',', $rawTags) : []);
 
-            $product->tags()->detach();
-
-            foreach ($tags as $tag) {
-                // Asegúrate de que la etiqueta exista antes de adjuntarla
-                if (Tag::find($tag)) {
-                    $product->tags()->attach($tag);
+            $validTagIds = [];
+            foreach ($tagsList as $tag) {
+                $tagId = is_array($tag) ? ($tag['id'] ?? null) : trim((string)$tag);
+                if (!empty($tagId) && Tag::find($tagId)) {
+                    $validTagIds[] = $tagId;
                 }
             }
+            $product->tags()->sync($validTagIds);
         }
 
         if ($request->has('suppliers')) {
-            $suppliers = explode(',', $request->suppliers);
+            $rawSuppliers = $request->input('suppliers');
+            $suppliersList = is_array($rawSuppliers)
+                ? $rawSuppliers
+                : (is_string($rawSuppliers) && strlen(trim($rawSuppliers)) > 0 ? explode(',', $rawSuppliers) : []);
 
-            $product->suppliers()->detach();
-
-            foreach ($suppliers as $supplier) {
-                // Asegúrate de que el proveedor exista antes de adjuntarlo
-                if (Supplier::find($supplier)) {
-                    $product->suppliers()->attach($supplier);
+            $validSupplierIds = [];
+            foreach ($suppliersList as $s) {
+                $supplierId = is_array($s) ? ($s['id'] ?? null) : trim((string)$s);
+                if (!empty($supplierId)) {
+                    $foundSupplier = Supplier::find($supplierId);
+                    if ($foundSupplier) {
+                        $validSupplierIds[] = $foundSupplier->id;
+                    }
                 }
             }
+
+            $product->suppliers()->sync($validSupplierIds);
+            $product->load('suppliers');
         }
 
 

@@ -25,7 +25,7 @@ class StoreProductRequest extends FormRequest
             'sku' => ['string', 'max:255'],
             'barcode' => ['string', 'max:255', 'unique:products,barcode', 'nullable'],
             'name' => ['required', 'string', 'max:255'],
-            'description' => ['string'],
+            'description' => ['nullable', 'string'],
             // SEGURIDAD: sin 'svg' (un SVG puede llevar <script>/onload y se sirve inline).
             'image' => 'image|mimes:jpeg,png,jpg,webp,gif|max:2048',
             'cost' => ['required', 'numeric'],
