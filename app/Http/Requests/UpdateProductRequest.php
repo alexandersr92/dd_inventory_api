@@ -23,15 +23,18 @@ class UpdateProductRequest extends FormRequest
     {
         return [
             'sku' => ['string', 'max:255'],
-            'barcode' => ['string', 'max:255'],
+            'barcode' => ['nullable', 'string', 'max:255'],
             'name' => ['string', 'max:255'],
-            'description' => ['string'],
+            'description' => ['nullable', 'string'],
             'cost' => ['numeric'],
             'price' => ['numeric'],
             'min_stock' => ['numeric'],
             'unit_of_measure' => ['string', 'max:255'],
             'inventory' => ['nullable', 'string'],
             'update_all_inventories' => ['nullable', 'boolean'],
+            'suppliers' => ['nullable'],
+            'categories' => ['nullable'],
+            'tags' => ['nullable'],
         ];
     }
 }
