@@ -9,6 +9,7 @@ enum ReportType: string
     case SALES = 'sales';
     case EXPENSES = 'expenses';
     case CREDITS = 'credits';
+    case INVENTORY_MARGINS = 'inventory_margins';
 
     public static function values(): array
     {

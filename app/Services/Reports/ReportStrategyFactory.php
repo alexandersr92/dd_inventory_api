@@ -19,6 +19,8 @@ class ReportStrategyFactory
                 return new ExpensesReportStrategy();
             case 'credits':
                 return new CreditsReportStrategy();
+            case 'inventory_margins':
+                return new InventoryMarginsReportStrategy();
             default:
                 throw new InvalidArgumentException("Report type [{$type}] is not supported.");
         }
