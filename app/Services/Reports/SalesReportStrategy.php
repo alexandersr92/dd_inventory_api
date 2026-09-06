@@ -75,7 +75,8 @@ class SalesReportStrategy extends BaseReportStrategy
                 $qty = $detail->quantity ?? 0;
                 $product = $detail->product;
                 if ($product) {
-                    $costoTotal += ($product->cost * $qty);
+                    $unitCost = $detail->cost ?? $product->cost ?? 0;
+                    $costoTotal += ($unitCost * $qty);
 
                     if (!isset($productosVendidos[$product->id])) {
                         $productosVendidos[$product->id] = ['name' => $product->name, 'total_vendido' => 0, 'ingresos' => 0];

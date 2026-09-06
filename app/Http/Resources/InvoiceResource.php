@@ -44,6 +44,7 @@ class InvoiceResource extends JsonResource
                     'inventory_id' => $invoiceDetail->inventory_id,
                     'quantity' => $invoiceDetail->quantity,
                     'price' => $invoiceDetail->price,
+                    'cost' => $invoiceDetail->cost,
                     'total' => $invoiceDetail->total,
                     'discount' => $invoiceDetail->discount,
                     'tax' => $invoiceDetail->tax,
