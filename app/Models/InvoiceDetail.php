@@ -17,6 +17,7 @@ class InvoiceDetail extends Model
         'inventory_id',
         'quantity',
         'price',
+        'cost',
         'total',
         'discount',
         'tax',
