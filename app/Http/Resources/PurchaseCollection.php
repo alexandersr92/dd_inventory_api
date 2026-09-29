@@ -23,6 +23,7 @@ class PurchaseCollection extends ResourceCollection
             'inventory' => $purchase->inventory->name,
             'total' => $purchase->total,
             'purchase_date' => $purchase->purchase_date,
+            'invoice_number' => $purchase->invoice_number,
             'purchase_note' => $purchase->purchase_note,
             'status' => $purchase->status,
             'total_items' => $purchase->total_items,

@@ -21,6 +21,7 @@ class Purchases extends Model
         'inventory_id',
         'total',
         'purchase_date',
+        'invoice_number',
         'purchase_note',
         'total_items',
         'status',

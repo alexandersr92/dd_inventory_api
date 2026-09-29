@@ -28,6 +28,7 @@ class StorePurchaseRequest extends FormRequest
             'inventory_id' => 'required|uuid|exists:inventories,id',
             'total' => 'required|numeric',
             'purchase_date' => 'required|date',
+            'invoice_number' => 'nullable|string|max:255',
             'purchase_note' => 'nullable|string',
             'total_items' => 'required|numeric',
             'products' => 'required',

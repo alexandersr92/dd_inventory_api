@@ -85,6 +85,7 @@ class PurchasesController extends Controller
         $purchase->inventory_id = $request->inventory_id;
         $purchase->total = $request->total;
         $purchase->purchase_date = $request->purchase_date;
+        $purchase->invoice_number = $request->invoice_number;
         $purchase->purchase_note = $request->purchase_note;
         $purchase->total_items = $request->total_items;
         $purchase->save();
@@ -196,6 +197,9 @@ class PurchasesController extends Controller
     public function update(Request $request, Purchases $purchase)
     {
         $this->authorize('update', $purchase);
+        $validated = $request->validate([
+            'invoice_number' => 'sometimes|nullable|string|max:255',
+        ]);
         $orgId = Auth::user()->organization_id;
         //obtener la compra actual 
         $inventoryID = $purchase->inventory_id;
@@ -253,6 +257,9 @@ class PurchasesController extends Controller
         }
 
         //update purchase header
+        if (array_key_exists('invoice_number', $validated)) {
+            $purchase->invoice_number = $validated['invoice_number'];
+        }
         $purchase->store_id = $request->store_id;
         $purchase->supplier_id = $request->supplier_id;
         $purchase->inventory_id = $request->inventory_id;
@@ -452,5 +459,4 @@ class PurchasesController extends Controller
         ]);
     }
 }
-
 

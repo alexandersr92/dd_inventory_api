@@ -38,6 +38,7 @@ class PurchaseResource extends JsonResource
             'inventory_name' => $this->inventory->name,
             'total' => $this->total,
             'purchase_date' => $this->purchase_date,
+            'invoice_number' => $this->invoice_number,
             'purchase_note' => $this->purchase_note,
             'status' => $this->status,
             'total_items' => $this->total_items,
