@@ -98,7 +98,7 @@ class LoginController extends Controller
                 'organization' => $orgData,
                 'must_change_password' => (bool)$user->must_change_password,
             ],
-            'token' => $user->createToken($request->device_name)->plainTextToken,
+            'token' => $user->createToken($request->device_name, \App\Support\CustomJobs::tokenAbilities($request))->plainTextToken,
         ], Response::HTTP_OK); //200
     }
 
@@ -168,7 +168,7 @@ class LoginController extends Controller
                         'name' => $user->name,
                         'organization_id' => $user->organization_id,
                     ],
-                    'token' => $user->createToken($request->device_name)->plainTextToken,
+                    'token' => $user->createToken($request->device_name, \App\Support\CustomJobs::tokenAbilities($request))->plainTextToken,
                 ]
             ], Response::HTTP_CREATED); //201
         }

@@ -32,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
             'role_or_permission' => \Spatie\Permission\Middleware\RoleOrPermissionMiddleware::class,
             'tenant.switch' => \App\Http\Middleware\TenantDatabaseSwitcher::class,
+            'custom_jobs' => \App\Http\Middleware\CustomJobsAccess::class,
             'module' => \App\Http\Middleware\TenantModuleAccess::class,
         ]);
 

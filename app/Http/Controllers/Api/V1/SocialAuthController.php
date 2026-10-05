@@ -147,7 +147,7 @@ class SocialAuthController extends Controller
                 'avatar' => $user->avatar,
                 'google_id' => $user->google_id,
             ],
-            'token' => $user->createToken($request->device_name)->plainTextToken,
+            'token' => $user->createToken($request->device_name, \App\Support\CustomJobs::tokenAbilities($request))->plainTextToken,
         ], Response::HTTP_OK);
     }
 

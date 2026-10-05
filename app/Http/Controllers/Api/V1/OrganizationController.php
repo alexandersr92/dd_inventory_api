@@ -104,7 +104,7 @@ class OrganizationController extends Controller
                 $organization->update(['license_expires_at' => $trialExpiresAt]);
 
                 // 2. Asociar todos los módulos activos del sistema a esta nueva organización
-                $modules = Module::where('status', 'active')->get();
+                $modules = Module::availableByDefault()->get();
                 if ($modules->isEmpty()) {
                     throw new \Exception('No active modules found in system database. Please run seeders first.');
                 }

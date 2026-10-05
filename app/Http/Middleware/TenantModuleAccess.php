@@ -14,6 +14,10 @@ class TenantModuleAccess
      */
     public function handle(Request $request, Closure $next, string $moduleSlug): Response
     {
+        if ($moduleSlug === \App\Support\CustomJobs::MODULE) {
+            return app(CustomJobsAccess::class)->handle($request, $next);
+        }
+
         $tenant = TenantManager::getTenant();
 
         if ($tenant) {

@@ -53,6 +53,10 @@ Route::prefix('v1')->group(function () {
 
     // SEGURIDAD: throttle en los endpoints públicos de auth (fuerza bruta / abuso).
     // Con trustProxies pineado, el límite es por IP real del cliente.
+    Route::post('/admin/login', [LoginController::class, 'login'])->name('api.admin.login')->middleware('throttle:10,1');
+    Route::post('/admin/register', [LoginController::class, 'registerOwner'])->name('api.admin.register')->middleware('throttle:10,1');
+    Route::post('/admin/auth/google', [SocialAuthController::class, 'handleGoogle'])->name('api.admin.google')->middleware('throttle:10,1');
+
     Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:10,1');
     Route::post('/register', [LoginController::class, 'registerOwner'])->middleware('throttle:10,1');
     Route::post('/forgot-password', [PasswordResetController::class, 'forgotPassword'])->middleware('throttle:6,1');
@@ -70,6 +74,9 @@ Route::prefix('v1')->group(function () {
     Route::get('/landing/plans', [LandingPublicController::class, 'getPublicPlans']);
 
     Route::middleware(['auth:sanctum', 'tenant.switch'])->group(function () {
+        Route::get('/custom-jobs/access', \App\Http\Controllers\Api\V1\CustomJobsAccessController::class)
+            ->middleware('module:custom_jobs');
+
             //Excel Reports
             Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
             Route::get('inventories/export', [InventoryController::class, 'exportInventory']);

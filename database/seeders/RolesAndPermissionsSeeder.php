@@ -15,6 +15,8 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     public function run(): void
     {
+        $this->call(CustomJobsAccessSeeder::class);
+
         // 1. Seed Modules
         $modulesData = [
             [

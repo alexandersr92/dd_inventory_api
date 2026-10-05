@@ -22,6 +22,11 @@ class Module extends Model
         'status',
     ];
 
+    public function scopeAvailableByDefault(\Illuminate\Database\Eloquent\Builder $query): void
+    {
+        $query->where('status', 'active')->where('slug', '!=', \App\Support\CustomJobs::MODULE);
+    }
+
     public function organization()
     {
         return $this->belongsToMany(Organization::class, 'organization_modules')

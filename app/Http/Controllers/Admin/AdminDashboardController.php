@@ -449,7 +449,7 @@ class AdminDashboardController extends Controller
             $user->update(['organization_id' => $organization->id]);
 
             // 4. Associate all active modules
-            $modules = Module::where('status', 'active')->get();
+            $modules = Module::availableByDefault()->get();
             foreach ($modules as $mod) {
                 $organization->modules()->syncWithoutDetaching([$mod->id => ['status' => 'active']]);
             }
