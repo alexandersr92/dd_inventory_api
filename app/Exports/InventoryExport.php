@@ -28,6 +28,8 @@ class InventoryExport implements FromCollection, WithHeadings, WithColumnFormatt
                 self::csvSafe((string) ($product['sku'] ?? '')),
                 self::csvSafe($product['tags'] ?? ''),
                 self::csvSafe($product['category'] ?? ''),
+                ['sale' => 'Venta', 'supply' => 'Insumo', 'both' => 'Ambos'][$product['product_usage'] ?? 'sale'],
+                self::csvSafe($product['unit_of_measure'] ?? ''),
             ];
         });
     }
@@ -58,6 +60,8 @@ class InventoryExport implements FromCollection, WithHeadings, WithColumnFormatt
             'SKU',
             'Etiquetas',
             'Categoría',
+            'Uso',
+            'Unidad base',
         ];
     }
 
@@ -65,7 +69,7 @@ class InventoryExport implements FromCollection, WithHeadings, WithColumnFormatt
     {
         return [
             'D' => NumberFormat::FORMAT_NUMBER_00, // Costo con dos decimales (opcional)
-            'E' => NumberFormat::FORMAT_NUMBER_00, // Costo con dos decimales (opcional)
+            'E' => '0.########', // Costo con dos decimales (opcional)
             'F' => NumberFormat::FORMAT_TEXT, // Código de Barras (ahora está en G)
             'G' => NumberFormat::FORMAT_TEXT, // SKU (opcional, está en H)
         ];

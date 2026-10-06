@@ -115,6 +115,11 @@ class InventoryController extends Controller
         $query = $inventory->inventoryDetails()
             ->with(['product.categories', 'product.tags']);
 
+        $request->validate(['product_usage' => 'sometimes|in:sale,supply,both', 'purpose' => 'sometimes|in:all,sale,material']);
+        if ($request->filled('product_usage')) $query->whereHas('product', fn ($q) => $q->where('product_usage', $request->product_usage));
+        if ($request->query('purpose') === 'material') $query->whereHas('product', fn ($q) => $q->material());
+        if ($request->query('purpose') === 'sale') $query->whereHas('product', fn ($q) => $q->sellable());
+
         if ($search) {
             $terms = array_values(array_filter(explode(' ', trim($search)), fn($t) => strlen(trim($t)) > 0));
             $query->whereHas('product', function ($q) use ($search, $terms) {
@@ -183,48 +188,20 @@ class InventoryController extends Controller
     public function showProducts(Inventory $inventory, Request $request)
     {
         $this->authorize('view', $inventory);
-        if ($request->has('barcode')) {
-            $barcode = $request->query('barcode');
-            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($barcode) {
-                $query->where('barcode', $barcode);
-            })->get();
-        } else if ($request->has('sku')) {
-            $sku = $request->query('sku');
-            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($sku) {
-                $query->where('sku', $sku);
-            })->get();
-        } else if ($request->has('search')){
-            $search = $request->query('search');
-            $terms = array_values(array_filter(explode(' ', trim($search)), fn($t) => strlen(trim($t)) > 0));
-            $inventoryDetails = InventoryDetail::whereHas('product', function ($query) use ($search, $terms) {
-                $query->where(function ($sub) use ($search, $terms) {
-                    $sub->where('name', 'like', '%' . $search . '%')
-                        ->orWhere('sku', 'like', '%' . $search . '%')
-                        ->orWhere('barcode', 'like', '%' . $search . '%');
-
-                    if (count($terms) > 1) {
-                        $sub->orWhere(function ($multiQ) use ($terms) {
-                            foreach ($terms as $term) {
-                                $multiQ->where(function ($termQ) use ($term) {
-                                    $termQ->where('name', 'like', "%$term%")
-                                          ->orWhere('sku', 'like', "%$term%")
-                                          ->orWhere('barcode', 'like', "%$term%");
-                                });
-                            }
-                        });
-                    }
-                });
-            })->get();
-        } else if ($request->has('category')) {
-            $category = $request->query('category');
-
-            $inventoryDetails = InventoryDetail::whereHas('product.categories', function ($query) use ($category) {
-                $query->where('id', $category);
-            })->get();
-
-        } else {
-            $inventoryDetails = $inventory->inventoryDetails;
-        }
+        $request->validate(['purpose' => 'sometimes|in:all,sale,material', 'product_usage' => 'sometimes|in:sale,supply,both']);
+        $query = $inventory->inventoryDetails()->with(['product.tags', 'product.categories']);
+        $purpose = $request->query('purpose', 'sale');
+        $query->whereHas('product', function ($q) use ($request, $purpose) {
+            if ($purpose === 'sale') $q->sellable();
+            if ($purpose === 'material') $q->material();
+            if ($request->filled('product_usage')) $q->where('product_usage', $request->product_usage);
+            foreach (['sku', 'barcode'] as $field) if ($request->filled($field)) $q->where($field, $request->$field);
+            if ($request->filled('search')) $q->where(function ($sub) use ($request) {
+                foreach (['name', 'sku', 'barcode'] as $field) $sub->orWhere($field, 'like', '%'.$request->search.'%');
+            });
+        });
+        if ($request->filled('category')) $query->whereHas('product.categories', fn ($q) => $q->where('id', $request->category));
+        $inventoryDetails = $query->get();
 
         return new InventoryDetailCollection($inventoryDetails);
     }
@@ -385,6 +362,7 @@ class InventoryController extends Controller
                       ->orWhere('barcode', 'like', "%$search%");
                 });
             })
+            ->whereHas('product', fn ($q) => $q->sellable())
             ->with('product') // Carga la relación para evitar N+1
             ->get();
 

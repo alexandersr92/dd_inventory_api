@@ -65,6 +65,7 @@ class AppServiceProvider extends ServiceProvider
         ], \App\Listeners\NotificationDispatcher::class);
 
         // Registro de observador de stock para WooCommerce
+        \App\Models\Product::observe(\App\Observers\ProductUsageObserver::class);
         \App\Models\InventoryDetail::observe(\App\Observers\InventoryDetailObserver::class);
     }
 }

@@ -229,6 +229,7 @@ class InvoiceController extends Controller
                 }
             }
 
+            if ($e instanceof \Illuminate\Validation\ValidationException) throw $e;
             report($e);
             return response()->json(['message' => 'Error al procesar la factura.', 'error' => $e->getMessage()], 500);
         }
@@ -341,6 +342,7 @@ class InvoiceController extends Controller
                     ]);
                 }
 
+                $productObj->assertSellable();
                 $prodId = $productObj->id;
 
                 // Asegurar que exista el detalle de inventario
@@ -356,12 +358,15 @@ class InvoiceController extends Controller
                 }
             }
 
+            $saleProduct = Product::findOrFail($prodId);
+            $saleProduct->assertSellable();
+
             $processedProducts[] = [
                 'product_id' => $prodId,
                 'inventory_id' => $invId,
                 'quantity' => $qty,
                 'price' => $price,
-                'cost' => Product::find($prodId)?->cost ?? 0,
+                'cost' => $saleProduct->cost ?? 0,
                 'total' => $product['total'] ?? ($price * $qty),
                 'discount' => $product['discount'] ?? 0,
                 'tax' => $product['tax'] ?? 0,
@@ -693,6 +698,7 @@ class InvoiceController extends Controller
         } catch (\Throwable $e) {
             DB::rollBack();
             $lock->release();
+            if ($e instanceof \Illuminate\Validation\ValidationException) throw $e;
             report($e);
             return response()->json(['message' => 'Error al reemplazar la factura.', 'error' => $e->getMessage()], 500);
         }

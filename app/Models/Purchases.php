@@ -27,6 +27,8 @@ class Purchases extends Model
         'status',
     ];
 
+    protected $casts = ['total' => 'float', 'total_items' => 'float'];
+
     public function user()
     {
         return $this->belongsTo(User::class);

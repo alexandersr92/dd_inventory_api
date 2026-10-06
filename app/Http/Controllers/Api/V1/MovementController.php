@@ -141,7 +141,7 @@ class MovementController extends Controller
             'destination_inventory_id' => 'required|uuid|exists:inventories,id|different:origin_inventory_id',
             'products' => 'required|array|min:1',
             'products.*.product_id' => 'required|uuid|exists:products,id',
-            'products.*.quantity' => 'required|numeric|min:0.01',
+            'products.*.quantity' => 'required|numeric|min:0.000001|max:99999999999999|decimal:0,6',
             'reason' => 'nullable|string|max:500'
         ]);
 

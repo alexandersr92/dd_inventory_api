@@ -48,6 +48,9 @@ class InventoryMovementService
             $detailId = $data['inventory_detail_id'];
             $type = $data['type'];
             $quantity = (float) $data['quantity'];
+            if (!is_finite($quantity) || $quantity <= 0 || $quantity >= 100000000000000 || abs($quantity - round($quantity, 6)) > 0.0000000001) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['quantity' => 'La cantidad debe ser positiva y admitir hasta seis decimales.']);
+            }
             $reason = $data['reason'] ?? null;
             $userId = $data['user_id'] ?? Auth::id();
             $sellerId = $data['seller_id'] ?? (Auth::user() ? Auth::user()->sellerId : null);
@@ -56,6 +59,7 @@ class InventoryMovementService
 
             // Get inventory detail locked for update
             $detail = InventoryDetail::where('id', $detailId)->lockForUpdate()->firstOrFail();
+            if ($type === 'sale') $detail->product->assertSellable();
             $inventory = $detail->inventory;
             
             if (!$inventory) {
@@ -71,9 +75,9 @@ class InventoryMovementService
 
             // Calculate stock after
             if ($direction === 'in') {
-                $stockAfter = $stockBefore + $quantity;
+                $stockAfter = round($stockBefore + $quantity, 6);
             } else {
-                $stockAfter = $stockBefore - $quantity;
+                $stockAfter = round($stockBefore - $quantity, 6);
 
                 // Validate negative stock constraints for EXIT movements
                 if ($stockAfter < 0 && !$this->allowsNegativeStock($storeId, $orgId)) {
@@ -151,7 +155,7 @@ class InventoryMovementService
 
                 // 2. Validate stock in origin
                 $stockBeforeOrigin = (float) $originDetail->quantity;
-                $stockAfterOrigin = $stockBeforeOrigin - $quantity;
+                $stockAfterOrigin = round($stockBeforeOrigin - $quantity, 6);
 
                 if ($stockAfterOrigin < 0 && !$this->allowsNegativeStock($originStoreId, $orgId)) {
                     throw new Exception("El inventario de origen no tiene stock suficiente para trasladar el producto '{$originDetail->product->name}'. Disponible: {$stockBeforeOrigin}");
@@ -180,7 +184,7 @@ class InventoryMovementService
                 }
 
                 $stockBeforeDest = (float) $destDetail->quantity;
-                $stockAfterDest = $stockBeforeDest + $quantity;
+                $stockAfterDest = round($stockBeforeDest + $quantity, 6);
 
                 // 4. Update quantities
                 $originDetail->quantity = $stockAfterOrigin;
@@ -250,14 +254,14 @@ class InventoryMovementService
             // Reversing means doing the opposite direction
             if ($movement->direction === 'in') {
                 // Was added, now subtract
-                $stockAfter = $stockBefore - $quantity;
+                $stockAfter = round($stockBefore - $quantity, 6);
 
                 if ($stockAfter < 0 && !$this->allowsNegativeStock($storeId, $orgId)) {
                     throw new Exception("No se puede reversar el movimiento. El stock resultante sería negativo.");
                 }
             } else {
                 // Was subtracted, now add
-                $stockAfter = $stockBefore + $quantity;
+                $stockAfter = round($stockBefore + $quantity, 6);
             }
 
             $detail->quantity = $stockAfter;

@@ -71,112 +71,8 @@ class PurchasesController extends Controller
     public function store(StorePurchaseRequest $request)
     {
         $this->authorize('create', Purchases::class);
-        //
-
-        $orgId = Auth::user()->organization_id;
-        $userID = Auth::user()->id;
-
-
-        $purchase = new Purchases();
-        $purchase->user_id = $userID;
-        $purchase->organization_id = $orgId;
-        $purchase->store_id = $request->store_id;
-        $purchase->supplier_id = $request->supplier_id;
-        $purchase->inventory_id = $request->inventory_id;
-        $purchase->total = $request->total;
-        $purchase->purchase_date = $request->purchase_date;
-        $purchase->invoice_number = $request->invoice_number;
-        $purchase->purchase_note = $request->purchase_note;
-        $purchase->total_items = $request->total_items;
-        $purchase->save();
-    
-        $products = $request->products;
-   
-
-     
-        foreach ($products as $product) {
-            //if product id is null, create a new product
-
-            //find product if exists by sku or barcode
-            $productExists = Product::where('organization_id', $orgId)
-                ->where(function ($query) use ($product) {
-                    $query->where('sku', $product['sku']);
-                    if (!empty($product['barcode'])) {
-                        $query->orWhere('barcode', $product['barcode']);
-                    }
-                })->first();
-            if($productExists){
-                $product['product_id'] = $productExists->id;
-            }
-
-            if($product['product_id'] === null){
-                $newProduct = new Product();
-                $newProduct->organization_id = $orgId;
-                $newProduct->sku = $product['sku'];
-                $newProduct->name = $product['product_name'];
-                $newProduct->barcode = $product['barcode'] ?? '';
-                $newProduct->price = $product['price'];
-                $newProduct->cost = $product['cost'];
-                $newProduct->min_stock = 0;
-                $newProduct->unit_of_measure = 'unit';
-                $newProduct->status = 'active';
-                $newProduct->save();
-                $product['product_id'] = $newProduct->id;
-            }
-            
-            $purchaseDetail = new PurchaseDetail();
-            $purchaseDetail->purchase_id = $purchase->id;
-            $purchaseDetail->product_id = $product['product_id'];
-            $purchaseDetail->quantity = $product['quantity'];
-            $purchaseDetail->price = $product['price'];
-            $purchaseDetail->cost = $product['cost'];
-            $purchaseDetail->save();
-
-        
-        }
-       
-    
-
-        //crear inventario o subir inventario
-
-        $inventory = Inventory::where('organization_id', $orgId)->where('id', $request->inventory_id)->first();
-
-        if($inventory){
-            $listProducts = PurchaseDetail::where('purchase_id', $purchase->id)->get();
-            $movementService = app(InventoryMovementService::class);
-
-            foreach ($listProducts as $product) {
-                //get inventoryDetail
-                $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)->where('product_id', $product['product_id'])->first();
-                if(!$inventoryDetail){
-                    $inventoryDetail = InventoryDetail::create([
-                        'inventory_id' => $inventory->id,
-                        'product_id' => $product['product_id'],
-                        'quantity' => 0,
-                        'price' => $product['price'],
-                        'status' => 'active'
-                    ]);
-                }
-
-                $movementService->recordMovement([
-                    'inventory_detail_id' => $inventoryDetail->id,
-                    'type' => 'purchase',
-                    'quantity' => (float) $product['quantity'],
-                    'reason' => "Ingreso por Compra ID: {$purchase->id}",
-                    'user_id' => Auth::id(),
-                    'reference_id' => $purchase->id,
-                    'reference_type' => Purchases::class,
-                ]);
-            }
-        }
-        //responder con los resultados
-        return response(
-            new PurchaseResource($purchase),
-            Response::HTTP_CREATED
-        );
-        
-
-
+        $purchase = app(\App\Services\PurchaseReceiptService::class)->save($request->all());
+        return response(new PurchaseResource($purchase), Response::HTTP_CREATED);
     }
 
     /**
@@ -197,151 +93,17 @@ class PurchasesController extends Controller
     public function update(Request $request, Purchases $purchase)
     {
         $this->authorize('update', $purchase);
-        $validated = $request->validate([
-            'invoice_number' => 'sometimes|nullable|string|max:255',
-        ]);
-        $orgId = Auth::user()->organization_id;
-        //obtener la compra actual 
-        $inventoryID = $purchase->inventory_id;
-        $requestInventoryID = $request->inventory_id;
-        $purchaseDetails = PurchaseDetail::where('purchase_id', $purchase->id)->get();
-        $newProductList = $request->products;
-        $newTotalItems = 0;
-
-        $movementService = app(InventoryMovementService::class);
-        foreach ($purchaseDetails as $purchaseDetail) {
-            $inventoryDetail = InventoryDetail::where('inventory_id', $inventoryID)->where('product_id', $purchaseDetail->product_id)->first();
-            if ($inventoryDetail) {
-                $movementService->recordMovement([
-                    'inventory_detail_id' => $inventoryDetail->id,
-                    'type' => 'purchase_cancel',
-                    'quantity' => (float) $purchaseDetail->quantity,
-                    'reason' => "Reversión de compra previa por modificación de Compra ID: {$purchase->id}",
-                    'user_id' => Auth::id(),
-                    'reference_id' => $purchase->id,
-                    'reference_type' => Purchases::class,
-                ]);
-            }
-        }
-    
-        //clear purchase details
-        PurchaseDetail::where('purchase_id', $purchase->id)->delete();
-
-        //add new purchase details if no exist any product create it
-        foreach ($newProductList as $product) {
-            //if product id is null, create a new product
-            if($product['product_id'] == null){
-                $newProduct = new Product();
-                $newProduct->organization_id = $orgId;
-                $newProduct->sku = $product['sku'];
-                $newProduct->name = $product['product_name'];
-                $newProduct->barcode = $product['barcode'] ?? '';
-                $newProduct->price = $product['price'];
-                $newProduct->cost = $product['cost'];
-                $newProduct->min_stock = 0;
-                $newProduct->unit_of_measure = 'unit';
-                $newProduct->status = 'active';
-                $newProduct->save();
-                $product['product_id'] = $newProduct->id;
-            }
-            $purchaseDetail = new PurchaseDetail();
-            $purchaseDetail->purchase_id = $purchase->id;
-            $purchaseDetail->product_id = $product['product_id'];
-            $purchaseDetail->quantity = $product['quantity'];
-            $purchaseDetail->price = $product['price'];
-            $purchaseDetail->cost = $product['cost'];
-            $purchaseDetail->save();
-            $newTotalItems = $newTotalItems + $product['quantity'];
-
-
-        }
-
-        //update purchase header
-        if (array_key_exists('invoice_number', $validated)) {
-            $purchase->invoice_number = $validated['invoice_number'];
-        }
-        $purchase->store_id = $request->store_id;
-        $purchase->supplier_id = $request->supplier_id;
-        $purchase->inventory_id = $request->inventory_id;
-        $purchase->total = $request->total;
-        $purchase->purchase_date = $request->purchase_date;
-        $purchase->purchase_note = $request->purchase_note;
-        $purchase->total_items = $newTotalItems;
-        $purchase->save();
-
-        //update inventory details
-        $inventory = Inventory::where('organization_id', $orgId)->where('id', $requestInventoryID)->first();
-        if($inventory){
-            $listProducts = PurchaseDetail::where('purchase_id', $purchase->id)->get();
-            foreach ($listProducts as $product) {
-                //get inventoryDetail
-                $inventoryDetail = InventoryDetail::where('inventory_id', $inventory->id)->where('product_id', $product['product_id'])->first();
-                if(!$inventoryDetail){
-                    $inventoryDetail = InventoryDetail::create([
-                        'inventory_id' => $inventory->id,
-                        'product_id' => $product['product_id'],
-                        'quantity' => 0,
-                        'price' => $product['price'],
-                        'status' => 'active'
-                    ]);
-                }
-
-                $movementService->recordMovement([
-                    'inventory_detail_id' => $inventoryDetail->id,
-                    'type' => 'purchase',
-                    'quantity' => (float) $product['quantity'],
-                    'reason' => "Ingreso por modificación de Compra ID: {$purchase->id}",
-                    'user_id' => Auth::id(),
-                    'reference_id' => $purchase->id,
-                    'reference_type' => Purchases::class,
-                ]);
-            }
-        }
-
-
-        return response(
-            new PurchaseResource($purchase),
-            Response::HTTP_OK
-        );
-   
+        $purchase = app(\App\Services\PurchaseReceiptService::class)->save($request->all(), $purchase);
+        return response(new PurchaseResource($purchase), Response::HTTP_OK);
     }
- 
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Purchases $purchase)
     {
         $this->authorize('delete', $purchase);
-        $purchaseID = $purchase->id;
-        //find purchase
-        $purchase = Purchases::find($purchaseID);
-        //change status to anulled
-
-        $purchase->status = 'cancelled';
-        $purchase->save();
-        //find purchase details and restore inventory
-        $purchaseDetails = PurchaseDetail::where('purchase_id', $purchaseID)->get();
-
-        $movementService = app(InventoryMovementService::class);
-        foreach ($purchaseDetails as $purchaseDetail) {
-            $inventoryDetail = InventoryDetail::where('inventory_id', $purchase->inventory_id)->where('product_id', $purchaseDetail->product_id)->first();
-            if ($inventoryDetail) {
-                $movementService->recordMovement([
-                    'inventory_detail_id' => $inventoryDetail->id,
-                    'type' => 'purchase_cancel',
-                    'quantity' => (float) $purchaseDetail->quantity,
-                    'reason' => "Cancelación de Compra ID: {$purchase->id}",
-                    'user_id' => Auth::id(),
-                    'reference_id' => $purchase->id,
-                    'reference_type' => Purchases::class,
-                ]);
-            }
-        }
-
+        app(\App\Services\PurchaseReceiptService::class)->cancel($purchase);
         return response()->json(['message' => 'Purchase deleted successfully.']);
     }
-    
+
     public function upload(Request $request)
     {
         $this->authorize('create', Purchases::class);
@@ -381,7 +143,10 @@ class PurchasesController extends Controller
                     $quantity = trim((string) ($row[6] ?? ''));
                     $cost = trim((string) ($row[7] ?? ''));
 
+                    $usageInput = mb_strtolower(trim((string) ($row[8] ?? '')));
+                    $usageInput = ['venta' => 'sale', 'insumo' => 'supply', 'ambos' => 'both'][$usageInput] ?? $usageInput;
                     $errors = [];
+                    if ($usageInput !== '' && !in_array($usageInput, ['sale', 'supply', 'both'], true)) $errors[] = 'La clasificación debe ser Venta, Insumo o Ambos';
 
                     //if all fields are empty, skip
                     if (empty($sku) && empty($price) && empty($quantity) && empty($cost)) {
@@ -419,6 +184,9 @@ class PurchasesController extends Controller
                                 'product_name' => trim((string) ($row[3] ?? '')),
                                 'barcode' => trim((string) ($row[4] ?? '')),
                                 'quantity' => (float)$quantity,
+                                'product_usage' => $usageInput ?: ($product?->product_usage ?? 'sale'),
+                                'material_profile' => $product?->material_profile ?? null,
+                                'unit_of_measure' => $product?->unit_of_measure ?? 'unit',
                                 'price' => (float)$cleanPrice,
                                 'cost' => (float)$cleanCost,
                             ];
@@ -428,6 +196,9 @@ class PurchasesController extends Controller
                                 'sku' => $sku,
                                 'product_name' => trim((string) ($row[3] ?? '')),
                                 'barcode' => trim((string) ($row[4] ?? '')),
+                                'product_usage' => $usageInput ?: ($product?->product_usage ?? 'sale'),
+                                'material_profile' => $product?->material_profile ?? null,
+                                'unit_of_measure' => $product?->unit_of_measure ?? 'unit',
                                 'price' => (float)$cleanPrice,
                                 'quantity' => (float)$quantity,
                                 'cost' => (float)$cleanCost,

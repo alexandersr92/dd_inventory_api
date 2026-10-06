@@ -6,7 +6,7 @@ use App\Models\InventoryDetail;
 use App\Models\WooCommerceIntegration;
 use App\Jobs\SyncStockToWooCommerce;
 
-class InventoryDetailObserver
+class InventoryDetailObserver implements \Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit
 {
     /**
      * Handle the InventoryDetail "updated" event.
@@ -18,6 +18,11 @@ class InventoryDetailObserver
             return;
         }
 
+        $this->sync($inventoryDetail);
+    }
+
+    public function sync(InventoryDetail $inventoryDetail): void
+    {
         $inventory = $inventoryDetail->inventory;
         $product = $inventoryDetail->product;
 

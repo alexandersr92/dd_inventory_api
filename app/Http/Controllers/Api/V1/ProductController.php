@@ -30,47 +30,24 @@ class ProductController extends Controller
     public function index(Request $request)
     {
         $this->authorize('viewAny', Product::class);
-        $orgId = Auth::user()->organization_id;
-        $per_page = $request->query('per_page', 20);
-
-        $products = Product::where('organization_id', $orgId)->orderBy('name')->paginate($per_page);
-
-        if ($request->has('search')) {
-            $search = $request->query('search');
-            $search_by = $request->query('search_by', 'name');
-
-            $products = Product::where($search_by, 'like', '%' . $search . '%')
-                ->where('organization_id', $orgId)
-                ->paginate($per_page);
+        $request->validate(['purpose' => 'sometimes|in:all,sale,material', 'product_usage' => 'sometimes|in:sale,supply,both']);
+        $query = Product::query();
+        $purpose = $request->query('purpose', 'sale');
+        if ($purpose === 'sale') $query->sellable();
+        if ($purpose === 'material') $query->material();
+        if ($request->filled('product_usage')) $query->where('product_usage', $request->product_usage);
+        if ($request->filled('search')) {
+            $searchBy = $request->query('search_by', 'name');
+            if (!in_array($searchBy, ['name', 'sku', 'barcode'], true)) $searchBy = 'name';
+            $query->where($searchBy, 'like', '%'.$request->search.'%');
         }
-
-        if ($request->has('sort')) {
-            $sortBy = $request->query('sort', 'name');
-            $order = $request->query('order', 'asc');
-
-            $products = Product::orderBy($sortBy, $order)
-                ->where('organization_id', $orgId)
-                ->paginate($per_page);
+        foreach (['tags', 'categories'] as $relation) {
+            if ($request->filled($relation)) $query->whereHas($relation, fn ($q) => $q->whereIn($relation.'.id', explode(',', $request->$relation)));
         }
-
-        if ($request->has('tags')) {
-            $tags = explode(',', $request->tags);
-
-            $products = Product::whereHas('tags', function ($query) use ($tags) {
-                $query->whereIn('tags.id', $tags);
-            })->where('organization_id', $orgId)
-                ->paginate($per_page);
-        }
-
-        if ($request->has('categories')) {
-            $categories = explode(',', $request->categories);
-
-            $products = Product::whereHas('categories', function ($query) use ($categories) {
-                $query->whereIn('categories.id', $categories);
-            })->where('organization_id', $orgId)
-                ->paginate($per_page);
-        }
-
+        $sort = $request->query('sort', $request->query('sort_by', 'name'));
+        if (!in_array($sort, ['name', 'sku', 'price', 'cost', 'created_at', 'product_usage', 'min_stock'], true)) $sort = 'name';
+        $products = $query->orderBy($sort, $request->query('order') === 'desc' ? 'desc' : 'asc')
+            ->paginate(min(2000, max(1, (int) $request->query('per_page', 20))));
 
         return new ProductCollection($products);
     }
@@ -99,6 +76,9 @@ class ProductController extends Controller
             ]);
         }
 
+        if ($request->filled('inventories')) {
+            foreach (explode(',', $request->inventories) as $id) Inventory::findOrFail($id);
+        }
         $product = Product::create($request->all());
 
         if ($request->has('categories')) {
@@ -202,6 +182,7 @@ class ProductController extends Controller
             'barcode' => 'unique:products,barcode,' . $product->id . ',id,organization_id,' . $orgId,
         ]);
 
+        if ($request->filled('inventory')) Inventory::findOrFail($request->inventory);
         $oldPrice = $product->price;
         // SEGURIDAD: no aceptar organization_id del request (mass-assignment cross-tenant).
         $data = $request->except(['organization_id']);

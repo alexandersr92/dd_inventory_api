@@ -22,7 +22,7 @@ class StoreMovementRequest extends FormRequest
         return [
             'inventory_detail_id' => ['required', 'uuid', 'exists:inventory_details,id'],
             'type' => ['required', 'string', 'in:return,adjustment_in,gift_in,manual_in,damage,personal_use,gift_out,adjustment_out,loss,manual_out'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
+            'quantity' => ['required', 'numeric', 'min:0.000001', 'max:99999999999999', 'decimal:0,6'],
             'reason' => ['nullable', 'string', 'max:500'],
             'reference_id' => ['nullable', 'uuid'],
             'reference_type' => ['nullable', 'string'],

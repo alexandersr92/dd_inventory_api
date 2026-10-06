@@ -12,6 +12,8 @@ class InventoryDetail extends Model
     use HasFactory;
     use Uuids;
 
+    protected $casts = ['quantity' => 'float'];
+
     protected $fillable = [
         'inventory_id',
         'product_id',

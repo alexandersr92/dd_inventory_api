@@ -24,6 +24,10 @@ class InventoryDetailCollection extends ResourceCollection
                 'price' => $inventoryDetail->price,
                 'barcode' => $inventoryDetail->product->barcode,
                 'sku' => $inventoryDetail->product->sku,
+                'product_usage' => $inventoryDetail->product->product_usage,
+                'material_profile' => $inventoryDetail->product->material_profile,
+                'unit_of_measure' => $inventoryDetail->product->unit_of_measure,
+                'cost' => (float) $inventoryDetail->product->cost,
                 'tags' => $inventoryDetail->product->tags,
                 'categories' => $inventoryDetail->product->categories,
             ];

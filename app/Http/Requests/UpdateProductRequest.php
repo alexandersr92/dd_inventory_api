@@ -19,9 +19,19 @@ class UpdateProductRequest extends FormRequest
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->material_profile)) {
+            $decoded = json_decode($this->material_profile, true);
+            if (json_last_error() === JSON_ERROR_NONE) $this->merge(['material_profile' => $decoded]);
+        }
+    }
+
     public function rules(): array
     {
         return [
+            'product_usage' => ['sometimes', 'required', 'in:sale,supply,both'],
+            'material_profile' => ['sometimes', 'nullable', 'array'],
             'sku' => ['string', 'max:255'],
             'barcode' => ['nullable', 'string', 'max:255'],
             'name' => ['string', 'max:255'],

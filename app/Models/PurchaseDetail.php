@@ -17,8 +17,15 @@ class PurchaseDetail extends Model
         'product_id',
         'quantity',
         'price',
+        'cost',
+        'product_usage',
+        'material_profile',
+        'stock_quantity',
+        'base_unit_cost',
       
     ];
+
+    protected $casts = ['material_profile' => 'array', 'quantity' => 'float', 'cost' => 'float', 'price' => 'float', 'stock_quantity' => 'float', 'base_unit_cost' => 'float'];
 
     public function purchase()
     {

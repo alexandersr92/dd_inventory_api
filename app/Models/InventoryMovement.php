@@ -13,6 +13,8 @@ class InventoryMovement extends Model
     use Uuids;
     use Multitenantable;
 
+    protected $casts = ['quantity' => 'float'];
+
     protected $fillable = [
         'organization_id',
         'inventory_id',

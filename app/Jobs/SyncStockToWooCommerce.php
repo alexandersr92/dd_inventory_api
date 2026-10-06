@@ -37,7 +37,8 @@ class SyncStockToWooCommerce
         $key = $this->integration->woo_consumer_key;
         $secret = $this->integration->woo_consumer_secret;
         $sku = $this->sku;
-        $qty = (int) $this->quantity;
+        $local = \App\Models\Product::withoutGlobalScopes()->where('organization_id', $this->integration->organization_id)->where('sku', $this->sku)->first();
+        $qty = $local && $local->product_usage === 'supply' ? 0 : (float) $this->quantity;
 
         if (empty($sku)) {
             return;
