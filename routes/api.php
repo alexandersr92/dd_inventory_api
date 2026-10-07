@@ -81,6 +81,10 @@ Route::prefix('v1')->group(function () {
             Route::get('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'index']);
             Route::middleware('custom_jobs:custom_job.costs')->group(function () {
                 Route::post('/resource-preview', \App\Http\Controllers\Api\V1\CustomJobResourcePreviewController::class);
+                Route::middleware('custom_jobs:custom_job.costs,products,inventories')->group(function () {
+                    Route::get('/calculation-materials', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'materials']);
+                    Route::post('/calculation-preview', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'preview']);
+                });
                 Route::middleware('custom_jobs:custom_job.configure')->group(function () {
                     Route::post('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'store']);
                     Route::put('/resources/{kind}/{id}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'update']);

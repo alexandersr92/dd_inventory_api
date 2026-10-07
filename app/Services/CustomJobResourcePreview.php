@@ -5,12 +5,19 @@ namespace App\Services;
 use App\Models\CustomJobMachine;
 use App\Models\CustomJobProcess;
 use App\Models\CustomJobRate;
+use App\Support\CustomJobDecimals;
+use App\Support\CustomJobMath as Math;
 use Illuminate\Validation\ValidationException;
 
-/** Resource cost preview only. Full article costing and commercial rounding belong to plan 04. */
 class CustomJobResourcePreview
 {
     public function calculate(array $input): array
+    {
+        return $this->evaluate($input)['result'];
+    }
+
+    /** Internal exact values are consumed by article costing, never sent as JSON. */
+    public function evaluate(array $input): array
     {
         $rate = isset($input['rate_id']) ? CustomJobRate::findOrFail($input['rate_id']) : null;
         $process = $rate ? CustomJobProcess::findOrFail($rate->process_id) : null;
@@ -23,45 +30,39 @@ class CustomJobResourcePreview
         $c = $rate?->configuration ?? [];
         $included = $c['included'] ?? [];
         $covers = fn ($concept) => in_array($concept, $included, true);
-        $labor = 0;
+        $zero = Math::of(0);
+        $labor = $zero;
         $groups = [];
         foreach ($input['people'] as $group) {
-            $raw = $group['method'] === 'hour'
-                ? $group['count'] * ($group['minutes'] / 60) * $group['amount']
-                : $group['amount'] * ($group['scope'] === 'person' ? $group['count'] : 1);
-            $groups[] = [...$group, 'cost' => round($covers('operator') ? 0 : $raw, 8), 'included_in_rate' => $covers('operator')];
-            $labor += $covers('operator') ? 0 : $raw;
+            $raw = Math::of($group['amount'])->multipliedBy($group['method'] === 'hour'
+                ? Math::of($group['count'])->multipliedBy(Math::of($group['minutes']))->dividedBy(60)
+                : Math::of($group['scope'] === 'person' ? $group['count'] : 1));
+            $cost = $covers('operator') ? $zero : $raw;
+            $groups[] = [...CustomJobDecimals::numbers($group), 'cost' => Math::number($cost), 'included_in_rate' => $covers('operator')];
+            $labor = $labor->plus($cost);
         }
-        $machineCost = 0;
-        $machineBreakdown = ['base' => 0, 'maintenance' => 0, 'electricity' => 0];
+        $components = ['base' => $zero, 'maintenance' => $zero, 'electricity' => $zero];
         if ($machine && ! $covers('machine')) {
             $m = $machine->configuration;
-            $minutes = $input['machine_minutes'];
-            $base = $m['method'] === 'manual' ? $m['minute_rate'] : ($m['purchase_value'] - $m['residual_value']) / $m['useful_minutes'];
-            $machineBreakdown = [
-                'base' => round($minutes * $base, 8),
-                'maintenance' => round($covers('maintenance') ? 0 : $minutes * $m['maintenance_per_minute'], 8),
-                'electricity' => round($covers('electricity') ? 0 : $minutes * $m['energy_per_minute'], 8),
-            ];
-            $machineCost = array_sum($machineBreakdown);
+            $minutes = Math::of($input['machine_minutes']);
+            $base = $m['method'] === 'manual' ? Math::of($m['minute_rate'])
+                : Math::of($m['purchase_value'])->minus(Math::of($m['residual_value']))->dividedBy(Math::of($m['useful_minutes']));
+            $components = ['base' => $minutes->multipliedBy($base),
+                'maintenance' => $covers('maintenance') ? $zero : $minutes->multipliedBy(Math::of($m['maintenance_per_minute'])),
+                'electricity' => $covers('electricity') ? $zero : $minutes->multipliedBy(Math::of($m['energy_per_minute']))];
         }
-        $processCost = $rate ? (float) $c['amount'] * ($c['unit'] === 'job' ? 1 : $input['rate_quantity']) : 0;
-        $setup = $rate ? (float) $c['preparation_cost'] : 0;
-        $ink = $rate && ! $covers('ink') && $c['ink_unit'] !== 'none' ? $input['ink_quantity'] * $c['ink_rate'] : 0;
-        $snapshot = [
-            'schema_version' => 1,
-            'process' => $process?->toArray(),
-            'rate' => $rate?->toArray(),
-            'machine' => $machine?->toArray(),
-            'selection' => $input,
-        ];
+        $machineCost = $components['base']->plus($components['maintenance'])->plus($components['electricity']);
+        $processCost = $rate ? Math::of($c['amount'])->multipliedBy(Math::of($c['unit'] === 'job' ? 1 : $input['rate_quantity'])) : $zero;
+        $setup = $rate ? Math::of($c['preparation_cost']) : $zero;
+        $ink = $rate && ! $covers('ink') && $c['ink_unit'] !== 'none' ? Math::of($input['ink_quantity'])->multipliedBy(Math::of($c['ink_rate'])) : $zero;
+        $exact = ['process_cost' => $processCost, 'preparation_cost' => $setup, 'machine_cost' => $machineCost, 'labor_cost' => $labor, 'ink_cost' => $ink];
+        $total = $processCost->plus($setup)->plus($machineCost)->plus($labor)->plus($ink);
 
-        return [
-            'process_cost' => round($processCost, 8), 'preparation_cost' => round($setup, 8),
-            'machine_cost' => round($machineCost, 8), 'machine_breakdown' => $machineBreakdown,
-            'labor_cost' => round($labor, 8), 'ink_cost' => round($ink, 8), 'people' => $groups,
-            'included' => $included, 'total' => round($processCost + $setup + $machineCost + $labor + $ink, 8),
-            'snapshot' => $snapshot,
-        ];
+        return ['exact' => $exact, 'exact_total' => $total, 'result' => [
+            ...array_map(fn ($v) => Math::number($v), $exact),
+            'machine_breakdown' => array_map(fn ($v) => Math::number($v), $components),
+            'people' => $groups, 'included' => $included, 'total' => Math::number($total),
+            'snapshot' => ['schema_version' => 1, 'process' => $process?->toArray(), 'rate' => $rate?->toArray(), 'machine' => $machine?->toArray(), 'selection' => CustomJobDecimals::numbers($input)],
+        ]];
     }
 }

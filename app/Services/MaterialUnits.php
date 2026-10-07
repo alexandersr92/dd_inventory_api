@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Support\CustomJobMath;
+use Brick\Math\BigRational;
 use Illuminate\Validation\ValidationException;
 
 final class MaterialUnits
@@ -89,6 +91,29 @@ final class MaterialUnits
         }
 
         return $result;
+    }
+
+    /** Conversion for consumption; calibrated profile factors take precedence. */
+    public static function consumptionFactor(string $from, string $base, ?array $profile): BigRational
+    {
+        $from = self::canonical($from);
+        $base = self::canonical($base);
+        $r = fn ($value) => CustomJobMath::of($value);
+        if ($from === $base) {
+            return $r(1);
+        }
+        foreach (['consumption', 'purchase'] as $kind) {
+            if (($profile[$kind.'_unit'] ?? null) === $from) {
+                return $r($profile[$kind.'_to_base_factor']);
+            }
+        }
+        if (isset(self::UNITS[$from], self::UNITS[$base]) && self::UNITS[$from][0] === self::UNITS[$base][0]) {
+            return $r(self::UNITS[$from][1])->dividedBy($r(self::UNITS[$base][1]));
+        }
+        if ($from === 'cm2' && in_array($base, ['unit', 'sheet', 'roll'], true) && isset($profile['width_cm'], $profile['height_cm'])) {
+            return $r(1)->dividedBy($r($profile['width_cm'])->multipliedBy($r($profile['height_cm'])));
+        }
+        self::fail('No se puede convertir la medida a la unidad base. Revisa las unidades y dimensiones del material.');
     }
 
     public static function stockQuantity(float $quantity, ?array $profile): float

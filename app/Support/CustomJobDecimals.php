@@ -7,7 +7,7 @@ final class CustomJobDecimals
 {
     public static function numbers(array $input): array
     {
-        $fields = ['minute_rate', 'purchase_value', 'residual_value', 'useful_minutes', 'maintenance_per_minute', 'energy_per_minute', 'amount', 'preparation_cost', 'ink_rate', 'rate_quantity', 'machine_minutes', 'ink_quantity', 'count', 'minutes'];
+        $fields = ['quantity', 'value', 'width', 'height', 'applications', 'tax_amount', 'machine_setup_minutes', 'setup_minutes', 'minute_rate', 'purchase_value', 'residual_value', 'useful_minutes', 'maintenance_per_minute', 'energy_per_minute', 'amount', 'preparation_cost', 'ink_rate', 'rate_quantity', 'machine_minutes', 'ink_quantity', 'count', 'minutes'];
         foreach ($input as $key => $value) {
             if (is_array($value)) {
                 $input[$key] = self::numbers($value);
