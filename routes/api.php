@@ -77,6 +77,18 @@ Route::prefix('v1')->group(function () {
         Route::get('/custom-jobs/access', \App\Http\Controllers\Api\V1\CustomJobsAccessController::class)
             ->middleware('module:custom_jobs');
 
+        Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'index']);
+            Route::middleware('custom_jobs:custom_job.costs')->group(function () {
+                Route::post('/resource-preview', \App\Http\Controllers\Api\V1\CustomJobResourcePreviewController::class);
+                Route::middleware('custom_jobs:custom_job.configure')->group(function () {
+                    Route::post('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'store']);
+                    Route::put('/resources/{kind}/{id}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'update']);
+                    Route::post('/resources/{kind}/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'archive']);
+                });
+            });
+        });
+
             //Excel Reports
             Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
             Route::get('inventories/export', [InventoryController::class, 'exportInventory']);
