@@ -82,6 +82,13 @@ Route::prefix('v1')->group(function () {
             Route::middleware('custom_jobs:custom_job.costs')->group(function () {
                 Route::post('/resource-preview', \App\Http\Controllers\Api\V1\CustomJobResourcePreviewController::class);
                 Route::middleware('custom_jobs:custom_job.costs,products,inventories')->group(function () {
+                    Route::get('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'index']);
+                    Route::post('/templates/{id}/instantiate', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'instantiate']);
+                    Route::middleware('custom_jobs:custom_job.configure')->group(function () {
+                        Route::post('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'store']);
+                        Route::put('/templates/{id}', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'update']);
+                        Route::post('/templates/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'archive']);
+                    });
                     Route::get('/calculation-materials', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'materials']);
                     Route::post('/calculation-preview', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'preview']);
                 });

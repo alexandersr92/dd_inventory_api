@@ -77,6 +77,7 @@ class CustomJobCalculationTest extends TestCase
         });
         $this->seed(CustomJobsAccessSeeder::class);
         (require database_path('migrations/2026_10_06_000000_create_custom_job_resources.php'))->up();
+        (require database_path('migrations/2026_10_07_000000_create_custom_job_templates.php'))->up();
         Schema::table('stores', function (Blueprint $t) {
             $t->uuid('organization_id');
             $t->string('status')->default('active');
@@ -342,5 +343,103 @@ class CustomJobCalculationTest extends TestCase
         $article['quantity'] = 2;
         $article['profit'] = ['method' => 'amount', 'value' => 10, 'scope' => 'unit'];
         $this->request('POST', 'calculation-preview', $this->input($store, [$article]))->assertOk()->assertJsonPath('data.totals.total', 220);
+    }
+
+    public function test_templates_copy_compositions_reprice_and_archive_without_changing_copies(): void
+    {
+        $this->startAccount();
+        $store = $this->store();
+        $mug = $this->source($store, 'Taza', 80);
+        $uv = $this->source($store, 'UV DTF', 0.1, 'cm2');
+        $paper = $this->source($store, 'Opalina', 1);
+        $machine = $this->machine(['minute_rate' => 2.5, 'maintenance_per_minute' => 0, 'energy_per_minute' => 0]);
+        $input = $this->input($store, [$this->article([$this->material($mug), $this->material($uv, ['method' => 'area']), $this->material($paper)], [$this->operation($machine['id'])])]);
+        $composition = $input;
+        unset($composition['store_id']);
+        $stock = DB::table('inventory_details')->get()->toArray();
+        $template = $this->request('POST', 'templates', ['name' => 'Taza con tarjeta', 'description' => 'UV DTF y opalina', 'store_id' => $store->id, 'composition' => $composition])
+            ->assertCreated()->assertJsonPath('data.schema_version', 1)->json('data');
+        $this->assertArrayNotHasKey('store_id', $template['composition']);
+        $this->request('GET', 'templates')->assertOk()->assertJsonCount(1, 'data');
+        $copy = $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])
+            ->assertOk()->assertJsonPath('data.calculation.totals.total', 140.79)->assertJsonPath('data.warnings', [])->json('data.input');
+        Product::find(InventoryDetail::find($mug)->product_id)->update(['cost' => 100]);
+        $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])
+            ->assertOk()->assertJsonPath('data.calculation.totals.total', 166.79);
+        $copy['articles'][0]['quantity'] = 2;
+        $copy['articles'][0]['materials'][1]['width'] = 10;
+        $this->request('POST', 'calculation-preview', $copy)->assertOk()->assertJsonPath('data.articles.0.materials.1.base_quantity', 120);
+        $this->request('PUT', 'templates/'.$template['id'], ['name' => 'Versión nueva', 'store_id' => $store->id, 'composition' => $composition])->assertOk();
+        $this->request('POST', 'templates/'.$template['id'].'/archive')->assertOk();
+        $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])->assertStatus(422);
+        $this->request('GET', 'templates')->assertOk()->assertJsonCount(0, 'data');
+        $this->request('GET', 'templates?status=all')->assertOk()->assertJsonCount(1, 'data');
+        $this->assertSame(2, $copy['articles'][0]['quantity']);
+        $this->assertSame('Trabajo', $copy['articles'][0]['name']);
+        $this->assertEquals($stock, DB::table('inventory_details')->get()->toArray());
+    }
+
+    public function test_templates_report_all_unavailable_sources_and_reject_invalid_saves(): void
+    {
+        $this->startAccount();
+        $store = $this->store();
+        $material = $this->source($store, 'Vinil', 0.1, 'cm2');
+        $machine = $this->machine();
+        $rate = $this->rate($this->process()['id']);
+        $input = $this->input($store, [$this->article([$this->material($material, ['method' => 'area'])], [
+            $this->operation($machine['id']),
+            ['selection' => [...$this->selection(['rate_id' => $rate['id']]), 'people' => []], 'machine_setup_minutes' => 0],
+        ])]);
+        $composition = $input;
+        unset($composition['store_id']);
+        $payload = ['name' => 'Vinil', 'store_id' => $store->id, 'composition' => $composition];
+        $template = $this->request('POST', 'templates', $payload)->assertCreated()->json('data');
+        Product::find(InventoryDetail::find($material)->product_id)->update(['product_usage' => 'sale']);
+        $this->request('POST', 'resources/machines/'.$machine['id'].'/archive')->assertOk();
+        $this->request('POST', 'resources/rates/'.$rate['id'].'/archive')->assertOk();
+        $response = $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])->assertOk()
+            ->assertJsonPath('data.calculation', null)->assertJsonCount(3, 'data.warnings')->json('data');
+        $this->assertSame($material, $response['input']['articles'][0]['materials'][0]['inventory_detail_id']);
+        $this->request('PUT', 'templates/'.$template['id'], $payload)->assertStatus(422);
+        $this->request('POST', 'templates', [...$payload, 'composition' => [...$composition, 'payments' => []]])->assertStatus(422);
+        $this->assertDatabaseCount('custom_job_templates', 1);
+        $this->request('POST', 'templates/'.$template['id'].'/archive')->assertOk();
+    }
+
+    public function test_templates_isolate_accounts_and_require_configure_and_admin_access(): void
+    {
+        [$user, $org, $role] = $this->startAccount();
+        $store = $this->store();
+        $input = $this->input($store, [$this->article([], [])]);
+        unset($input['store_id']);
+        $payload = ['name' => 'Digital', 'store_id' => $store->id, 'composition' => $input];
+        $template = $this->request('POST', 'templates', $payload)->assertCreated()->json('data');
+        $role->revokePermissionTo('custom_job.configure');
+        $this->request('POST', 'templates', $payload)->assertForbidden();
+        $this->request('POST', 'templates/'.$template['id'].'/archive')->assertForbidden();
+        $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])->assertOk();
+        $this->authenticate($user, ['*']);
+        $this->request('GET', 'templates')->assertForbidden();
+        $this->startAccount();
+        $this->request('GET', 'templates')->assertOk()->assertJsonCount(0, 'data');
+        $this->request('PUT', 'templates/'.$template['id'], $payload)->assertNotFound();
+        $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])->assertNotFound();
+        $this->request('POST', 'templates/'.$template['id'].'/archive')->assertNotFound();
+    }
+
+    public function test_template_batch_setup_and_fixed_profit_remain_once_per_batch(): void
+    {
+        $this->startAccount();
+        $store = $this->store();
+        $machine = $this->machine(['minute_rate' => 1, 'maintenance_per_minute' => 0, 'energy_per_minute' => 0]);
+        $op = $this->operation($machine['id'], 0, 60, 1);
+        $op['machine_setup_minutes'] = 10;
+        $input = $this->input($store, [$this->article([], [$op], ['quantity' => 100, 'profit' => ['method' => 'amount', 'value' => 50, 'scope' => 'batch']])]);
+        unset($input['store_id']);
+        $template = $this->request('POST', 'templates', ['name' => 'Lote', 'store_id' => $store->id, 'composition' => $input])->assertCreated()->json('data');
+        $this->request('POST', 'templates/'.$template['id'].'/instantiate', ['store_id' => $store->id])->assertOk()
+            ->assertJsonPath('data.calculation.totals.cost', 110)->assertJsonPath('data.calculation.totals.total', 160);
+        $duplicate = $this->request('POST', 'templates', ['name' => 'Lote copia', 'store_id' => $store->id, 'composition' => $template['composition']])->assertCreated()->json('data');
+        $this->assertNotSame($template['id'], $duplicate['id']);
     }
 }
