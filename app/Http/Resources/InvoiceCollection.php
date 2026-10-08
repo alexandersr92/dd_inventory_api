@@ -15,6 +15,10 @@ class InvoiceCollection extends ResourceCollection
     public function toArray(Request $request): array
     {
         return $this->collection->map(function ($invoice) {
+            if ($invoice->custom_job_quote_id) {
+                $public = \App\Support\CustomJobProforma::data($invoice);
+                return [...array_intersect_key($public, array_flip(['id', 'client_name', 'client_cedula_ruc', 'invoice_number', 'invoice_date', 'invoice_status', 'total_items', 'grand_total', 'method', 'seller', 'currency', 'custom_job_quote_id', 'custom_job_revision_id'])), 'created_at' => $invoice->created_at, 'client' => null];
+            }
 
     
             $totalItems = $invoice->invoiceDetails->sum(function ($detail) {

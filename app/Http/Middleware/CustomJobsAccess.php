@@ -30,8 +30,14 @@ class CustomJobsAccess
         // Read fresh tenant roles: neither a foreign role nor an Owner label bypasses authorization.
         $names = $user->roles()->where('organization_id', $tenant->id)
             ->with('permissions')->get()->flatMap->permissions->pluck('name');
-        $required = $permission === 'custom_job.annul_payment'
-            ? [$permission, 'custom_job.cancel'] : [$permission];
+        // Laravel may deduplicate this middleware class when nested groups repeat it.
+        // Every effective guard therefore checks index plus all explicit permissions in one call.
+        $extraPermissions = array_values(array_filter($dependencies, fn ($name) => array_key_exists($name, CustomJobs::PERMISSIONS)));
+        $dependencies = array_values(array_diff($dependencies, $extraPermissions));
+        $required = ['custom_job.index', $permission, ...$extraPermissions];
+        if ($permission === 'custom_job.annul_payment') {
+            $required[] = 'custom_job.cancel';
+        }
         foreach ($required as $name) {
             if (! array_key_exists($name, CustomJobs::PERMISSIONS) || ! $names->contains($name)) {
                 return response()->json(['message' => 'No tienes permiso para esta acción de trabajos personalizados.', 'code' => 'CUSTOM_JOBS_FORBIDDEN'], 403);

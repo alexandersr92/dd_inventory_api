@@ -2,16 +2,22 @@
 
 namespace Tests\Feature;
 
+use App\Http\Resources\InvoiceResource;
+use App\Models\Client;
+use App\Models\CustomJobRate;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
+use App\Models\Invoice;
 use App\Models\Module;
 use App\Models\Organization;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Role;
 use App\Models\Setting;
 use App\Models\Store;
 use App\Models\User;
 use App\Services\TenantManager;
+use App\Support\CustomJobProforma;
 use App\Support\CustomJobs;
 use Database\Seeders\CustomJobsAccessSeeder;
 use Illuminate\Database\Schema\Blueprint;
@@ -93,6 +99,29 @@ class CustomJobCalculationTest extends TestCase
             $t->decimal('cost', 20, 8)->change();
         });
         Schema::table('inventory_details', fn (Blueprint $t) => $t->decimal('quantity', 20, 6)->change());
+        Schema::create('clients', function (Blueprint $t) {
+            $t->uuid('id')->primary();
+            $t->uuid('organization_id');
+            $t->string('name');
+            $t->string('status')->default('active');
+            $t->string('cedula_ruc')->nullable();
+            $t->timestamps();
+        });
+        (require database_path('migrations/2024_11_08_040640_create_invoices_table.php'))->up();
+        Schema::table('invoices', function (Blueprint $t) {
+            $t->string('invoice_type')->nullable();
+            $t->string('source')->nullable();
+            $t->decimal('paid_in_nio', 20, 2)->default(0);
+            $t->decimal('paid_in_usd', 20, 2)->default(0);
+            $t->decimal('exchange_rate', 20, 8)->nullable();
+            $t->uuid('cash_session_id')->nullable();
+            $t->json('payment_metadata')->nullable();
+        });
+        Schema::table('stores', function (Blueprint $t) {
+            $t->integer('invoice_number')->default(0);
+            $t->string('invoice_prefix')->nullable();
+        });
+        (require database_path('migrations/2026_10_07_010000_create_custom_job_quotes.php'))->up();
 
     }
 
@@ -441,5 +470,128 @@ class CustomJobCalculationTest extends TestCase
             ->assertJsonPath('data.calculation.totals.cost', 110)->assertJsonPath('data.calculation.totals.total', 160);
         $duplicate = $this->request('POST', 'templates', ['name' => 'Lote copia', 'store_id' => $store->id, 'composition' => $template['composition']])->assertCreated()->json('data');
         $this->assertNotSame($template['id'], $duplicate['id']);
+    }
+
+    private function quotePayload(Store $store, array $articles): array
+    {
+        return ['request_id' => (string) Str::uuid(), 'client_name' => 'Cliente de prueba', 'note' => 'Personalización', 'input' => $this->input($store, $articles)];
+    }
+
+    private function quotesAccount(): array
+    {
+        [$user, $org, $role] = $this->startAccount(['custom_job.index', 'custom_job.costs', 'custom_job.configure', 'custom_job.quote']);
+        foreach (['invoices', 'clients'] as $slug) {
+            $module = Module::firstOrCreate(['slug' => $slug], ['name' => $slug, 'status' => 'active']);
+            $org->modules()->attach($module->id, ['status' => 'active']);
+        }
+        foreach (['invoice.store', 'invoice.show', 'invoice.index', 'invoice.delete'] as $permission) {
+            Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web'], ['display_name' => $permission]);
+            $role->givePermissionTo($permission);
+        }
+
+        return [$user, $org, $role];
+    }
+
+    public function test_quotes_keep_immutable_revisions_and_issue_one_public_proforma_without_stock_changes(): void
+    {
+        $this->quotesAccount();
+        $store = $this->store();
+        $material = $this->source($store, 'Taza', 80);
+        $stock = DB::table('inventory_details')->get()->toArray();
+        $payload = $this->quotePayload($store, [$this->article([$this->material($material)])]);
+        $quote = $this->request('POST', 'quotes', $payload)->assertCreated()->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.revisions.0.snapshot.totals.total', 104)->json('data');
+        $this->request('POST', 'quotes', $payload)->assertCreated()->assertJsonPath('data.id', $quote['id']);
+        $this->assertDatabaseCount('custom_job_quotes', 1);
+        $this->request('POST', 'quotes', [...$payload, 'client_name' => 'Otro'])->assertStatus(409);
+        $this->request('POST', 'quotes', [...$payload, 'request_id' => (string) Str::uuid(), 'grand_total' => 1])->assertStatus(422);
+        $this->request('POST', 'quotes', [...$payload, 'request_id' => (string) Str::uuid(), 'input' => [...$payload['input'], 'total' => 1]])->assertStatus(422);
+        $issue = ['version' => $quote['version'], 'revision_id' => $quote['revisions'][0]['id']];
+        $issued = $this->request('POST', 'quotes/'.$quote['id'].'/issue', $issue)->assertOk()->assertJsonPath('data.status', 'issued')->json('data');
+        $this->request('POST', 'quotes/'.$quote['id'].'/issue', $issue)->assertOk()->assertJsonPath('data.proforma.id', $issued['proforma']['id']);
+        $this->assertDatabaseCount('invoices', 1);
+        Product::find(InventoryDetail::find($material)->product_id)->update(['cost' => 100, 'name' => 'Taza actual']);
+        $invoice = Invoice::find($issued['proforma']['id']);
+        $public = CustomJobProforma::data($invoice);
+        $this->assertSame(104, $public['grand_total']);
+        $this->assertArrayNotHasKey('cost', $public['invoice_details'][0]);
+        $this->assertNull($public['invoice_details'][0]['product_id']);
+        $resource = (new InvoiceResource($invoice))->resolve(request());
+        $this->assertSame($public, $resource);
+        $this->assertArrayNotHasKey('snapshot', $resource);
+        $this->assertSame(0, (int) $invoice->paid_in_nio);
+        $this->assertSame(0, (int) $invoice->paid_in_usd);
+        $this->assertNull($invoice->cash_session_id);
+        $this->assertSame('PROFORMA', $invoice->payment_method);
+        $this->request('GET', 'quotes/'.$quote['id'])->assertOk()->assertJsonPath('data.revisions.0.snapshot.articles.0.materials.0.name', 'Taza');
+        $update = $payload;
+        unset($update['request_id']);
+        $update['version'] = $issued['version'];
+        $edited = $this->request('PUT', 'quotes/'.$quote['id'], $update)->assertOk()->assertJsonPath('data.status', 'draft')
+            ->assertJsonCount(2, 'data.revisions')->assertJsonPath('data.revisions.0.snapshot.totals.total', 130)->json('data');
+        $this->request('PUT', 'quotes/'.$quote['id'], $update)->assertStatus(409);
+        $this->request('POST', 'quotes/'.$quote['id'].'/issue', $issue)->assertStatus(409);
+        $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => $edited['version'], 'revision_id' => $edited['revisions'][0]['id']])->assertOk()
+            ->assertJsonPath('data.proforma.id', $issued['proforma']['id']);
+        $this->assertDatabaseCount('invoices', 1);
+        $this->assertSame(104, $edited['revisions'][1]['commercial']['totals']['total']);
+        $this->assertEquals($stock, DB::table('inventory_details')->get()->toArray());
+        $this->json('DELETE', '/api/v1/invoices/'.$invoice->id)->assertStatus(409);
+    }
+
+    public function test_quote_readers_without_cost_permission_receive_only_public_commercial_history(): void
+    {
+        [$user, $org, $role] = $this->quotesAccount();
+        $store = $this->store();
+        $quote = $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([], [$this->operation($this->machine()['id'])])]))->assertCreated()->json('data');
+        $role->revokePermissionTo('custom_job.costs');
+        $this->request('GET', 'quotes/'.$quote['id'])->assertOk()->assertJsonMissingPath('data.revisions.0.snapshot')
+            ->assertJsonPath('data.revisions.0.commercial.articles.0.name', 'Trabajo');
+        $this->request('GET', 'quotes?store_id='.$store->id)->assertOk()->assertJsonMissingPath('data.data.0.revisions.0.snapshot');
+        $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([])]))->assertForbidden();
+        $this->request('POST', 'resources/processes', ['name' => 'No permitido'])->assertForbidden();
+        $this->request('POST', 'templates', [])->assertForbidden();
+    }
+
+    public function test_duplicate_quotes_recalculate_current_rates_and_remain_drafts_with_independent_revisions(): void
+    {
+        $this->quotesAccount();
+        $store = $this->store();
+        $rate = $this->rate($this->process()['id'], ['amount' => 10, 'preparation_cost' => 5, 'unit' => 'job']);
+        $article = $this->article([], [['selection' => $this->selection(['rate_id' => $rate['id'], 'people' => []]), 'machine_setup_minutes' => 0]], ['quantity' => 100]);
+        $quote = $this->request('POST', 'quotes', $this->quotePayload($store, [$article]))->assertCreated()->json('data');
+        CustomJobRate::find($rate['id'])->update(['configuration' => [...$rate['configuration'], 'amount' => 20]]);
+        $request = ['request_id' => (string) Str::uuid(), 'revision_id' => $quote['revisions'][0]['id']];
+        $copy = $this->request('POST', 'quotes/'.$quote['id'].'/duplicate', $request)->assertCreated()->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.revisions.0.snapshot.totals.total', 32.5)->assertJsonPath('data.proforma', null)->json('data');
+        $this->request('POST', 'quotes/'.$quote['id'].'/duplicate', $request)->assertCreated()->assertJsonPath('data.id', $copy['id']);
+        $this->assertNotSame($quote['id'], $copy['id']);
+        $this->assertDatabaseCount('custom_job_quotes', 2);
+        $this->assertDatabaseCount('invoices', 0);
+        $this->request('GET', 'quotes/'.$quote['id'])->assertOk()->assertJsonPath('data.revisions.0.snapshot.totals.total', 19.5);
+    }
+
+    public function test_quotes_reject_foreign_clients_accounts_unassigned_stores_and_missing_permissions(): void
+    {
+        [$user, $org, $role] = $this->quotesAccount();
+        $store = $this->store();
+        $client = Client::create(['name' => 'Cliente', 'status' => 'active']);
+        $payload = [...$this->quotePayload($store, [$this->article([])]), 'client_id' => $client->id];
+        $quote = $this->request('POST', 'quotes', $payload)->assertCreated()->assertJsonPath('data.client_name', 'Cliente')->json('data');
+        $role->revokePermissionTo('custom_job.quote');
+        $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([])]))->assertForbidden();
+        $role->givePermissionTo('custom_job.quote');
+        $role->revokePermissionTo('invoice.store');
+        $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => 1, 'revision_id' => $quote['revisions'][0]['id']])->assertForbidden();
+        $this->quotesAccount();
+        $foreignStore = $this->store();
+        $this->request('GET', 'quotes/'.$quote['id'])->assertNotFound();
+        $this->request('POST', 'quotes', [...$payload, 'request_id' => (string) Str::uuid(), 'input' => $this->input($foreignStore, [$this->article([])])])->assertNotFound();
+        $this->authenticate($user);
+        TenantManager::setTenant($org);
+        $org->owner_id = (string) Str::uuid();
+        $org->save();
+        $this->request('GET', 'quotes/'.$quote['id'])->assertForbidden();
+        $this->request('GET', 'quotes?store_id='.$store->id)->assertForbidden();
     }
 }

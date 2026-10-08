@@ -584,6 +584,9 @@ class InvoiceController extends Controller
     public function show(Invoice $invoice)
     {
         $this->authorize('view', $invoice);
+        if ($invoice->custom_job_quote_id) {
+            app(\App\Services\CustomJobCalculationContext::class)->store(request()->user(), $invoice->store_id);
+        }
 
         $invoice->load('client');
         return new InvoiceResource($invoice);
@@ -595,6 +598,7 @@ class InvoiceController extends Controller
     public function cancel(Invoice $invoice)
     {
         $this->authorize('delete', $invoice);
+        abort_if($invoice->custom_job_quote_id, 409, 'Esta proforma se administra desde la cotización de trabajos.');
 
         DB::beginTransaction();
         try {
@@ -649,6 +653,7 @@ class InvoiceController extends Controller
 
     public function replace(StoreInvoiceRequest $request, Invoice $invoice)
     {
+        abort_if($invoice->custom_job_quote_id, 409, 'Esta proforma se administra desde la cotización de trabajos.');
         $this->authorize('create', Invoice::class);
 
         if ($invoice->invoice_status === 'canceled') {

@@ -20,7 +20,7 @@ class CustomJobsAccessController extends Controller
         }
         $capabilities['custom_job.annul_payment'] = $capabilities['custom_job.annul_payment'] && $capabilities['custom_job.cancel'];
         $dependencies = [];
-        foreach (['products', 'inventories', 'purchases', 'invoices', 'credits'] as $slug) {
+        foreach (['products', 'inventories', 'purchases', 'invoices', 'credits', 'clients'] as $slug) {
             $dependencies[$slug] = $tenant->modules()->where('slug', $slug)
                 ->where('modules.status', 'active')->wherePivot('status', 'active')->exists();
         }

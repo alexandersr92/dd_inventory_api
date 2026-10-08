@@ -44,6 +44,7 @@ class Invoice extends Model
 
     protected $casts = [
         'payment_metadata' => 'array',
+        'custom_job_commercial' => 'array',
         'paid_in_usd' => 'float',
         'paid_in_nio' => 'float',
         'exchange_rate' => 'float',

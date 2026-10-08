@@ -78,13 +78,22 @@ Route::prefix('v1')->group(function () {
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/quotes', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'index']);
+            Route::get('/quote-clients', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'clients'])->middleware(['module:clients', 'custom_jobs:custom_job.quote']);
+            Route::get('/quotes/{id}', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'show']);
+            Route::middleware('custom_jobs:custom_job.quote,custom_job.costs,products,inventories')->group(function () {
+                Route::post('/quotes', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'store']);
+                Route::put('/quotes/{id}', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'update']);
+                Route::post('/quotes/{id}/duplicate', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'duplicate']);
+                Route::post('/quotes/{id}/issue', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'issue'])->middleware('module:invoices');
+            });
             Route::get('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'index']);
             Route::middleware('custom_jobs:custom_job.costs')->group(function () {
                 Route::post('/resource-preview', \App\Http\Controllers\Api\V1\CustomJobResourcePreviewController::class);
                 Route::middleware('custom_jobs:custom_job.costs,products,inventories')->group(function () {
                     Route::get('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'index']);
                     Route::post('/templates/{id}/instantiate', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'instantiate']);
-                    Route::middleware('custom_jobs:custom_job.configure')->group(function () {
+                    Route::middleware('custom_jobs:custom_job.configure,custom_job.costs,products,inventories')->group(function () {
                         Route::post('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'store']);
                         Route::put('/templates/{id}', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'update']);
                         Route::post('/templates/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'archive']);
@@ -92,7 +101,7 @@ Route::prefix('v1')->group(function () {
                     Route::get('/calculation-materials', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'materials']);
                     Route::post('/calculation-preview', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'preview']);
                 });
-                Route::middleware('custom_jobs:custom_job.configure')->group(function () {
+                Route::middleware('custom_jobs:custom_job.configure,custom_job.costs')->group(function () {
                     Route::post('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'store']);
                     Route::put('/resources/{kind}/{id}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'update']);
                     Route::post('/resources/{kind}/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'archive']);
