@@ -78,6 +78,13 @@ Route::prefix('v1')->group(function () {
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/orders', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'index']);
+            Route::get('/orders/{id}', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'show']);
+            Route::middleware('custom_jobs:custom_job.order')->group(function () {
+                Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'convert']);
+                Route::patch('/orders/{id}/commitment', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'commitment']);
+                Route::post('/orders/{id}/confirm', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'confirm']);
+            });
             Route::get('/quotes', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'index']);
             Route::get('/quote-clients', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'clients'])->middleware(['module:clients', 'custom_jobs:custom_job.quote']);
             Route::get('/quotes/{id}', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'show']);

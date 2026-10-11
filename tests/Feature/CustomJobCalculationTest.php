@@ -2,8 +2,10 @@
 
 namespace Tests\Feature;
 
+use App\Contracts\CustomJobReservation;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Client;
+use App\Models\CustomJobOrder;
 use App\Models\CustomJobRate;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
@@ -16,6 +18,7 @@ use App\Models\Role;
 use App\Models\Setting;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\CustomJobOrders;
 use App\Services\TenantManager;
 use App\Support\CustomJobProforma;
 use App\Support\CustomJobs;
@@ -122,6 +125,7 @@ class CustomJobCalculationTest extends TestCase
             $t->string('invoice_prefix')->nullable();
         });
         (require database_path('migrations/2026_10_07_010000_create_custom_job_quotes.php'))->up();
+        (require database_path('migrations/2026_10_10_000000_create_custom_job_orders.php'))->up();
 
     }
 
@@ -593,5 +597,154 @@ class CustomJobCalculationTest extends TestCase
         $org->save();
         $this->request('GET', 'quotes/'.$quote['id'])->assertForbidden();
         $this->request('GET', 'quotes?store_id='.$store->id)->assertForbidden();
+    }
+
+    private function issuedOrderQuote(int $quantity = 100): array
+    {
+        [$user,$org,$role] = $this->quotesAccount();
+        $role->givePermissionTo('custom_job.order');
+        $store = $this->store();
+        $material = $this->source($store, 'Vaso', 5);
+        $quote = $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([$this->material($material)], [], ['quantity' => $quantity])]))->assertCreated()->json('data');
+        $quote = $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => $quote['version'], 'revision_id' => $quote['revisions'][0]['id']])->assertOk()->json('data');
+        $data = ['version' => $quote['version'], 'revision_id' => $quote['issued_revision_id'], 'delivery_local' => '2026-10-20T23:30'];
+
+        return [$user, $org, $role, $store, $quote, $data, $material];
+    }
+
+    public function test_order_conversion_copies_exact_revision_is_idempotent_and_does_not_start_operations(): void
+    {
+        [$user,$org,$role,$store,$quote,$data,$material] = $this->issuedOrderQuote();
+        $stock = DB::table('inventory_details')->get()->toArray();
+        Product::find(InventoryDetail::find($material)->product_id)->update(['name' => 'Vaso cambiado', 'cost' => 99]);
+        $order = $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()
+            ->assertJsonPath('data.number', 'PED-000001')->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.delivery_timezone', 'America/Managua')->assertJsonPath('data.delivery_at', '2026-10-21T05:30:00Z')
+            ->assertJsonPath('data.items.0.quantity', 100)->assertJsonPath('data.items.0.name', 'Trabajo')
+            ->assertJsonPath('data.commercial.totals.total', 650)->assertJsonPath('data.snapshot.articles.0.materials.0.name', 'Vaso')
+            ->assertJsonPath('data.confirmation.available', false)->assertJsonPath('data.operations.payment', null)->json('data');
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->assertJsonPath('data.id', $order['id']);
+        $this->assertDatabaseCount('custom_job_orders', 1);
+        $this->assertDatabaseCount('custom_job_order_items', 1);
+        $this->assertDatabaseCount('invoices', 1); // Only the existing proforma, no invoice created on conversion.
+        $this->assertEquals($stock, DB::table('inventory_details')->get()->toArray());
+        $this->request('GET', 'quotes/'.$quote['id'])->assertOk()->assertJsonPath('data.status', 'converted')->assertJsonPath('data.conversion.order_id', $order['id']);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => '2026-10-21T08:00'])->assertStatus(409);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertStatus(409);
+        $this->assertSame('draft', CustomJobOrder::find($order['id'])->status);
+        $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => 3, 'revision_id' => $quote['issued_revision_id']])->assertStatus(409);
+    }
+
+    public function test_orders_require_current_issued_revision_and_reject_forged_payloads(): void
+    {
+        [$user,$org,$role,$store,$quote,$data] = $this->issuedOrderQuote();
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'version' => 1])->assertStatus(409);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'revision_id' => (string) Str::uuid()])->assertStatus(409);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'total' => 1])->assertStatus(422);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => '2026-02-30T08:00'])->assertStatus(422);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => ''])->assertStatus(422);
+        $payload = $this->quotePayload($store, [$this->article([])]);
+        $draft = $this->request('POST', 'quotes', $payload)->assertCreated()->json('data');
+        $this->request('POST', 'quotes/'.$draft['id'].'/convert', ['version' => 1, 'revision_id' => $draft['revisions'][0]['id'], 'delivery_local' => $data['delivery_local']])->assertStatus(409);
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => '0001-01-01T08:00'])->assertStatus(422);
+        $this->assertDatabaseCount('custom_job_orders', 0);
+        $store->custom_job_timezone = 'Bad/Zone';
+        $store->save();
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertStatus(422);
+    }
+
+    public function test_order_commitments_keep_timezone_and_filter_by_local_day_with_version_conflicts(): void
+    {
+        [$user,$org,$role,$store,$quote,$data] = $this->issuedOrderQuote();
+        $order = $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->json('data');
+        $this->request('GET', 'orders?store_id='.$store->id.'&delivery_from=2026-10-20&delivery_to=2026-10-20')->assertOk()->assertJsonCount(1, 'data');
+        $this->request('GET', 'orders?store_id='.$store->id.'&delivery_from=2026-10-21')->assertOk()->assertJsonCount(0, 'data');
+        $this->request('GET', 'orders?store_id='.$store->id.'&delivery_to=2026-01-01')->assertOk()->assertJsonCount(0, 'data');
+        $store->custom_job_timezone = 'UTC';
+        $store->save();
+        $this->request('PATCH', 'orders/'.$order['id'].'/commitment', ['version' => 1, 'delivery_local' => '2026-10-22T08:45'])->assertOk()
+            ->assertJsonPath('data.version', 2)->assertJsonPath('data.delivery_at', '2026-10-22T14:45:00Z')
+            ->assertJsonPath('data.delivery_timezone', 'America/Managua');
+        $this->request('PATCH', 'orders/'.$order['id'].'/commitment', ['version' => 1, 'delivery_local' => '2026-10-24T09:00'])->assertStatus(409);
+        $this->assertSame('2026-10-22T08:45', CustomJobOrder::find($order['id'])->delivery_local);
+        $this->request('GET', 'orders?store_id='.$store->id.'&delivery_to=2026-10-22')->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_order_cost_redaction_permissions_tenant_and_store_isolation(): void
+    {
+        [$user,$org,$role,$store,$quote,$data] = $this->issuedOrderQuote();
+        $role->revokePermissionTo('custom_job.costs');
+        $order = $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->assertJsonMissingPath('data.snapshot')->assertJsonMissingPath('data.items.0.composition')->json('data');
+        $this->request('GET', 'orders/'.$order['id'])->assertOk()->assertJsonMissingPath('data.snapshot');
+        $this->request('GET', 'orders?store_id='.$store->id)->assertOk()->assertJsonMissingPath('data.0.snapshot')->assertJsonMissingPath('data.0.items.0.composition');
+        $role->revokePermissionTo('custom_job.order');
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertForbidden();
+        $this->request('PATCH', 'orders/'.$order['id'].'/commitment', ['version' => 1, 'delivery_local' => '2026-10-21T10:00'])->assertForbidden();
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertForbidden();
+        [, , $foreignRole] = $this->quotesAccount();
+        $foreignRole->givePermissionTo('custom_job.order');
+        $this->request('GET', 'orders/'.$order['id'])->assertNotFound();
+        $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertNotFound();
+        $this->authenticate($user);
+        TenantManager::setTenant($org);
+        $org->owner_id = (string) Str::uuid();
+        $org->save();
+        $this->request('GET', 'orders/'.$order['id'])->assertForbidden();
+        $this->request('GET', 'orders?store_id='.$store->id)->assertForbidden();
+    }
+
+    public function test_confirmation_reservation_failure_rolls_back_and_success_retries_once(): void
+    {
+        [$user,$org,$role,$store,$quote,$data] = $this->issuedOrderQuote();
+        $order = $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->json('data');
+        $service = app(CustomJobOrders::class);
+        $adapter = new class implements CustomJobReservation
+        {
+            public bool $fail = true;
+
+            public int $calls = 0;
+
+            public function reserve(User $user, CustomJobOrder $order): void
+            {
+                $this->calls++;
+                DB::table('stores')->where('id', $order->store_id)->increment('custom_job_order_number');
+                if ($this->fail) {
+                    throw new \RuntimeException('Apartado fallido');
+                }
+            }
+        };
+        app()->instance(CustomJobReservation::class, $adapter);
+        try {
+            $service->confirm($user, $order['id'], 1);
+            $this->fail('Expected reservation error');
+        } catch (\RuntimeException $e) {
+            $this->assertSame('Apartado fallido', $e->getMessage());
+        }
+        $this->assertSame('draft', CustomJobOrder::find($order['id'])->status);
+        $this->assertNull(CustomJobOrder::find($order['id'])->confirmed_at);
+        $this->assertSame(1, (int) $store->fresh()->custom_job_order_number);
+        $adapter->fail = false;
+        $service->confirm($user, $order['id'], 1);
+        $service->confirm($user, $order['id'], 1);
+        $this->assertSame(2, $adapter->calls);
+        $this->assertSame('confirmed', CustomJobOrder::find($order['id'])->status);
+        $this->assertSame(2, (int) $store->fresh()->custom_job_order_number);
+        app()->forgetInstance(CustomJobReservation::class);
+    }
+
+    public function test_order_numbers_are_unique_per_store_and_dst_commitments_are_validated(): void
+    {
+        [$user,$org,$role,$store,$quote,$data] = $this->issuedOrderQuote();
+        $store->custom_job_timezone = 'America/New_York';
+        $store->save();
+        foreach (['2026-03-08T02:30', '2026-11-01T01:30'] as $local) {
+            $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => $local])->assertStatus(422);
+        }
+        $first = $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->json('data');
+        $draft = $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([])]))->assertCreated()->json('data');
+        $issued = $this->request('POST', 'quotes/'.$draft['id'].'/issue', ['version' => 1, 'revision_id' => $draft['revisions'][0]['id']])->assertOk()->json('data');
+        $this->request('POST', 'quotes/'.$draft['id'].'/convert', ['version' => $issued['version'], 'revision_id' => $issued['issued_revision_id'], 'delivery_local' => $data['delivery_local']])->assertCreated()->assertJsonPath('data.number', 'PED-000002');
+        $this->assertDatabaseCount('custom_job_orders', 2);
+        $this->assertSame('2026-10-21T03:30:00Z', $first['delivery_at']);
     }
 }

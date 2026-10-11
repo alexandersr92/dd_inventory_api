@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Client;
+use App\Models\CustomJobOrder;
 use App\Models\CustomJobQuote;
 use App\Models\Invoice;
 use App\Models\Store;
@@ -171,7 +172,7 @@ final class CustomJobQuotes
             'proforma' => $proforma ? ['id' => $proforma->id, 'number' => $proforma->invoice_number, 'revision_id' => $proforma->custom_job_revision_id] : null,
             'revisions' => $revisions->map(fn ($r) => [...$r->only(['id', 'number', 'user_id', 'created_at']), 'commercial' => $r->commercial,
                 ...($costs ? ['snapshot' => $r->snapshot] : [])])->all(),
-            // Plan 07 consumes this exact immutable revision; no order is created by plan 06.
-            'conversion' => ['available' => false, 'revision_id' => $row->status === 'issued' ? $row->issued_revision_id : null, 'version' => $row->version]];
+            // Conversion always consumes the exact immutable issued revision.
+            'conversion' => ['available' => $row->status === 'issued', 'revision_id' => $row->issued_revision_id, 'version' => $row->version, 'timezone' => $this->context->store($user, $row->store_id)->custom_job_timezone, 'order_id' => CustomJobOrder::where('quote_id', $row->id)->value('id')]];
     }
 }
