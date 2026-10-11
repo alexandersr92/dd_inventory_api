@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use App\Contracts\CustomJobReservation;
 use App\Http\Resources\InvoiceResource;
 use App\Models\Client;
+use App\Models\CustomJobMaterialEvent;
 use App\Models\CustomJobOrder;
 use App\Models\CustomJobRate;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
+use App\Models\InventoryMovement;
 use App\Models\Invoice;
 use App\Models\Module;
 use App\Models\Organization;
@@ -18,7 +20,9 @@ use App\Models\Role;
 use App\Models\Setting;
 use App\Models\Store;
 use App\Models\User;
+use App\Services\CustomJobMaterials;
 use App\Services\CustomJobOrders;
+use App\Services\InventoryMovementService;
 use App\Services\TenantManager;
 use App\Support\CustomJobProforma;
 use App\Support\CustomJobs;
@@ -27,6 +31,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class CustomJobCalculationTest extends TestCase
@@ -126,6 +132,9 @@ class CustomJobCalculationTest extends TestCase
         });
         (require database_path('migrations/2026_10_07_010000_create_custom_job_quotes.php'))->up();
         (require database_path('migrations/2026_10_10_000000_create_custom_job_orders.php'))->up();
+        Schema::create('sellers', fn (Blueprint $t) => $t->uuid('id')->primary());
+        (require database_path('migrations/2026_07_01_095815_create_inventory_movements_table.php'))->up();
+        (require database_path('migrations/2026_10_10_010000_create_custom_job_material_ledger.php'))->up();
 
     }
 
@@ -622,7 +631,7 @@ class CustomJobCalculationTest extends TestCase
             ->assertJsonPath('data.delivery_timezone', 'America/Managua')->assertJsonPath('data.delivery_at', '2026-10-21T05:30:00Z')
             ->assertJsonPath('data.items.0.quantity', 100)->assertJsonPath('data.items.0.name', 'Trabajo')
             ->assertJsonPath('data.commercial.totals.total', 650)->assertJsonPath('data.snapshot.articles.0.materials.0.name', 'Vaso')
-            ->assertJsonPath('data.confirmation.available', false)->assertJsonPath('data.operations.payment', null)->json('data');
+            ->assertJsonPath('data.confirmation.available', true)->assertJsonPath('data.operations.payment', null)->json('data');
         $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->assertJsonPath('data.id', $order['id']);
         $this->assertDatabaseCount('custom_job_orders', 1);
         $this->assertDatabaseCount('custom_job_order_items', 1);
@@ -630,8 +639,8 @@ class CustomJobCalculationTest extends TestCase
         $this->assertEquals($stock, DB::table('inventory_details')->get()->toArray());
         $this->request('GET', 'quotes/'.$quote['id'])->assertOk()->assertJsonPath('data.status', 'converted')->assertJsonPath('data.conversion.order_id', $order['id']);
         $this->request('POST', 'quotes/'.$quote['id'].'/convert', [...$data, 'delivery_local' => '2026-10-21T08:00'])->assertStatus(409);
-        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertStatus(409);
-        $this->assertSame('draft', CustomJobOrder::find($order['id'])->status);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk();
+        $this->assertSame('confirmed', CustomJobOrder::find($order['id'])->status);
         $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => 3, 'revision_id' => $quote['issued_revision_id']])->assertStatus(409);
     }
 
@@ -704,7 +713,7 @@ class CustomJobCalculationTest extends TestCase
 
             public int $calls = 0;
 
-            public function reserve(User $user, CustomJobOrder $order): void
+            public function reserve(User $user, CustomJobOrder $order, array $selection = []): void
             {
                 $this->calls++;
                 DB::table('stores')->where('id', $order->store_id)->increment('custom_job_order_number');
@@ -746,5 +755,175 @@ class CustomJobCalculationTest extends TestCase
         $this->request('POST', 'quotes/'.$draft['id'].'/convert', ['version' => $issued['version'], 'revision_id' => $issued['issued_revision_id'], 'delivery_local' => $data['delivery_local']])->assertCreated()->assertJsonPath('data.number', 'PED-000002');
         $this->assertDatabaseCount('custom_job_orders', 2);
         $this->assertSame('2026-10-21T03:30:00Z', $first['delivery_at']);
+    }
+
+    private function materialOrder(): array
+    {
+        [$user,$org,$role] = $this->quotesAccount();
+        $role->givePermissionTo(['custom_job.order', 'custom_job.return']);
+        $store = $this->store();
+        $cup = $this->source($store, 'Vaso', 5);
+        $vinyl = $this->source($store, 'Vinil', 0.01, 'cm2');
+        DB::table('inventory_details')->where('id', $vinyl)->update(['quantity' => 10000]);
+        $quote = $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([$this->material($cup), $this->material($vinyl, ['method' => 'area'])], [], ['quantity' => 100])]))->assertCreated()->json('data');
+        $quote = $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => 1, 'revision_id' => $quote['revisions'][0]['id']])->assertOk()->json('data');
+        $order = $this->request('POST', 'quotes/'.$quote['id'].'/convert', ['version' => $quote['version'], 'revision_id' => $quote['issued_revision_id'], 'delivery_local' => '2026-10-20T16:00'])->assertCreated()->json('data');
+
+        return [$user, $org, $role, $store, $order, $cup, $vinyl];
+    }
+
+    public function test_material_reservation_consumption_selective_returns_recovery_and_additional_balance(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->materialOrder();
+        $confirmed = $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk()->json('data');
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk();
+        $this->assertSame(900.0, InventoryDetail::find($cup)->quantity);
+        $this->assertSame(5200.0, InventoryDetail::find($vinyl)->quantity);
+        $this->assertDatabaseCount('inventory_movements', 2);
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $cupRow = collect($rows['allocations'])->firstWhere('product_id', InventoryDetail::find($cup)->product_id);
+        $vinylRow = collect($rows['allocations'])->firstWhere('product_id', InventoryDetail::find($vinyl)->product_id);
+        $service = app(CustomJobMaterials::class);
+        $consumeKey = (string) Str::uuid();
+        $consume = [['allocation_id' => $cupRow['id'], 'quantity' => 40], ['allocation_id' => $vinylRow['id'], 'quantity' => 1920]];
+        $service->mutate($user, $order['id'], $confirmed['version'], $consumeKey, 'consume', $consume);
+        $service->mutate($user, $order['id'], $confirmed['version'], $consumeKey, 'consume', $consume);
+        $this->assertSame(900.0, InventoryDetail::find($cup)->quantity);
+        $this->assertDatabaseCount('inventory_movements', 2);
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $cupRow = collect($rows['allocations'])->firstWhere('id', $cupRow['id']);
+        $this->assertSame(60, $cupRow['remaining']);
+        $version = CustomJobOrder::find($order['id'])->version;
+        $key = (string) Str::uuid();
+        $returns = ['version' => $version, 'request_id' => $key, 'lines' => [['allocation_id' => $cupRow['id'], 'quantity' => 50], ['allocation_id' => $vinylRow['id'], 'quantity' => 2400]]];
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $returns)->assertOk();
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $returns)->assertOk();
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $this->assertSame(10, collect($rows['allocations'])->firstWhere('id', $cupRow['id'])['remaining']);
+        $this->assertSame(480, collect($rows['allocations'])->firstWhere('id', $vinylRow['id'])['remaining']);
+        $this->assertSame(950.0, InventoryDetail::find($cup)->quantity);
+        $this->assertSame(7600.0, InventoryDetail::find($vinyl)->quantity);
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', [...$returns, 'lines' => [['allocation_id' => $cupRow['id'], 'quantity' => 51]]])->assertStatus(409);
+        $version = CustomJobOrder::find($order['id'])->version;
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', ['version' => $version, 'request_id' => (string) Str::uuid(), 'lines' => [['allocation_id' => $cupRow['id'], 'quantity' => 11]]])->assertStatus(422);
+        $used = CustomJobMaterialEvent::where('allocation_id', $cupRow['id'])->where('kind', 'consume')->first();
+        $recovery = ['version' => $version, 'request_id' => (string) Str::uuid(), 'lines' => [['allocation_id' => $cupRow['id'], 'quantity' => 40, 'source_event_id' => $used->id]]];
+        $this->request('POST', 'orders/'.$order['id'].'/materials/recover', $recovery)->assertOk();
+        $this->request('POST', 'orders/'.$order['id'].'/materials/recover', $recovery)->assertOk();
+        $this->request('POST', 'orders/'.$order['id'].'/materials/recover', [...$recovery, 'version' => CustomJobOrder::find($order['id'])->version, 'request_id' => (string) Str::uuid(), 'lines' => [['allocation_id' => $cupRow['id'], 'quantity' => 1, 'source_event_id' => $used->id]]])->assertStatus(422);
+        $this->assertSame(990.0, InventoryDetail::find($cup)->quantity);
+        $this->assertSame(40.0, (float) $used->fresh()->getRawOriginal('quantity'));
+        $extra = ['version' => CustomJobOrder::find($order['id'])->version, 'request_id' => (string) Str::uuid(), 'selections' => [['item_id' => $order['items'][0]['id'], 'material_index' => 0, 'target' => 80, 'sources' => [['inventory_detail_id' => $cup, 'quantity' => 30]]]]];
+        $this->request('POST', 'orders/'.$order['id'].'/materials/additional', $extra)->assertOk();
+        $this->request('POST', 'orders/'.$order['id'].'/materials/additional', $extra)->assertOk();
+        $this->assertSame(960.0, InventoryDetail::find($cup)->quantity);
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $a = collect($rows['allocations'])->firstWhere('id', $cupRow['id']);
+        $this->assertSame(130, $a['assigned']);
+        $this->assertSame(40, $a['remaining']);
+        $this->assertSame(40, $a['used']);
+        $this->assertSame(40, $a['recovered']);
+    }
+
+    public function test_material_split_origins_fractional_stock_and_forbidden_product_unit_or_destination(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->materialOrder();
+        $otherStore = $this->store();
+        $inventory = Inventory::create(['name' => 'Otra sucursal', 'store_id' => $otherStore->id, 'status' => 'active']);
+        $other = InventoryDetail::create(['inventory_id' => $inventory->id, 'product_id' => InventoryDetail::find($cup)->product_id, 'quantity' => 60, 'price' => 9]);
+        $selections = [['item_id' => $order['items'][0]['id'], 'material_index' => 0, 'sources' => [['inventory_detail_id' => $cup, 'quantity' => 40], ['inventory_detail_id' => $other->id, 'quantity' => 60]]], ['item_id' => $order['items'][0]['id'], 'material_index' => 1, 'sources' => [['inventory_detail_id' => $vinyl, 'quantity' => 4800]]]];
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1, 'selections' => $selections])->assertOk();
+        $this->assertSame(960.0, InventoryDetail::find($cup)->quantity);
+        $this->assertSame(0.0, $other->fresh()->quantity);
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $a = collect($rows['allocations'])->firstWhere('inventory_detail_id', $other->id);
+        $payload = ['version' => 2, 'request_id' => (string) Str::uuid(), 'lines' => [['allocation_id' => $a['id'], 'quantity' => 0.123456, 'inventory_detail_id' => $cup]]];
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $payload)->assertForbidden();
+        Permission::firstOrCreate(['name' => 'inventory.update', 'guard_name' => 'web'], ['display_name' => 'Editar inventario']);
+        $role->givePermissionTo('inventory.update');
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $payload)->assertOk();
+        $this->assertSame(960.123456, InventoryDetail::find($cup)->quantity);
+        $payload['version'] = CustomJobOrder::find($order['id'])->version;
+        $payload['request_id'] = (string) Str::uuid();
+        $payload['lines'][0]['quantity'] = 0.0000001;
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $payload)->assertStatus(422);
+        $vinylAllocation = collect($rows['allocations'])->firstWhere('inventory_detail_id', $vinyl);
+        $payload['request_id'] = (string) Str::uuid();
+        $payload['lines'] = [['allocation_id' => $vinylAllocation['id'], 'quantity' => 1, 'inventory_detail_id' => $cup],
+            ['allocation_id' => $a['id'], 'quantity' => 1, 'inventory_detail_id' => $cup]];
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', $payload)->assertStatus(422);
+        $this->assertSame(960.123456, InventoryDetail::find($cup)->quantity);
+    }
+
+    public function test_material_shortages_follow_policy_and_atomic_failure_has_no_partial_assignment(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->materialOrder();
+        Setting::create(['key' => 'allow_negative_stock', 'type' => 'global', 'value' => 'false']);
+        DB::table('inventory_details')->where('id', $vinyl)->update(['quantity' => 1]);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertStatus(422);
+        $this->assertSame('draft', CustomJobOrder::find($order['id'])->status);
+        $this->assertSame(1000.0, InventoryDetail::find($cup)->quantity);
+        $this->assertDatabaseCount('inventory_movements', 0);
+        $this->assertDatabaseCount('custom_job_material_events', 0);
+        Setting::where('key', 'allow_negative_stock')->update(['value' => 'true']);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk();
+        $rows = $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->json('data');
+        $a = collect($rows['allocations'])->firstWhere('inventory_detail_id', $vinyl);
+        $this->assertSame(4799, $a['shortage_remaining']);
+        $this->assertSame(1, $a['physical_remaining']);
+        try {
+            app(CustomJobMaterials::class)->mutate($user, $order['id'], 2, (string) Str::uuid(), 'consume', [['allocation_id' => $a['id'], 'quantity' => 2]]);
+            $this->fail('Cannot consume virtual stock');
+        } catch (ValidationException $e) {
+            $this->assertStringContainsString('físicamente', $e->getMessage());
+        }
+        Permission::firstOrCreate(['name' => 'inventory.update', 'guard_name' => 'web'], ['display_name' => 'Editar inventario']);
+        $role->givePermissionTo('inventory.update');
+        $inventory = Inventory::create(['store_id' => $store->id, 'name' => 'Destino autorizado', 'status' => 'active']);
+        $other = InventoryDetail::create(['inventory_id' => $inventory->id, 'product_id' => $a['product_id'], 'quantity' => 10, 'status' => 'active']);
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', ['version' => 2, 'request_id' => (string) Str::uuid(),
+            'lines' => [['allocation_id' => $a['id'], 'quantity' => 2, 'inventory_detail_id' => $other->id]]])->assertStatus(422);
+        $this->assertSame(10.0, $other->fresh()->quantity);
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', ['version' => 2, 'request_id' => (string) Str::uuid(),
+            'lines' => [['allocation_id' => $a['id'], 'quantity' => 4800]]])->assertOk();
+        $this->assertSame(1.0, InventoryDetail::find($vinyl)->quantity);
+    }
+
+    public function test_two_orders_compete_for_stock_and_retries_cannot_reverse_material_movements(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->materialOrder();
+        Setting::create(['key' => 'allow_negative_stock', 'type' => 'global', 'value' => 'false']);
+        DB::table('inventory_details')->where('id', $cup)->update(['quantity' => 100]);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk();
+        $quote = $this->request('POST', 'quotes', $this->quotePayload($store, [$this->article([$this->material($cup)], [], ['quantity' => 1])]))->assertCreated()->json('data');
+        $quote = $this->request('POST', 'quotes/'.$quote['id'].'/issue', ['version' => 1, 'revision_id' => $quote['revisions'][0]['id']])->assertOk()->json('data');
+        $second = $this->request('POST', 'quotes/'.$quote['id'].'/convert', ['version' => $quote['version'], 'revision_id' => $quote['issued_revision_id'], 'delivery_local' => '2026-10-20T16:00'])->assertCreated()->json('data');
+        $this->request('POST', 'orders/'.$second['id'].'/confirm', ['version' => 1])->assertStatus(422);
+        $this->assertSame('draft', CustomJobOrder::find($second['id'])->status);
+        $movement = InventoryMovement::first();
+        try {
+            app(InventoryMovementService::class)->reverseMovement($movement);
+            $this->fail('Cannot reverse linked material movement');
+        } catch (HttpException $e) {
+            $this->assertSame(409, $e->getStatusCode());
+        }
+        $this->assertSame(0.0, InventoryDetail::find($cup)->quantity);
+    }
+
+    public function test_material_sources_and_balances_reject_invalid_classification_units_permissions_and_foreign_accounts(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->materialOrder();
+        Product::find(InventoryDetail::find($cup)->product_id)->update(['product_usage' => 'sale']);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertStatus(422);
+        DB::table('products')->where('id', InventoryDetail::find($cup)->product_id)->update(['product_usage' => 'both', 'unit_of_measure' => 'cm']);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertStatus(422);
+        DB::table('products')->where('id', InventoryDetail::find($cup)->product_id)->update(['unit_of_measure' => 'unit']);
+        $this->request('POST', 'orders/'.$order['id'].'/confirm', ['version' => 1])->assertOk();
+        $role->revokePermissionTo('custom_job.costs');
+        $this->request('GET', 'orders/'.$order['id'].'/materials')->assertOk()->assertJsonMissingPath('data.held_value_nio')->assertJsonMissingPath('data.allocations.0.unit_cost_nio')->assertJsonMissingPath('data.requirements.0.unit_cost_nio');
+        $role->revokePermissionTo('custom_job.return');
+        $this->request('POST', 'orders/'.$order['id'].'/materials/return', ['version' => 2, 'request_id' => (string) Str::uuid(), 'lines' => []])->assertForbidden();
+        $this->quotesAccount();
+        $this->request('GET', 'orders/'.$order['id'].'/materials')->assertNotFound();
     }
 }

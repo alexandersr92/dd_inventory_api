@@ -115,7 +115,7 @@ class InventoryMovementService
      */
     public function getMovementDirection(string $type): string
     {
-        $inTypes = ['return', 'adjustment_in', 'gift_in', 'manual_in', 'sale_cancel', 'purchase', 'transfer_in'];
+        $inTypes = ['custom_job_return', 'return', 'adjustment_in', 'gift_in', 'manual_in', 'sale_cancel', 'purchase', 'transfer_in'];
         return in_array($type, $inTypes) ? 'in' : 'out';
     }
 
@@ -243,6 +243,7 @@ class InventoryMovementService
      */
     public function reverseMovement(InventoryMovement $movement): InventoryMovement
     {
+        abort_if($movement->reference_type === 'CustomJobMaterialEvent', 409, 'Este movimiento se compensa desde Trabajos personalizados.');
         return DB::transaction(function () use ($movement) {
             $detail = InventoryDetail::where('id', $movement->inventory_detail_id)->lockForUpdate()->firstOrFail();
             $orgId = $movement->organization_id;

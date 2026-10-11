@@ -103,9 +103,9 @@ final class CustomJobOrders
         });
     }
 
-    public function confirm(User $user, string $id, int $version): CustomJobOrder
+    public function confirm(User $user, string $id, int $version, array $selection = []): CustomJobOrder
     {
-        return DB::transaction(function () use ($user, $id, $version) {
+        return DB::transaction(function () use ($user, $id, $version, $selection) {
             $read = $this->accessible($user, $id);
             Store::whereKey($read->store_id)->lockForUpdate()->firstOrFail();
             $order = $this->accessible($user, $id, true);
@@ -115,7 +115,7 @@ final class CustomJobOrders
             abort_unless($order->version === $version && $order->status === 'draft', 409, 'El pedido cambió. Recarga antes de confirmar.');
             abort_unless(app()->bound(CustomJobReservation::class), 409, 'Confirmación deshabilitada: falta integrar el apartado de materiales del plan 08.');
             $this->delivery($order->delivery_local, $order->delivery_timezone);
-            app(CustomJobReservation::class)->reserve($user, $order);
+            app(CustomJobReservation::class)->reserve($user, $order, $selection);
             $order->status = 'confirmed';
             $order->confirmed_at = now('UTC')->format('Y-m-d H:i:s');
             $order->version++;

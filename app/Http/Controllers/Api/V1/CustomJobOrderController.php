@@ -60,6 +60,6 @@ class CustomJobOrderController extends Controller
     {
         $data = $request->validate(['version' => ['required', 'integer', 'min:1']]);
 
-        return $this->result($request, $service, $service->confirm($request->user(), $id, $data['version']));
+        return $this->result($request, $service, $service->confirm($request->user(), $id, $data['version'], CustomJobMaterialController::selection($request)));
     }
 }
