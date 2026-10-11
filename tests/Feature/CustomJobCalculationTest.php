@@ -135,6 +135,7 @@ class CustomJobCalculationTest extends TestCase
         Schema::create('sellers', fn (Blueprint $t) => $t->uuid('id')->primary());
         (require database_path('migrations/2026_07_01_095815_create_inventory_movements_table.php'))->up();
         (require database_path('migrations/2026_10_10_010000_create_custom_job_material_ledger.php'))->up();
+        (require database_path('migrations/2026_10_10_020000_create_custom_job_production.php'))->up();
 
     }
 
@@ -926,4 +927,110 @@ class CustomJobCalculationTest extends TestCase
         $this->quotesAccount();
         $this->request('GET', 'orders/'.$order['id'].'/materials')->assertNotFound();
     }
+    private function productionOrder(): array
+    {
+        $fixture=$this->materialOrder();
+        $fixture[2]->givePermissionTo('custom_job.production');
+        $id=$fixture[4]['id'];
+        $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        $this->request('POST','orders/'.$id.'/production',['version'=>2])->assertOk();
+        return $fixture;
+    }
+
+    private function progressPayload(array $order,int $version,float $produced,float $discarded=0,array $consumption=[]): array
+    {
+        return ['version'=>$version,'request_id'=>(string)Str::uuid(),'item_id'=>$order['items'][0]['id'],'produced'=>$produced,'discarded'=>$discarded,
+            'occurred_local'=>'2026-10-01T16:00','note'=>'Prueba progreso','consumption'=>$consumption];
+    }
+
+    public function test_production_daily_increments_consumption_and_generation_are_idempotent(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder(); $id=$order['id'];
+        $this->request('POST','orders/'.$id.'/production',['version'=>2])->assertOk();
+        $this->assertDatabaseCount('custom_job_work_orders',1);
+        $this->assertSame(3,CustomJobOrder::find($id)->version);
+        $alloc=$this->request('GET','orders/'.$id.'/materials')->assertOk()->json('data.allocations');
+        $cupA=collect($alloc)->firstWhere('inventory_detail_id',$cup);
+        $vinylA=collect($alloc)->firstWhere('inventory_detail_id',$vinyl);
+        foreach([20,15,5] as $day=>$quantity) {
+            $p=$this->progressPayload($order,3+$day,$quantity,0,[['allocation_id'=>$cupA['id'],'quantity'=>$quantity],['allocation_id'=>$vinylA['id'],'quantity'=>$quantity*48]]);
+            $p['occurred_local']='2026-10-0'.($day+1).'T16:00';
+            $this->request('POST','orders/'.$id.'/production/events',$p)->assertOk();
+            $this->request('POST','orders/'.$id.'/production/events',$p)->assertOk();
+        }
+        $result=$this->request('GET','orders/'.$id.'/production')->assertOk()->json('data');
+        $this->assertSame(40,$result['items'][0]['produced']); $this->assertSame(60,$result['items'][0]['pending']);
+        $this->assertSame('in_progress',$result['status']); $this->assertCount(3,$result['events']);
+        $this->assertSame(48,$result['items'][0]['materials'][1]['per_piece']);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity); $this->assertSame(5200.0,InventoryDetail::find($vinyl)->quantity);
+        $this->assertDatabaseCount('inventory_movements',2);
+        $ledger=$this->request('GET','orders/'.$id.'/materials')->assertOk()->json('data.allocations');
+        $this->assertSame(60,collect($ledger)->firstWhere('inventory_detail_id',$cup)['remaining']);
+        $p['produced']=6; $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(409);
+    }
+
+    public function test_production_preparation_discards_and_corrections_preserve_material_consumption(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder(); $id=$order['id'];
+        $a=collect($this->request('GET','orders/'.$id.'/materials')->json('data.allocations'))->firstWhere('inventory_detail_id',$cup);
+        $prepare=$this->progressPayload($order,3,0,0,[['allocation_id'=>$a['id'],'quantity'=>12]]);
+        $this->request('POST','orders/'.$id.'/production/events',$prepare)->assertOk()->assertJsonPath('production.items.0.produced',0);
+        $p=$this->progressPayload($order,4,10,2);
+        $result=$this->request('POST','orders/'.$id.'/production/events',$p)->assertOk()->json('production');
+        $original=collect($result['events'])->firstWhere('produced',10);
+        $correction=[...$this->progressPayload($order,5,0),'corrects_event_id'=>$original['id'],'note'=>'Conteo incorrecto'];
+        $this->request('POST','orders/'.$id.'/production/events',$correction)->assertOk()->assertJsonPath('production.items.0.produced',0)->assertJsonPath('production.items.0.discarded',0);
+        $this->request('POST','orders/'.$id.'/production/events',$correction)->assertOk();
+        $correction['version']=6; $correction['request_id']=(string)Str::uuid();
+        $this->request('POST','orders/'.$id.'/production/events',$correction)->assertStatus(409);
+        $ledger=$this->request('GET','orders/'.$id.'/materials')->json('data.allocations');
+        $this->assertSame(12,collect($ledger)->firstWhere('id',$a['id'])['used']);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);
+        $this->assertDatabaseCount('custom_job_production_events',3);
+        $finish=$this->progressPayload($order,6,100);
+        $this->request('POST','orders/'.$id.'/production/events',$finish)->assertOk()->assertJsonPath('production.status','ready');
+    }
+
+    public function test_production_invalid_stock_quantity_version_dates_and_cancelled_orders_roll_back(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder(); $id=$order['id'];
+        $a=collect($this->request('GET','orders/'.$id.'/materials')->json('data.allocations'))->firstWhere('inventory_detail_id',$cup);
+        $p=$this->progressPayload($order,3,20,0,[['allocation_id'=>$a['id'],'quantity'=>101]]);
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(422);
+        $this->assertDatabaseCount('custom_job_production_events',0); $this->assertSame(3,CustomJobOrder::find($id)->version);
+        $p['consumption']=[]; $p['produced']=101;
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(422);
+        $p['produced']=0.5;
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(422);
+        $p['produced']=20; $p['version']=2;
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(409);
+        $p['version']=3; $p['occurred_local']='2027-10-01T16:00';
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertStatus(422);
+        $p['occurred_local']='2026-10-01T16:00';
+        $this->request('POST','orders/'.$id.'/production/events',$p)->assertOk();
+        $next=$this->progressPayload($order,3,10);
+        $this->request('POST','orders/'.$id.'/production/events',$next)->assertStatus(409);
+        DB::table('custom_job_orders')->where('id',$id)->update(['status'=>'cancelled']);
+        $next['version']=4;
+        $this->request('POST','orders/'.$id.'/production/events',$next)->assertStatus(409);
+        $this->assertDatabaseCount('custom_job_production_events',1);
+    }
+
+    public function test_production_permissions_tenant_and_cost_redaction(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->materialOrder(); $id=$order['id'];
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonPath('data',null);
+        $this->request('POST','orders/'.$id.'/production',['version'=>1])->assertForbidden();
+        $role->givePermissionTo('custom_job.production');
+        $this->request('POST','orders/'.$id.'/production',['version'=>1])->assertStatus(409);
+        $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        $this->request('POST','orders/'.$id.'/production',['version'=>2])->assertOk();
+        $role->revokePermissionTo('custom_job.costs');
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonMissingPath('data.actual_material_cost_nio')->assertJsonMissingPath('data.budget');
+        $role->revokePermissionTo('custom_job.production');
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,1))->assertForbidden();
+        [$other]=$this->quotesAccount();
+        $this->request('GET','orders/'.$id.'/production')->assertNotFound();
+    }
+
 }

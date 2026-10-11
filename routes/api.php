@@ -78,6 +78,9 @@ Route::prefix('v1')->group(function () {
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'show']);
+            Route::post('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'generate'])->middleware('custom_jobs:custom_job.production,products,inventories');
+            Route::post('/orders/{id}/production/events', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'record'])->middleware('custom_jobs:custom_job.production,products,inventories');
             Route::get('/orders/{id}/materials', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'show'])->middleware('custom_jobs:custom_job.index,products,inventories');
             Route::post('/orders/{id}/materials/additional', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'additional')->middleware('custom_jobs:custom_job.order,products,inventories');
             Route::post('/orders/{id}/materials/return', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return,products,inventories');

@@ -49,6 +49,11 @@ final class CustomJobOrders
         return $utc->format('Y-m-d H:i:s');
     }
 
+    public function localInstant(string $local, string $zone): string
+    {
+        return $this->delivery($local, $zone);
+    }
+
     public function convert(User $user, string $quoteId, array $data): CustomJobOrder
     {
         return DB::transaction(function () use ($user, $quoteId, $data) {
@@ -134,7 +139,7 @@ final class CustomJobOrders
             'items' => $order->items->map(fn ($i) => [...$i->only(['id', 'position', 'name', 'quantity', 'commercial']), ...($costs ? ['composition' => $i->composition] : [])])->all(),
             ...($costs ? ['snapshot' => $order->snapshot] : []),
             'confirmation' => ['available' => $order->status === 'draft' && app()->bound(CustomJobReservation::class), 'reason' => app()->bound(CustomJobReservation::class) ? null : 'Falta integrar el apartado de materiales del plan 08.'],
-            // These owning modules do not exist yet; null means unavailable, never an invented balance/count.
-            'operations' => ['production' => null, 'delivery' => null, 'payment' => null, 'billing' => null]];
+            // Production provides a work-order link; other owning modules still return null.
+            'operations' => ['production' => ($work = \App\Models\CustomJobWorkOrder::where('order_id', $order->id)->first()) ? ['id' => $work->id] : null, 'delivery' => null, 'payment' => null, 'billing' => null]];
     }
 }
