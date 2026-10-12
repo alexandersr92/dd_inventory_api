@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Contracts\CustomJobReservation;
 use App\Models\CustomJobOrder;
+use App\Models\CustomJobWorkOrder;
 use App\Models\Store;
 use App\Models\User;
 use DateTimeImmutable;
@@ -136,10 +137,10 @@ final class CustomJobOrders
 
         return [...$order->only(['id', 'store_id', 'quote_id', 'quote_revision_id', 'client_id', 'client_name', 'user_id', 'number', 'status', 'version', 'delivery_local', 'delivery_timezone', 'confirmed_at', 'created_at', 'updated_at']),
             'delivery_at' => str_replace(' ', 'T', $order->delivery_at).'Z', 'commercial' => $order->commercial,
-            'items' => $order->items->map(fn ($i) => [...$i->only(['id', 'position', 'name', 'quantity', 'commercial']), ...($costs ? ['composition' => $i->composition] : [])])->all(),
+            'items' => $order->items->map(fn ($i) => [...$i->only(['id', 'position', 'name', 'quantity', 'active', 'commercial']), ...($costs ? ['composition' => $i->composition] : [])])->all(),
             ...($costs ? ['snapshot' => $order->snapshot] : []),
             'confirmation' => ['available' => $order->status === 'draft' && app()->bound(CustomJobReservation::class), 'reason' => app()->bound(CustomJobReservation::class) ? null : 'Falta integrar el apartado de materiales del plan 08.'],
             // Production provides a work-order link; other owning modules still return null.
-            'operations' => ['production' => ($work = \App\Models\CustomJobWorkOrder::where('order_id', $order->id)->first()) ? ['id' => $work->id] : null, 'delivery' => app(CustomJobDeliveries::class)->view($order), 'payment' => null, 'billing' => null]];
+            'operations' => ['production' => ($work = CustomJobWorkOrder::where('order_id', $order->id)->first()) ? ['id' => $work->id] : null, 'delivery' => app(CustomJobDeliveries::class)->view($order), 'payment' => null, 'billing' => null]];
     }
 }

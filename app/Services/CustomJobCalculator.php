@@ -11,7 +11,7 @@ final class CustomJobCalculator
 {
     public function __construct(private CustomJobResourcePreview $resources) {}
 
-    public function calculate(array $input, array $commercial, array $inventoryIds): array
+    public function calculate(array $input, array $commercial, array $inventoryIds, array $unitPrices = []): array
     {
         $divisor = Math::of($commercial['currency'] === 'USD' ? $commercial['usd_exchange_rate'] : 1);
         $costAll = Math::of(0);
@@ -103,7 +103,7 @@ final class CustomJobCalculator
             $profit = $article['profit'];
             $gain = $profit['method'] === 'percent' ? $cost->multipliedBy(Math::of($profit['value']))->dividedBy(100)
                 : Math::of($profit['value'])->multipliedBy($profit['scope'] === 'unit' ? $quantity : Math::of(1));
-            $price = Math::of(Math::number($cost->plus($gain), 2));
+            $price = Math::of(Math::number(array_key_exists($i, $unitPrices) ? Math::of($unitPrices[$i])->multipliedBy($quantity) : $cost->plus($gain), 2));
             if ($price->isGreaterThan(10000000000) || $cost->isGreaterThan(10000000000)) {
                 $this->fail("articles.$i", 'El importe calculado es demasiado grande.');
             }
@@ -112,7 +112,7 @@ final class CustomJobCalculator
             $lines[] = ['name' => $article['name'], 'quantity' => $article['quantity'], 'materials' => $materials, 'operations' => $operations,
                 'material_cost' => Math::number($materialCost), ...array_map(fn ($v) => Math::number($v), $breakdown),
                 'cost' => Math::number($cost), 'unit_cost' => Math::number($cost->dividedBy($quantity)), 'profit' => $profit,
-                'price' => Math::number($price, 2), 'unit_price' => Math::number($price->dividedBy($quantity)),
+                'price' => Math::number($price, 2), 'unit_price' => array_key_exists($i, $unitPrices) ? Math::number(Math::of($unitPrices[$i])) : Math::number($price->dividedBy($quantity)),
                 'planned_profit' => Math::number($price->minus($cost))];
         }
         $discount = $input['discount']['method'] === 'percent' ? $subtotal->multipliedBy(Math::of($input['discount']['value']))->dividedBy(100) : Math::of($input['discount']['value']);

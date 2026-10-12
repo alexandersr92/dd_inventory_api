@@ -12,5 +12,5 @@ class CustomJobOrderItem extends Model
 
     protected $guarded = ['id', 'organization_id'];
 
-    protected $casts = ['position' => 'integer', 'quantity' => 'float', 'commercial' => 'array', 'composition' => 'array'];
+    protected $casts = ['active' => 'boolean', 'position' => 'integer', 'quantity' => 'float', 'commercial' => 'array', 'composition' => 'array'];
 }

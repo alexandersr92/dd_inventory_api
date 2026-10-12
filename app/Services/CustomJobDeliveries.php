@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CustomJobDeliveryEvent as Event;
 use App\Models\CustomJobDeliveryLine as Line;
 use App\Models\CustomJobOrder;
+use App\Models\CustomJobOrderSurplusEvent;
 use App\Models\CustomJobProductionEvent as Progress;
 use App\Models\CustomJobWorkOrder as Work;
 use App\Models\Store;
@@ -53,9 +54,10 @@ final class CustomJobDeliveries
         $manufactured = $work ? (int) Progress::where('work_order_id', $work->id)->where('item_id', $itemId)->sum('produced') : 0;
         $item = $order->items()->findOrFail($itemId);
         $net = $gross - $corrected - $returned;
-        $usable = $manufactured - $unavailable;
+        $surplus = (int) CustomJobOrderSurplusEvent::where('item_id', $itemId)->sum('quantity');
+        $usable = $manufactured - $unavailable - $surplus;
 
-        return ['manufactured' => $manufactured, 'produced' => $usable, 'unavailable_returned' => $unavailable, 'delivered_gross' => $gross, 'delivery_corrections' => $corrected,
+        return ['surplus' => $surplus, 'manufactured' => $manufactured, 'produced' => $usable, 'unavailable_returned' => $unavailable, 'delivered_gross' => $gross, 'delivery_corrections' => $corrected,
             'returned' => $returned, 'delivered_net' => $net, 'pending' => (int) $item->quantity - $net, 'available' => max(0, min($usable, (int) $item->quantity) - $net)];
     }
 
@@ -157,7 +159,7 @@ final class CustomJobDeliveries
                 Line::create(['event_id' => $event->id, 'item_id' => $item->id, 'quantity' => $quantity, 'source_line_id' => $source?->id, 'disposition' => $disposition]);
                 $b = $this->balance($order, $item->id);
                 if ($b['delivered_net'] < 0 || $b['returned'] < 0 || $b['unavailable_returned'] < 0 || $b['delivered_net'] > min($b['produced'], (int) $item->quantity)
-                   || $b['manufactured'] > (int) $item->quantity + $b['unavailable_returned']) {
+                   || $b['manufactured'] > (int) $item->quantity + $b['unavailable_returned'] + $b['surplus']) {
                     $this->fail('La corrección deja cantidades inconsistentes con producción, entregas o reemplazos vigentes.');
                 }
             }
@@ -168,7 +170,7 @@ final class CustomJobDeliveries
 
     public function view(CustomJobOrder $order): array
     {
-        $items = $order->items->map(fn ($i) => ['id' => $i->id, 'name' => $i->name, 'ordered' => (int) $i->quantity, ...$this->balance($order, $i->id)])->all();
+        $items = $order->items->map(fn ($i) => ['id' => $i->id, 'name' => $i->name, 'active' => $i->active, 'ordered' => (int) $i->quantity, ...$this->balance($order, $i->id)])->all();
         $complete = count($items) > 0 && collect($items)->every(fn ($i) => $i['pending'] === 0);
         $rows = $this->history($order->id);
         $events = Event::where('order_id', $order->id)->orderBy('created_at')->orderBy('id')->get()->map(function ($e) use ($rows) {

@@ -137,6 +137,7 @@ class CustomJobCalculationTest extends TestCase
         (require database_path('migrations/2026_10_10_010000_create_custom_job_material_ledger.php'))->up();
         (require database_path('migrations/2026_10_10_020000_create_custom_job_production.php'))->up();
         (require database_path('migrations/2026_10_11_000000_create_custom_job_deliveries.php'))->up();
+        (require database_path('migrations/2026_10_11_010000_create_custom_job_order_revisions.php'))->up();
 
     }
 
@@ -1134,6 +1135,141 @@ class CustomJobCalculationTest extends TestCase
         $this->request('POST','orders/'.$id.'/deliveries/correct-return',$this->deliveryPayload(9,[['source_line_id'=>$bad]],'Error de devolución'))->assertStatus(422);
         $this->assertSame(9,CustomJobOrder::find($id)->version);
         $this->request('GET','orders/'.$id.'/deliveries')->assertOk()->assertJsonPath('data.items.0.unavailable_returned',5)->assertJsonPath('data.items.0.delivered_net',35);
+    }
+
+    private function revisionPayload(array $order,int $version,int $quantity): array
+    {
+        return ['version'=>$version,'delivery_local'=>$order['delivery_local'],'reason'=>'Cambio solicitado','items'=>[['id'=>$order['items'][0]['id'],'quantity'=>$quantity]],
+            'returns'=>[],'selections'=>[],'excess'=>[],'restore_excess'=>[]];
+    }
+    private function previewRevision(array $order,array $payload): array
+    {
+        return $this->request('POST','orders/'.$order['id'].'/revisions/preview',$payload)->assertOk()->json('data');
+    }
+    private function applyRevision(array $order,array $payload,array $preview): array
+    {
+        $p=[...$payload,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest']];
+        $this->request('POST','orders/'.$order['id'].'/revisions',$p)->assertOk();
+        return $p;
+    }
+    public function test_revision_reduces_100_to_50_returns_only_unused_and_preserves_agreed_price_history(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder();$id=$order['id'];
+        $alloc=$this->request('GET','orders/'.$id.'/materials')->json('data.allocations');$cupA=collect($alloc)->firstWhere('inventory_detail_id',$cup);$vinylA=collect($alloc)->firstWhere('inventory_detail_id',$vinyl);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,40,0,[['allocation_id'=>$cupA['id'],'quantity'=>40],['allocation_id'=>$vinylA['id'],'quantity'=>1920]]))->assertOk();
+        $payload=$this->revisionPayload($order,4,50);$preview=$this->previewRevision($order,$payload);
+        $this->assertSame(10,$preview['items'][0]['pending']);
+        $this->assertSame(50,collect($preview['materials'])->firstWhere('id',$cupA['id'])['proposed_return']);
+        $this->assertSame(2400,collect($preview['materials'])->firstWhere('id',$vinylA['id'])['proposed_return']);
+        $this->assertSame($order['commercial']['articles'][0]['unit_price'],$preview['after']['articles'][0]['unit_price']);
+        $this->assertSame($order['commercial']['totals']['total']/2,$preview['after']['totals']['total']);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);$this->assertDatabaseCount('custom_job_order_revisions',0);
+        $payload['returns']=[['allocation_id'=>$cupA['id'],'quantity'=>50],['allocation_id'=>$vinylA['id'],'quantity'=>2400]];
+        $applied=$this->applyRevision($order,$payload,$preview);
+        $this->request('POST','orders/'.$id.'/revisions',$applied)->assertOk();$this->assertDatabaseCount('custom_job_order_revisions',1);
+        $this->assertSame(950.0,InventoryDetail::find($cup)->quantity);$this->assertSame(7600.0,InventoryDetail::find($vinyl)->quantity);
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonPath('data.items.0.produced',40)->assertJsonPath('data.items.0.pending',10);
+        $ledger=$this->request('GET','orders/'.$id.'/materials')->json('data.allocations');$this->assertSame(10,collect($ledger)->firstWhere('id',$cupA['id'])['remaining']);$this->assertSame(480,collect($ledger)->firstWhere('id',$vinylA['id'])['remaining']);
+        $this->request('GET','orders/'.$id.'/revisions')->assertOk()->assertJsonPath('data.0.before.items.0.quantity',100)->assertJsonPath('data.0.after.items.0.quantity',50);
+        $this->assertDatabaseCount('invoices',1);
+        $applied['reason']='Otro cambio';$this->request('POST','orders/'.$id.'/revisions',$applied)->assertStatus(409);
+        $current=$this->request('GET','orders/'.$id)->json('data');$grow=$this->revisionPayload($order,$current['version'],80);$next=$this->previewRevision($order,$grow);
+        $this->assertSame(30,$next['additional'][0]['needed']-$next['additional'][0]['remaining']);
+        $this->applyRevision($order,$grow,$next);$this->assertSame(920.0,InventoryDetail::find($cup)->quantity);
+    }
+    public function test_revision_prepared_consumption_and_partial_or_zero_returns_do_not_restore_used_stock(): void
+    {
+        [$user,$org,$role,$store,$order,$cup]=$this->productionOrder();$id=$order['id'];
+        $a=collect($this->request('GET','orders/'.$id.'/materials')->json('data.allocations'))->firstWhere('inventory_detail_id',$cup);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,0,0,[['allocation_id'=>$a['id'],'quantity'=>70]]))->assertOk();
+        $payload=$this->revisionPayload($order,4,50);$preview=$this->previewRevision($order,$payload);$row=collect($preview['materials'])->firstWhere('id',$a['id']);
+        $this->assertSame(70,$row['used']);$this->assertSame(0,$row['needed']);$this->assertSame(30,$row['proposed_return']);
+        $payload['returns']=[['allocation_id'=>$a['id'],'quantity'=>0]];$this->applyRevision($order,$payload,$preview);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);
+        $this->request('GET','orders/'.$id.'/materials')->assertOk()->assertJsonPath('data.allocations.0.used',70);
+    }
+    public function test_revision_surplus_destination_and_explicit_restore_preserve_manufacturing(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>20]]))->assertOk();
+        $payload=$this->revisionPayload($order,5,30);$preview=$this->previewRevision($order,$payload);$this->assertSame(10,$preview['items'][0]['excess']);
+        $invalid=[...$payload,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest']];$this->request('POST','orders/'.$id.'/revisions',$invalid)->assertStatus(422);
+        $payload['excess']=[$item=>'hold'];$this->applyRevision($order,$payload,$preview);
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonPath('data.items.0.manufactured',40)->assertJsonPath('data.items.0.produced',30)->assertJsonPath('data.items.0.surplus',10);
+        $current=$this->request('GET','orders/'.$id)->json('data');$grow=$this->revisionPayload($order,$current['version'],50);$held=$this->previewRevision($order,$grow)['holds'][0];
+        $grow['restore_excess']=[['source_event_id'=>$held['id'],'quantity'=>10]];$next=$this->previewRevision($order,$grow);$this->applyRevision($order,$grow,$next);
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonPath('data.items.0.manufactured',40)->assertJsonPath('data.items.0.produced',40);
+        $current=$this->request('GET','orders/'.$id)->json('data');$bad=$this->revisionPayload($order,$current['version'],19);$this->request('POST','orders/'.$id.'/revisions/preview',$bad)->assertStatus(422);
+    }
+    public function test_revision_recipe_slots_new_items_removal_and_explicit_price_are_stable(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $newSource=$this->source($store,'Tarjeta',2);$recipe=$this->article([$this->material($newSource)]);
+        $payload=$this->revisionPayload($order,3,50);$payload['items'][0]['composition']=$recipe;$payload['items'][0]['price']=['method'=>'explicit','unit_price'=>4.12345678];
+        $preview=$this->previewRevision($order,$payload);$this->assertSame(4.12345678,$preview['after']['articles'][0]['unit_price']);$newSlot=$preview['additional'][0]['material_index'];$this->assertGreaterThan(1,$newSlot);
+        $payload['returns']=array_map(fn($a)=>['allocation_id'=>$a['id'],'quantity'=>$a['proposed_return']],$preview['materials']);$this->applyRevision($order,$payload,$preview);
+        $this->assertSame(1000.0,InventoryDetail::find($cup)->quantity);
+        $this->request('GET','orders/'.$id.'/materials')->assertOk()->assertJsonPath('data.requirements.0.material_index',$newSlot);
+        $current=$this->request('GET','orders/'.$id)->json('data');$newId=(string)Str::uuid();$replace=$this->revisionPayload($order,$current['version'],0);
+        $replace['items'][]=['id'=>$newId,'quantity'=>2,'composition'=>$this->article([]),'price'=>['method'=>'explicit','unit_price'=>15]];
+        $p=$this->previewRevision($order,$replace);$this->applyRevision($order,$replace,$p);
+        $this->assertDatabaseHas('custom_job_order_items',['id'=>$item,'active'=>false,'quantity'=>0]);$this->assertDatabaseHas('custom_job_order_items',['id'=>$newId,'active'=>true,'quantity'=>2]);
+    }
+    public function test_revision_stale_preview_overreturns_failures_permissions_and_billed_document_boundaries(): void
+    {
+        [$user,$org,$role,$store,$order,$cup]=$this->productionOrder();$id=$order['id'];$p=$this->revisionPayload($order,3,50);$preview=$this->previewRevision($order,$p);
+        $a=$preview['materials'][0];$bad=[...$p,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest'],'returns'=>[['allocation_id'=>$a['id'],'quantity'=>$a['remaining']]]];
+        $this->request('POST','orders/'.$id.'/revisions',$bad)->assertStatus(422);$this->assertSame(900.0,InventoryDetail::find($cup)->quantity);
+        $stale=[...$p,'request_id'=>(string)Str::uuid(),'preview_digest'=>str_repeat('0',64)];$this->request('POST','orders/'.$id.'/revisions',$stale)->assertStatus(409);
+        $role->revokePermissionTo('custom_job.costs');$noCost=$this->previewRevision($order,$p);$this->assertArrayNotHasKey('snapshot',$noCost);
+        $recipe=$p;$recipe['items'][0]['composition']=$this->article([]);$this->request('POST','orders/'.$id.'/revisions/preview',$recipe)->assertForbidden();
+        $role->revokePermissionTo('custom_job.order');$this->request('POST','orders/'.$id.'/revisions/preview',$p)->assertForbidden();$role->givePermissionTo('custom_job.order');
+        $role->revokePermissionTo('custom_job.return');$needsReturn=[...$p,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest'],'returns'=>[['allocation_id'=>$a['id'],'quantity'=>1]]];$this->request('POST','orders/'.$id.'/revisions',$needsReturn)->assertForbidden();
+        Invoice::where('custom_job_quote_id',$order['quote_id'])->update(['invoice_type'=>'cash','invoice_status'=>'completed']);$this->request('POST','orders/'.$id.'/revisions/preview',$p)->assertStatus(409);
+        $this->assertDatabaseCount('custom_job_order_revisions',0);
+    }
+
+    public function test_revision_financial_projection_and_failure_roll_back_every_stock_and_commercial_write(): void
+    {
+        [$user,$org,$role,$store,$order,$cup]=$this->productionOrder();$id=$order['id'];
+        $adapter=new class implements \App\Contracts\CustomJobOrderRevisionFinancial {
+            public bool $fail=true;
+            public function preview(User $user,CustomJobOrder $order,array $commercial): array {return ['payments'=>['balance'=>$commercial['totals']['total']-1000,'credit'=>1000-$commercial['totals']['total'],'currency'=>$commercial['currency']],'billing'=>['editable'=>true]];}
+            public function apply(User $user,CustomJobOrder $order,\App\Models\CustomJobOrderRevision $revision): void {abort_if($this->fail,409,'El saldo cambió durante la revisión.');}
+        };
+        app()->instance(\App\Contracts\CustomJobOrderRevisionFinancial::class,$adapter);
+        $payload=$this->revisionPayload($order,3,50);$preview=$this->previewRevision($order,$payload);$this->assertGreaterThan(0,$preview['financial']['payments']['credit']);
+        $payload['returns']=array_map(fn($a)=>['allocation_id'=>$a['id'],'quantity'=>$a['proposed_return']],$preview['materials']);
+        $apply=[...$payload,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest']];
+        $this->request('POST','orders/'.$id.'/revisions',$apply)->assertStatus(409);
+        $this->assertDatabaseCount('custom_job_order_revisions',0);$this->assertSame(900.0,InventoryDetail::find($cup)->quantity);$this->assertSame(100.0,CustomJobOrder::find($id)->items()->first()->quantity);
+        $adapter->fail=false;$this->request('POST','orders/'.$id.'/revisions',$apply)->assertOk();$this->assertSame(950.0,InventoryDetail::find($cup)->quantity);
+        $role->revokePermissionTo('custom_job.costs');$this->request('GET','orders/'.$id.'/revisions')->assertOk()->assertJsonMissingPath('data.0.before.snapshot')->assertJsonMissingPath('data.0.before.items.0.composition')->assertJsonMissingPath('data.0.after.snapshot');
+        app()->forgetInstance(\App\Contracts\CustomJobOrderRevisionFinancial::class);
+    }
+    public function test_revision_cost_changes_invalidate_preview_and_composition_changes_keep_old_material_usage(): void
+    {
+        [$user,$org,$role,$store,$order,$cup]=$this->productionOrder();$id=$order['id'];
+        $a=collect($this->request('GET','orders/'.$id.'/materials')->json('data.allocations'))->firstWhere('inventory_detail_id',$cup);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,40,0,[['allocation_id'=>$a['id'],'quantity'=>40]]))->assertOk();
+        $payload=$this->revisionPayload($order,4,50);$preview=$this->previewRevision($order,$payload);Product::find(InventoryDetail::find($cup)->product_id)->update(['cost'=>6]);
+        $this->request('POST','orders/'.$id.'/revisions',[...$payload,'request_id'=>(string)Str::uuid(),'preview_digest'=>$preview['digest']])->assertStatus(409);
+        $new=$this->source($store,'Adorno',2);$payload['items'][0]['composition']=$this->article([$this->material($new)]);$preview=$this->previewRevision($order,$payload);
+        $this->assertSame(10,$preview['additional'][0]['needed']);$payload['returns']=array_map(fn($a)=>['allocation_id'=>$a['id'],'quantity'=>$a['proposed_return']],$preview['materials']);
+        $this->applyRevision($order,$payload,$preview);$ledger=$this->request('GET','orders/'.$id.'/materials')->json('data');
+        $this->assertSame(40,collect($ledger['allocations'])->firstWhere('id',$a['id'])['used']);$this->assertSame(0,collect($ledger['allocations'])->firstWhere('id',$a['id'])['remaining']);
+        $this->request('GET','orders/'.$id.'/production')->assertOk()->assertJsonPath('data.items.0.produced',40)->assertJsonPath('data.items.0.pending',10);
+    }
+
+    public function test_revision_changed_cut_does_not_reuse_transformed_material_preparation(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->productionOrder();$id=$order['id'];
+        $a=collect($this->request('GET','orders/'.$id.'/materials')->json('data.allocations'))->firstWhere('inventory_detail_id',$vinyl);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,0,0,[['allocation_id'=>$a['id'],'quantity'=>4800]]))->assertOk();
+        $recipe=$this->article([$this->material($cup),$this->material($vinyl,['method'=>'area','width'=>12,'height'=>8])]);
+        $p=$this->revisionPayload($order,4,50);$p['items'][0]['composition']=$recipe;$view=$this->previewRevision($order,$p);
+        $n=collect($view['additional'])->firstWhere('material_index',1);$this->assertSame(4800,$n['needed']);
+        $this->assertSame(4800,collect($view['materials'])->firstWhere('id',$a['id'])['used']);
     }
 
 }

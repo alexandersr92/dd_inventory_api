@@ -97,6 +97,7 @@ final class CustomJobProduction
             }
             abort_unless($order->status === 'confirmed' && $order->version === $input['version'], 409, 'El pedido debe estar confirmado y conservar su versión vigente.');
             $item = $order->items()->findOrFail($input['item_id']);
+            abort_unless($item->active, 409, 'El artículo fue retirado del pedido vigente.');
             $at = $this->orders->localInstant($input['occurred_local'], $order->delivery_timezone);
             abort_if($at > now('UTC')->format('Y-m-d H:i:s'), 422, 'El progreso no puede tener una fecha futura.');
             $source = null;
@@ -124,7 +125,7 @@ final class CustomJobProduction
             }
             $delivery = app(CustomJobDeliveries::class)->balance($order, $item->id);
             $next = $net->plus($produced);
-            if ($next->isNegative() || $next->isGreaterThan(Math::of($item->getRawOriginal('quantity'))->plus($delivery['unavailable_returned'])) || $next->isLessThan(Math::of($delivery['delivered_net'] + $delivery['unavailable_returned']))) {
+            if ($next->isNegative() || $next->isGreaterThan(Math::of($item->getRawOriginal('quantity'))->plus($delivery['unavailable_returned'] + $delivery['surplus'])) || $next->isLessThan(Math::of($delivery['delivered_net'] + $delivery['unavailable_returned'] + $delivery['surplus']))) {
                 $this->fail('El avance deja producción inconsistente con la cantidad vigente, las entregas o las devoluciones no disponibles.');
             }
             foreach ($consumption as $line) {
@@ -136,7 +137,7 @@ final class CustomJobProduction
             Progress::create(['work_order_id' => $work->id, 'item_id' => $item->id, 'request_id' => $input['request_id'], 'request_hash' => $hash,
                 'kind' => $kind, 'produced' => (string) $produced->toScale(6), 'discarded' => (string) $discarded->toScale(6),
                 'occurred_local' => $input['occurred_local'], 'timezone' => $order->delivery_timezone, 'occurred_at' => $at, 'user_id' => $user->id,
-                'note' => $input['note'], 'corrects_event_id' => $source?->id, 'material_operation_id' => $operation->id]);
+                'material_basis' => collect($this->materials->requirements($order))->where('item_id', $item->id)->mapWithKeys(fn ($r) => [$r['material_index'] => Math::number(Math::of($r['required'])->dividedBy(Math::of($item->quantity)), 6)])->all(), 'note' => $input['note'], 'corrects_event_id' => $source?->id, 'material_operation_id' => $operation->id]);
         });
     }
 
@@ -160,7 +161,7 @@ final class CustomJobProduction
             }
             $manufactured = $produced;
             $delivery = app(CustomJobDeliveries::class)->balance($order, $item->id);
-            $produced = $produced->minus($delivery['unavailable_returned']);
+            $produced = $produced->minus($delivery['unavailable_returned'] + $delivery['surplus']);
             $pending = Math::of($item->getRawOriginal('quantity'))->minus($produced);
             if (! $pending->isZero()) {
                 $complete = false;
@@ -173,7 +174,7 @@ final class CustomJobProduction
             foreach (Allocation::where('order_id', $order->id)->where('item_id', $item->id)->get() as $a) {
                 $actual = $actual->plus(Math::of($this->materials->balance($a)['used'])->multipliedBy(Math::of($a->getRawOriginal('unit_cost_nio'))));
             }
-            $items[] = ['id' => $item->id, 'name' => $item->name, 'ordered' => (float) $item->quantity, 'produced' => Math::number($produced, 6), 'manufactured' => Math::number($manufactured, 6), 'unavailable_returns' => $delivery['unavailable_returned'], 'discarded' => Math::number($discarded, 6), 'pending' => Math::number($pending, 6), 'materials' => $requirements];
+            $items[] = ['id' => $item->id, 'name' => $item->name, 'active' => $item->active, 'surplus' => $delivery['surplus'], 'ordered' => (float) $item->quantity, 'produced' => Math::number($produced, 6), 'manufactured' => Math::number($manufactured, 6), 'unavailable_returns' => $delivery['unavailable_returned'], 'discarded' => Math::number($discarded, 6), 'pending' => Math::number($pending, 6), 'materials' => $requirements];
         }
 
         return [...$work->only(['id', 'order_id', 'user_id', 'created_at']), 'status' => $complete ? 'ready' : ($events->isEmpty() ? 'pending' : 'in_progress'), 'items' => $items,

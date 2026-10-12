@@ -67,8 +67,11 @@ final class CustomJobMaterials implements CustomJobReservation
     {
         $rows = [];
         foreach ($order->items as $item) {
+            if ($item->active === false) {
+                continue;
+            }
             foreach ($item->composition['materials'] as $index => $m) {
-                $rows[] = ['item_id' => $item->id, 'item_name' => $item->name, 'material_index' => $index, 'product_id' => $m['product_id'], 'name' => $m['name'],
+                $rows[] = ['item_id' => $item->id, 'item_name' => $item->name, 'material_index' => $m['slot'] ?? $index, 'product_id' => $m['product_id'], 'name' => $m['name'],
                     'base_unit' => $m['base_unit'], 'required' => $m['base_quantity'], 'inventory_detail_id' => $m['inventory_detail_id'], 'unit_cost_nio' => $m['base_unit_cost_nio']];
             }
         }
