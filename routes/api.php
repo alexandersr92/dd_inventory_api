@@ -78,6 +78,11 @@ Route::prefix('v1')->group(function () {
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/orders/{id}/deliveries', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'show']);
+            Route::post('/orders/{id}/deliveries', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'delivery')->middleware('custom_jobs:custom_job.delivery');
+            Route::post('/orders/{id}/deliveries/return', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return');
+            Route::post('/orders/{id}/deliveries/correct', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_delivery')->middleware('custom_jobs:custom_job.delivery');
+            Route::post('/orders/{id}/deliveries/correct-return', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_return')->middleware('custom_jobs:custom_job.return');
             Route::get('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'show']);
             Route::post('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'generate'])->middleware('custom_jobs:custom_job.production,products,inventories');
             Route::post('/orders/{id}/production/events', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'record'])->middleware('custom_jobs:custom_job.production,products,inventories');

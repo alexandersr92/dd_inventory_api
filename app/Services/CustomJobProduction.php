@@ -122,9 +122,10 @@ final class CustomJobProduction
             foreach (Progress::where('work_order_id', $work->id)->where('item_id', $item->id)->get() as $event) {
                 $net = $net->plus(Math::of($event->getRawOriginal('produced')));
             }
+            $delivery = app(CustomJobDeliveries::class)->balance($order, $item->id);
             $next = $net->plus($produced);
-            if ($next->isNegative() || $next->isGreaterThan(Math::of($item->getRawOriginal('quantity')))) {
-                $this->fail('El avance excede las piezas vigentes del pedido. Requiere revisión antes de producir más.');
+            if ($next->isNegative() || $next->isGreaterThan(Math::of($item->getRawOriginal('quantity'))->plus($delivery['unavailable_returned'])) || $next->isLessThan(Math::of($delivery['delivered_net'] + $delivery['unavailable_returned']))) {
+                $this->fail('El avance deja producción inconsistente con la cantidad vigente, las entregas o las devoluciones no disponibles.');
             }
             foreach ($consumption as $line) {
                 Allocation::where('order_id', $id)->where('item_id', $item->id)->findOrFail($line['allocation_id']);
@@ -157,6 +158,9 @@ final class CustomJobProduction
                 $produced = $produced->plus(Math::of($e->getRawOriginal('produced')));
                 $discarded = $discarded->plus(Math::of($e->getRawOriginal('discarded')));
             }
+            $manufactured = $produced;
+            $delivery = app(CustomJobDeliveries::class)->balance($order, $item->id);
+            $produced = $produced->minus($delivery['unavailable_returned']);
             $pending = Math::of($item->getRawOriginal('quantity'))->minus($produced);
             if (! $pending->isZero()) {
                 $complete = false;
@@ -169,7 +173,7 @@ final class CustomJobProduction
             foreach (Allocation::where('order_id', $order->id)->where('item_id', $item->id)->get() as $a) {
                 $actual = $actual->plus(Math::of($this->materials->balance($a)['used'])->multipliedBy(Math::of($a->getRawOriginal('unit_cost_nio'))));
             }
-            $items[] = ['id' => $item->id, 'name' => $item->name, 'ordered' => (float) $item->quantity, 'produced' => Math::number($produced, 6), 'discarded' => Math::number($discarded, 6), 'pending' => Math::number($pending, 6), 'materials' => $requirements];
+            $items[] = ['id' => $item->id, 'name' => $item->name, 'ordered' => (float) $item->quantity, 'produced' => Math::number($produced, 6), 'manufactured' => Math::number($manufactured, 6), 'unavailable_returns' => $delivery['unavailable_returned'], 'discarded' => Math::number($discarded, 6), 'pending' => Math::number($pending, 6), 'materials' => $requirements];
         }
 
         return [...$work->only(['id', 'order_id', 'user_id', 'created_at']), 'status' => $complete ? 'ready' : ($events->isEmpty() ? 'pending' : 'in_progress'), 'items' => $items,

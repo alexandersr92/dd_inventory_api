@@ -140,6 +140,6 @@ final class CustomJobOrders
             ...($costs ? ['snapshot' => $order->snapshot] : []),
             'confirmation' => ['available' => $order->status === 'draft' && app()->bound(CustomJobReservation::class), 'reason' => app()->bound(CustomJobReservation::class) ? null : 'Falta integrar el apartado de materiales del plan 08.'],
             // Production provides a work-order link; other owning modules still return null.
-            'operations' => ['production' => ($work = \App\Models\CustomJobWorkOrder::where('order_id', $order->id)->first()) ? ['id' => $work->id] : null, 'delivery' => null, 'payment' => null, 'billing' => null]];
+            'operations' => ['production' => ($work = \App\Models\CustomJobWorkOrder::where('order_id', $order->id)->first()) ? ['id' => $work->id] : null, 'delivery' => app(CustomJobDeliveries::class)->view($order), 'payment' => null, 'billing' => null]];
     }
 }

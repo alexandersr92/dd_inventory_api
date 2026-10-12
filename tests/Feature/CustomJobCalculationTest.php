@@ -136,6 +136,7 @@ class CustomJobCalculationTest extends TestCase
         (require database_path('migrations/2026_07_01_095815_create_inventory_movements_table.php'))->up();
         (require database_path('migrations/2026_10_10_010000_create_custom_job_material_ledger.php'))->up();
         (require database_path('migrations/2026_10_10_020000_create_custom_job_production.php'))->up();
+        (require database_path('migrations/2026_10_11_000000_create_custom_job_deliveries.php'))->up();
 
     }
 
@@ -1031,6 +1032,108 @@ class CustomJobCalculationTest extends TestCase
         $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,3,1))->assertForbidden();
         [$other]=$this->quotesAccount();
         $this->request('GET','orders/'.$id.'/production')->assertNotFound();
+    }
+
+    private function deliveryOrder(): array
+    {
+        $fixture=$this->productionOrder(); $fixture[2]->givePermissionTo('custom_job.delivery');
+        $this->request('POST','orders/'.$fixture[4]['id'].'/production/events',$this->progressPayload($fixture[4],3,40))->assertOk();
+        return $fixture;
+    }
+    private function deliveryPayload(int $version,array $lines,string $note='Entrega de prueba'): array
+    {
+        return ['version'=>$version,'request_id'=>(string)Str::uuid(),'occurred_local'=>'2026-10-10T16:00','note'=>$note,'lines'=>$lines];
+    }
+    public function test_partial_delivery_is_idempotent_and_never_consumes_stock_or_invoices(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $p=$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>40]]);
+        $this->request('POST','orders/'.$id.'/deliveries',$p)->assertOk()->assertJsonPath('delivery.items.0.pending',60)->assertJsonPath('delivery.can_invoice',false);
+        $this->request('POST','orders/'.$id.'/deliveries',$p)->assertOk();
+        $this->assertDatabaseCount('custom_job_delivery_events',1);$this->assertDatabaseCount('custom_job_delivery_lines',1);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);$this->assertSame(5200.0,InventoryDetail::find($vinyl)->quantity);$this->assertDatabaseCount('inventory_movements',2);
+        $this->assertDatabaseCount('invoices',1); // Existing quotation proforma only.
+        $p['lines'][0]['quantity']=39;$this->request('POST','orders/'.$id.'/deliveries',$p)->assertStatus(409);
+        $next=$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>1]]);$this->request('POST','orders/'.$id.'/deliveries',$next)->assertStatus(409);
+        $next['version']=5;$this->request('POST','orders/'.$id.'/deliveries',$next)->assertStatus(422);
+        $this->assertSame(5,CustomJobOrder::find($id)->version);
+    }
+    public function test_finished_returns_can_redeliver_or_require_replacement_without_raw_stock_returns(): void
+    {
+        [$user,$org,$role,$store,$order,$cup]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $d=$this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>40]]))->assertOk()->json('delivery');$source=$d['events'][0]['lines'][0]['id'];
+        $p=$this->deliveryPayload(5,[['source_line_id'=>$source,'quantity'=>10,'disposition'=>'ready']],'Devuelto listo');
+        $this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertOk()->assertJsonPath('delivery.items.0.available',10)->assertJsonPath('delivery.items.0.delivered_net',30);
+        $this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertOk();
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(6,[['item_id'=>$item,'quantity'=>10]]))->assertOk();
+        $p=$this->deliveryPayload(7,[['source_line_id'=>$source,'quantity'=>5,'disposition'=>'discard']],'Piezas dañadas');
+        $this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertOk()->assertJsonPath('delivery.items.0.available',0)->assertJsonPath('delivery.items.0.unavailable_returned',5);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);$this->assertDatabaseCount('inventory_movements',2);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,8,65))->assertOk()->assertJsonPath('production.items.0.produced',100)->assertJsonPath('production.items.0.manufactured',105);
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(9,[['item_id'=>$item,'quantity'=>65]]))->assertOk()->assertJsonPath('delivery.can_invoice',true)->assertJsonPath('delivery.items.0.delivered_net',100);
+        $this->assertDatabaseCount('invoices',1);
+    }
+    public function test_delivery_and_production_corrections_preserve_history_and_reject_invalid_balances(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $original=$this->request('GET','orders/'.$id.'/production')->json('data.events.0.id');
+        $d=$this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>20]]))->assertOk()->json('delivery');$source=$d['events'][0]['lines'][0]['id'];
+        $this->request('POST','orders/'.$id.'/production/events',[...$this->progressPayload($order,5,0),'corrects_event_id'=>$original,'note'=>'Conteo erróneo'])->assertStatus(422);
+        $r=$this->request('POST','orders/'.$id.'/deliveries/return',$this->deliveryPayload(5,[['source_line_id'=>$source,'quantity'=>5,'disposition'=>'ready']],'Devuelto'))->assertOk()->json('delivery');
+        $returnLine=collect($r['events'])->firstWhere('kind','return')['lines'][0]['id'];
+        $correction=$this->deliveryPayload(6,[['source_line_id'=>$returnLine]],'Devolución anotada por error');
+        $this->request('POST','orders/'.$id.'/deliveries/correct-return',$correction)->assertOk()->assertJsonPath('delivery.items.0.delivered_net',20);
+        $this->request('POST','orders/'.$id.'/deliveries/correct-return',$correction)->assertOk();
+        $correction['version']=7;$correction['request_id']=(string)Str::uuid();$this->request('POST','orders/'.$id.'/deliveries/correct-return',$correction)->assertStatus(422);
+        $this->request('POST','orders/'.$id.'/deliveries/correct',$this->deliveryPayload(7,[['source_line_id'=>$source]],'Entrega anotada por error'))->assertOk()->assertJsonPath('delivery.items.0.delivered_net',0);
+        $this->request('POST','orders/'.$id.'/production/events',[...$this->progressPayload($order,8,0),'corrects_event_id'=>$original,'note'=>'Conteo erróneo'])->assertOk();
+        $this->assertDatabaseCount('custom_job_delivery_events',4);
+    }
+    public function test_delivery_batch_is_atomic_and_all_items_are_required_for_completion(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        // The item exists in the same order; exercise multi-item delivery independently of quotation authoring.
+        $extra=CustomJobOrder::find($id)->items()->create(['position'=>1,'name'=>'Tarjetas','quantity'=>2,'commercial'=>[],'composition'=>['materials'=>[]]]);
+        $p=$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>40],['item_id'=>$extra->id,'quantity'=>1]]);
+        $this->request('POST','orders/'.$id.'/deliveries',$p)->assertStatus(422);$this->assertDatabaseCount('custom_job_delivery_lines',0);
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>40]]))->assertOk()->assertJsonPath('delivery.can_invoice',false);
+        // Simulate the revised quantity owned by plan 11, without implementing its edit flow here.
+        DB::table('custom_job_order_items')->where('id',$item)->update(['quantity'=>50]);
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,5,10))->assertOk();
+        $card=[...$this->progressPayload($order,6,2),'item_id'=>$extra->id];$this->request('POST','orders/'.$id.'/production/events',$card)->assertOk();
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(7,[['item_id'=>$item,'quantity'=>10]]))->assertOk()->assertJsonPath('delivery.can_invoice',false);
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(8,[['item_id'=>$extra->id,'quantity'=>2]]))->assertOk()->assertJsonPath('delivery.can_invoice',true);
+    }
+    public function test_delivery_permissions_returns_maxima_dates_cancelled_and_tenant(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $p=$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>1]]);$p['occurred_local']='2027-10-11T16:00';$this->request('POST','orders/'.$id.'/deliveries',$p)->assertStatus(422);
+        $role->revokePermissionTo('custom_job.delivery');$this->request('POST','orders/'.$id.'/deliveries',$p)->assertForbidden();$role->givePermissionTo('custom_job.delivery');
+        $d=$this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>1]]))->assertOk()->json('delivery');$source=$d['events'][0]['lines'][0]['id'];
+        $p=$this->deliveryPayload(5,[['source_line_id'=>$source,'quantity'=>2,'disposition'=>'ready']],'Devolución');$this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertStatus(422);
+        $p['lines'][0]['quantity']=1;$p['lines'][0]['disposition']='raw_inventory';$this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertStatus(422);$p['lines'][0]['disposition']='hold';
+        $p['occurred_local']='2026-10-09T16:00';$this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertStatus(422);$p['occurred_local']='2026-10-10T16:00';
+        DB::table('custom_job_orders')->where('id',$id)->update(['status'=>'cancelled']);
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(5,[['item_id'=>$item,'quantity'=>1]]))->assertStatus(409);
+        $this->request('POST','orders/'.$id.'/deliveries/return',$p)->assertOk()->assertJsonPath('delivery.can_invoice',false);
+        $this->request('POST','orders/'.$id.'/deliveries/return',[...$p,'version'=>6,'request_id'=>(string)Str::uuid()])->assertStatus(422);
+        [$other]=$this->quotesAccount();$this->request('GET','orders/'.$id.'/deliveries')->assertNotFound();
+    }
+
+    public function test_return_correction_cannot_overdeliver_or_hide_manufactured_replacements(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->deliveryOrder();$id=$order['id'];$item=$order['items'][0]['id'];
+        $d=$this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(4,[['item_id'=>$item,'quantity'=>40]]))->assertOk()->json('delivery');$source=$d['events'][0]['lines'][0]['id'];
+        $r=$this->request('POST','orders/'.$id.'/deliveries/return',$this->deliveryPayload(5,[['source_line_id'=>$source,'quantity'=>10,'disposition'=>'ready']],'Devuelto listo'))->assertOk()->json('delivery');
+        $ready=collect($r['events'])->firstWhere('kind','return')['lines'][0]['id'];
+        $this->request('POST','orders/'.$id.'/deliveries',$this->deliveryPayload(6,[['item_id'=>$item,'quantity'=>10]]))->assertOk();
+        $this->request('POST','orders/'.$id.'/deliveries/correct-return',$this->deliveryPayload(7,[['source_line_id'=>$ready]],'Error de devolución'))->assertStatus(422);
+        $r=$this->request('POST','orders/'.$id.'/deliveries/return',$this->deliveryPayload(7,[['source_line_id'=>$source,'quantity'=>5,'disposition'=>'discard']],'Dañado'))->assertOk()->json('delivery');
+        $bad=collect($r['events'])->where('kind','return')->flatMap(fn($e)=>$e['lines'])->firstWhere('disposition','discard')['id'];
+        $this->request('POST','orders/'.$id.'/production/events',$this->progressPayload($order,8,65))->assertOk();
+        $this->request('POST','orders/'.$id.'/deliveries/correct-return',$this->deliveryPayload(9,[['source_line_id'=>$bad]],'Error de devolución'))->assertStatus(422);
+        $this->assertSame(9,CustomJobOrder::find($id)->version);
+        $this->request('GET','orders/'.$id.'/deliveries')->assertOk()->assertJsonPath('data.items.0.unavailable_returned',5)->assertJsonPath('data.items.0.delivered_net',35);
     }
 
 }
