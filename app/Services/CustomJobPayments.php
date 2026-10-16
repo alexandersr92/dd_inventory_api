@@ -167,7 +167,7 @@ final class CustomJobPayments
             }
             abort_unless($order->version === $input['version'], 409, 'El pedido cambió; actualiza antes de registrar dinero.');
             abort_unless($kind === 'refund' ? in_array($order->status, ['confirmed', 'cancelled', 'canceled'], true) : $order->status === 'confirmed', 409, 'El estado del pedido no permite este cobro/devolución.');
-            abort_if(Invoice::where('custom_job_quote_id', $order->quote_id)->where(fn ($q) => $q->where('invoice_type', '!=', 'proforma')->orWhere('invoice_status', '!=', 'proforma'))->exists(), 409, 'El pedido facturado requiere integrar el flujo documental del plan 14.');
+            abort_if(Invoice::where('custom_job_quote_id', $order->quote_id)->whereNotIn('invoice_status', ['proforma', 'canceled', 'cancelled'])->exists(), 409, 'El pedido facturado no admite cobros adicionales.');
             $source = null;
             if ($kind === 'refund') {
                 $source = Payment::where('order_id', $id)->where('kind', 'payment')->where('status', 'active')->findOrFail($input['source_payment_id']);

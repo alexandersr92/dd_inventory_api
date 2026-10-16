@@ -157,6 +157,12 @@ class CustomJobCalculationTest extends TestCase
         });
         (require database_path('migrations/2026_10_15_000000_create_custom_job_payments.php'))->up();
         (require database_path('migrations/2026_10_15_010000_create_custom_job_cancellations.php'))->up();
+        (require database_path('migrations/2024_11_08_040641_create_invoice_details_table.php'))->up();
+        (require database_path('migrations/2024_11_08_054706_create_credits_table.php'))->up();
+        (require database_path('migrations/2024_11_08_054743_create_credit_details_table.php'))->up();
+        (require database_path('migrations/2026_09_06_182000_add_cost_to_invoice_details_table.php'))->up();
+        (require database_path('migrations/2026_06_05_221233_add_sort_order_to_invoice_details_table.php'))->up();
+        (require database_path('migrations/2026_10_16_000000_create_custom_job_billing_links.php'))->up();
 
     }
 
@@ -1606,6 +1612,34 @@ class CustomJobCalculationTest extends TestCase
         $this->assertSame(0.73, (float) CustomJobPayment::where('kind', 'refund')->sum('amount_nio'));
         $this->request('POST', 'orders/'.$id.'/payments', [...$this->paymentPayload(5, 1)])->assertStatus(409);
         $this->assertSame(0.02, CustomJobPayments::sessionTotals($box->id)['cash_usd']);
+    }
+
+    public function test_final_billing_reuses_proforma_applies_payments_once_and_never_moves_stock(): void
+    {
+        [$user, $org, $role, $store, $order, $cup, $vinyl] = $this->deliveryOrder();
+        $role->givePermissionTo('custom_job.payment');
+        $id = $order['id'];
+        $this->request('POST', 'orders/'.$id.'/production/events', $this->progressPayload($order, 4, 60))->assertOk();
+        $this->request('POST', 'orders/'.$id.'/deliveries', $this->deliveryPayload(5, [['item_id' => $order['items'][0]['id'], 'quantity' => 100]]))
+            ->assertOk()->assertJsonPath('delivery.can_invoice', true);
+        $total = (float) $order['commercial']['totals']['total'];
+        $payment = $this->request('POST', 'orders/'.$id.'/payments', $this->paymentPayload(6, $total))->assertOk()->json('payments.events.0');
+        $before = DB::table('inventory_details')->whereIn('id', [$cup, $vinyl])->pluck('quantity', 'id')->all();
+        $view = $this->request('GET', 'orders/'.$id.'/billing')->assertOk()->assertJsonPath('data.available', true)->json('data');
+        $invoice = $this->request('POST', 'orders/'.$id.'/billing', ['version' => 7, 'request_id' => (string) Str::uuid()])
+            ->assertOk()->assertJsonPath('invoice.invoice_status', 'completed')->assertJsonPath('invoice.custom_job_order_id', $id)->json('invoice');
+        $this->request('POST', 'orders/'.$id.'/billing', ['version' => 7, 'request_id' => (string) Str::uuid()])
+            ->assertOk()->assertJsonPath('invoice.id', $invoice['id']);
+        $this->assertSame(1, Invoice::where('custom_job_order_id', $id)->count());
+        $this->assertSame(1, DB::table('invoice_details')->where('invoice_id', $invoice['id'])->count());
+        $this->assertSame($invoice['id'], CustomJobPayment::find($payment['id'])->applied_invoice_id);
+        $this->assertSame($before, DB::table('inventory_details')->whereIn('id', [$cup, $vinyl])->pluck('quantity', 'id')->all());
+        $this->assertNull($view['final']);
+        $this->delete('/api/v1/invoices/'.$invoice['id'])->assertOk();
+        $this->assertSame($before, DB::table('inventory_details')->whereIn('id', [$cup, $vinyl])->pluck('quantity', 'id')->all());
+        $this->assertNull(CustomJobPayment::find($payment['id'])->fresh()->applied_invoice_id);
+        $this->request('POST', 'orders/'.$id.'/billing', ['version' => 7, 'request_id' => (string) Str::uuid()])
+            ->assertOk()->assertJsonPath('invoice.id', $invoice['id'])->assertJsonPath('invoice.invoice_status', 'completed');
     }
 
     public function test_cancellation_preview_returns_selective_materials_and_stops_the_order_atomically(): void

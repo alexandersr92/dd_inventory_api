@@ -598,7 +598,7 @@ class InvoiceController extends Controller
     public function cancel(Invoice $invoice)
     {
         $this->authorize('delete', $invoice);
-        abort_if($invoice->custom_job_quote_id, 409, 'Esta proforma se administra desde la cotización de trabajos.');
+        abort_if($invoice->custom_job_quote_id && $invoice->invoice_status === 'proforma', 409, 'Esta proforma se administra desde la cotización de trabajos.');
 
         DB::beginTransaction();
         try {
@@ -617,6 +617,10 @@ class InvoiceController extends Controller
         $invoice->invoice_status = 'canceled';
         $invoice->save();
 
+        if ($invoice->custom_job_order_id) {
+            app(\App\Services\CustomJobBilling::class)->releasePaymentApplications($invoice);
+        }
+
             // Si la factura tiene un crédito asociado, lo anulamos también
             if ($invoice->credit) {
                 $invoice->credit->credit_status = 'canceled';
@@ -628,6 +632,9 @@ class InvoiceController extends Controller
             $movementService = app(InventoryMovementService::class);
 
             foreach($invoiceDetails as $invoiceDetail){
+                if (($invoiceDetail->line_type ?? 'product') === 'custom_job' || ! $invoiceDetail->product_id || ! $invoiceDetail->inventory_id) {
+                    continue;
+                }
                 $detail = InventoryDetail::where('product_id', $invoiceDetail->product_id)
                     ->where('inventory_id', $invoiceDetail->inventory_id)
                     ->lockForUpdate()
@@ -653,7 +660,7 @@ class InvoiceController extends Controller
 
     public function replace(StoreInvoiceRequest $request, Invoice $invoice)
     {
-        abort_if($invoice->custom_job_quote_id, 409, 'Esta proforma se administra desde la cotización de trabajos.');
+        abort_if($invoice->custom_job_quote_id, 409, 'La factura de trabajos se reemite desde el pedido personalizado.');
         $this->authorize('create', Invoice::class);
 
         if ($invoice->invoice_status === 'canceled') {

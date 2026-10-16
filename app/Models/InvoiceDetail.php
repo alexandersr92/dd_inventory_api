@@ -13,6 +13,10 @@ class InvoiceDetail extends Model
 
     protected $fillable = [
         'invoice_id',
+        'line_type',
+        'custom_job_order_item_id',
+        'custom_job_description',
+        'custom_job_snapshot',
         'product_id',
         'inventory_id',
         'quantity',
@@ -24,6 +28,8 @@ class InvoiceDetail extends Model
         'grand_total',
         'sort_order',
     ];
+
+    protected $casts = ['custom_job_snapshot' => 'array'];
 
 
     public function invoice()
@@ -39,6 +45,11 @@ class InvoiceDetail extends Model
     public function inventory()
     {
         return $this->belongsTo(Inventory::class);
+    }
+
+    public function customJobOrderItem()
+    {
+        return $this->belongsTo(CustomJobOrderItem::class, 'custom_job_order_item_id');
     }
 
 /*     public function movements()

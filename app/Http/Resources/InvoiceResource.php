@@ -15,7 +15,7 @@ class InvoiceResource extends JsonResource
     public function toArray(Request $request): array
     {
         if ($this->custom_job_quote_id) {
-            return \App\Support\CustomJobProforma::data($this->resource);
+            return \App\Support\CustomJobInvoiceDocument::data($this->resource->loadMissing(['invoiceDetails', 'client', 'seller']));
         }
 
         

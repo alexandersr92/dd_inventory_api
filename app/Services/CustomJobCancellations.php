@@ -43,7 +43,7 @@ final class CustomJobCancellations
     private function invoice(CustomJobOrder $order): bool
     {
         return Invoice::where('custom_job_quote_id', $order->quote_id)
-            ->where(fn ($q) => $q->where('invoice_type', '!=', 'proforma')->orWhere('invoice_status', '!=', 'proforma'))
+            ->whereNotIn('invoice_status', ['proforma', 'canceled', 'cancelled'])
             ->exists();
     }
 

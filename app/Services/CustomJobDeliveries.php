@@ -8,6 +8,7 @@ use App\Models\CustomJobOrder;
 use App\Models\CustomJobOrderSurplusEvent;
 use App\Models\CustomJobProductionEvent as Progress;
 use App\Models\CustomJobWorkOrder as Work;
+use App\Models\Invoice;
 use App\Models\Store;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -179,7 +180,10 @@ final class CustomJobDeliveries
                     ...($e->kind === 'delivery' || $e->kind === 'return' ? $this->sourceState($rows, $l) : [])])->values()->all()];
         })->all();
 
+        $finalInvoice = Invoice::where('custom_job_order_id', $order->id)
+            ->whereNotIn('invoice_status', ['proforma', 'canceled', 'cancelled'])->exists();
+
         return ['items' => $items, 'events' => $events, 'status' => $complete ? 'complete' : (collect($items)->some(fn ($i) => $i['delivered_net'] > 0) ? 'partial' : 'pending'),
-            'can_invoice' => $order->status === 'confirmed' && $complete, 'can_deliver' => $order->status === 'confirmed'];
+            'can_invoice' => $order->status === 'confirmed' && $complete && ! $finalInvoice, 'can_deliver' => $order->status === 'confirmed' && ! $finalInvoice];
     }
 }

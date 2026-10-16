@@ -40,6 +40,10 @@ class Invoice extends Model
         'offline_reference',
         'is_offline',
         'offline_number',
+        'custom_job_order_id',
+        'custom_job_quote_id',
+        'custom_job_revision_id',
+        'custom_job_commercial',
     ];
 
     protected $casts = [
@@ -90,6 +94,11 @@ class Invoice extends Model
     public function seller()
     {
         return $this->belongsTo(Seller::class);
+    }
+
+    public function customJobOrder()
+    {
+        return $this->belongsTo(CustomJobOrder::class, 'custom_job_order_id');
     }
 
 }
