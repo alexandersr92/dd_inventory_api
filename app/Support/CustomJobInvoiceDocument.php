@@ -68,7 +68,7 @@ final class CustomJobInvoiceDocument
             'seller' => $invoice->seller?->name,
             'custom_job_quote_id' => $invoice->custom_job_quote_id,
             'custom_job_revision_id' => $invoice->custom_job_revision_id,
-            'custom_job_order_id' => $invoice->custom_job_order_id,
+            ...($invoice->custom_job_order_id ? ['custom_job_order_id' => $invoice->custom_job_order_id] : []),
             'invoice_details' => $lines,
         ];
     }

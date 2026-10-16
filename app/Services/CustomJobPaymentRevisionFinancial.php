@@ -12,7 +12,13 @@ final class CustomJobPaymentRevisionFinancial implements CustomJobOrderRevisionF
 {
     public function preview(User $user, CustomJobOrder $order, array $commercial): array
     {
-        $invoice = Invoice::where('custom_job_order_id', $order->id)
+        $invoice = Invoice::where(function ($query) use ($order) {
+            $query->where('custom_job_order_id', $order->id)
+                ->orWhere(function ($quoteQuery) use ($order) {
+                    $quoteQuery->where('custom_job_quote_id', $order->quote_id)
+                        ->whereNull('custom_job_order_id');
+                });
+        })
             ->whereNotIn('invoice_status', ['proforma', 'canceled', 'cancelled'])->first();
 
         return ['payments' => app(CustomJobPayments::class)->summary($order, $commercial),

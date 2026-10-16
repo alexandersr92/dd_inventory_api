@@ -1326,6 +1326,71 @@ class CustomJobCalculationTest extends TestCase
         $this->request('POST', 'orders/'.$id.'/revisions/preview', $bad)->assertStatus(422);
     }
 
+    public function test_reduced_order_delivers_and_bills_only_the_current_50_units(): void
+    {
+        [$user, $org, $role, $store, $order, $cup, $vinyl] = $this->productionOrder();
+        $id = $order['id'];
+        $role->givePermissionTo(['custom_job.delivery', 'custom_job.payment']);
+
+        $allocations = $this->request('GET', 'orders/'.$id.'/materials')->json('data.allocations');
+        $cupAllocation = collect($allocations)->firstWhere('inventory_detail_id', $cup);
+        $vinylAllocation = collect($allocations)->firstWhere('inventory_detail_id', $vinyl);
+        $this->request('POST', 'orders/'.$id.'/production/events', $this->progressPayload(
+            $order,
+            3,
+            40,
+            0,
+            [
+                ['allocation_id' => $cupAllocation['id'], 'quantity' => 40],
+                ['allocation_id' => $vinylAllocation['id'], 'quantity' => 1920],
+            ]
+        ))->assertOk();
+
+        $revisionPayload = $this->revisionPayload($order, 4, 50);
+        $preview = $this->previewRevision($order, $revisionPayload);
+        $revisionPayload['returns'] = [
+            ['allocation_id' => $cupAllocation['id'], 'quantity' => collect($preview['materials'])->firstWhere('id', $cupAllocation['id'])['proposed_return']],
+            ['allocation_id' => $vinylAllocation['id'], 'quantity' => collect($preview['materials'])->firstWhere('id', $vinylAllocation['id'])['proposed_return']],
+        ];
+        $this->applyRevision($order, $revisionPayload, $preview);
+
+        $current = $this->request('GET', 'orders/'.$id)->assertOk()->json('data');
+        $this->assertSame(50, $current['items'][0]['quantity']);
+        $this->request('POST', 'orders/'.$id.'/production/events', $this->progressPayload(
+            $order,
+            $current['version'],
+            10,
+            0,
+            [
+                ['allocation_id' => $cupAllocation['id'], 'quantity' => 10],
+                ['allocation_id' => $vinylAllocation['id'], 'quantity' => 480],
+            ]
+        ))->assertOk();
+
+        $current = $this->request('GET', 'orders/'.$id)->assertOk()->json('data');
+        $this->request('POST', 'orders/'.$id.'/deliveries', $this->deliveryPayload(
+            $current['version'],
+            [['item_id' => $current['items'][0]['id'], 'quantity' => 50]]
+        ))->assertOk()->assertJsonPath('delivery.can_invoice', true);
+
+        $current = $this->request('GET', 'orders/'.$id)->assertOk()->json('data');
+        $total = (float) $current['commercial']['totals']['total'];
+        $payment = $this->request('POST', 'orders/'.$id.'/payments', $this->paymentPayload($current['version'], $total))
+            ->assertOk()->json('payments.events.0');
+        $beforeBilling = [InventoryDetail::find($cup)->quantity, InventoryDetail::find($vinyl)->quantity];
+
+        $invoice = $this->request('POST', 'orders/'.$id.'/billing', [
+            'version' => CustomJobOrder::find($id)->version,
+            'request_id' => (string) Str::uuid(),
+        ])->assertOk()->json('invoice');
+
+        $this->assertSame(50, (int) $invoice['total_items']);
+        $this->assertSame(50.0, (float) $invoice['invoice_details'][0]['quantity']);
+        $this->assertSame($total, (float) $invoice['grand_total']);
+        $this->assertSame($invoice['id'], CustomJobPayment::find($payment['id'])->applied_invoice_id);
+        $this->assertSame($beforeBilling, [InventoryDetail::find($cup)->quantity, InventoryDetail::find($vinyl)->quantity]);
+    }
+
     public function test_revision_recipe_slots_new_items_removal_and_explicit_price_are_stable(): void
     {
         [$user,$org,$role,$store,$order,$cup,$vinyl] = $this->productionOrder();
@@ -1489,6 +1554,7 @@ class CustomJobCalculationTest extends TestCase
             $t->text('notes')->nullable();
         });
         $box->update(['opening_balance' => 200]);
+        Schema::dropIfExists('credit_details');
         Schema::create('credit_details', function (Blueprint $t) {
             $t->uuid('id')->primary();
             $t->uuid('organization_id');
