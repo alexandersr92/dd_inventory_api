@@ -163,6 +163,7 @@ class CustomJobCalculationTest extends TestCase
         (require database_path('migrations/2026_09_06_182000_add_cost_to_invoice_details_table.php'))->up();
         (require database_path('migrations/2026_06_05_221233_add_sort_order_to_invoice_details_table.php'))->up();
         (require database_path('migrations/2026_10_16_000000_create_custom_job_billing_links.php'))->up();
+        (require database_path('migrations/2026_10_17_000000_add_custom_job_report_indexes.php'))->up();
 
     }
 
@@ -1640,6 +1641,29 @@ class CustomJobCalculationTest extends TestCase
         $this->assertNull(CustomJobPayment::find($payment['id'])->fresh()->applied_invoice_id);
         $this->request('POST', 'orders/'.$id.'/billing', ['version' => 7, 'request_id' => (string) Str::uuid()])
             ->assertOk()->assertJsonPath('invoice.id', $invoice['id'])->assertJsonPath('invoice.invoice_status', 'completed');
+    }
+
+    public function test_operational_report_filters_overdue_orders_and_redacts_costs_without_permission(): void
+    {
+        [$user, $org, $role, $store, $order] = $this->deliveryOrder();
+        $model = CustomJobOrder::find($order['id']);
+        $model->delivery_at = now('UTC')->subHour();
+        $model->delivery_local = now($model->delivery_timezone)->subHour()->format('Y-m-d\\TH:i');
+        $model->save();
+        $role->revokePermissionTo('custom_job.costs');
+
+        $report = $this->request('GET', 'reports/summary?store_id='.$store->id.'&due_state=overdue')->assertOk()
+            ->assertJsonPath('costs_visible', false)
+            ->assertJsonPath('summary.overdue', 1)
+            ->assertJsonPath('data.0.pending_delivery', 100)
+            ->json();
+        $this->assertArrayNotHasKey('financial', $report['data'][0]);
+
+        $role->givePermissionTo('custom_job.costs');
+        $this->request('GET', 'reports/summary?store_id='.$store->id.'&due_state=pending')->assertOk()
+            ->assertJsonPath('costs_visible', true)
+            ->assertJsonPath('data.0.financial.budget_cost_nio', 548)
+            ->assertJsonPath('data.0.materials.source_stores.0.id', $store->id);
     }
 
     public function test_cancellation_preview_returns_selective_materials_and_stops_the_order_atomically(): void

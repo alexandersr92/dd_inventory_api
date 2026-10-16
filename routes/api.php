@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\CustomJobOrderController;
 use App\Http\Controllers\Api\V1\CustomJobOrderRevisionController;
 use App\Http\Controllers\Api\V1\CustomJobPaymentController;
 use App\Http\Controllers\Api\V1\CustomJobBillingController;
+use App\Http\Controllers\Api\V1\CustomJobReportController;
 use App\Http\Controllers\Api\V1\CustomJobProductionController;
 use App\Http\Controllers\Api\V1\CustomJobQuoteController;
 use App\Http\Controllers\Api\V1\CustomJobResourceController;
@@ -105,6 +106,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/orders/{id}/payments/annul', [CustomJobCancellationController::class, 'apply'])->defaults('operation', 'annul_payment')->middleware('custom_jobs:custom_job.annul_payment');
             Route::get('/orders/{id}/billing', [CustomJobBillingController::class, 'show'])->middleware('custom_jobs:custom_job.order,invoices');
             Route::post('/orders/{id}/billing', [CustomJobBillingController::class, 'issue'])->middleware('custom_jobs:custom_job.order,invoices');
+            Route::get('/reports/summary', [CustomJobReportController::class, 'index']);
             Route::get('/orders/{id}/revisions', [CustomJobOrderRevisionController::class, 'history']);
             Route::post('/orders/{id}/revisions/preview', [CustomJobOrderRevisionController::class, 'preview'])->middleware('custom_jobs:custom_job.order,products,inventories');
             Route::post('/orders/{id}/revisions', [CustomJobOrderRevisionController::class, 'apply'])->middleware('custom_jobs:custom_job.order,products,inventories');
