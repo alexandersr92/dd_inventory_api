@@ -138,6 +138,8 @@ class CustomJobCalculationTest extends TestCase
         (require database_path('migrations/2026_10_10_020000_create_custom_job_production.php'))->up();
         (require database_path('migrations/2026_10_11_000000_create_custom_job_deliveries.php'))->up();
         (require database_path('migrations/2026_10_11_010000_create_custom_job_order_revisions.php'))->up();
+        Schema::create('cash_sessions', function(Blueprint $t) { $t->uuid('id')->primary(); $t->uuid('organization_id'); $t->uuid('store_id'); $t->uuid('user_id'); $t->string('status')->default('open'); $t->string('cash_register_name')->nullable(); $t->timestamp('opened_at')->nullable(); $t->timestamps(); });
+        (require database_path('migrations/2026_10_15_000000_create_custom_job_payments.php'))->up();
 
     }
 
@@ -634,7 +636,7 @@ class CustomJobCalculationTest extends TestCase
             ->assertJsonPath('data.delivery_timezone', 'America/Managua')->assertJsonPath('data.delivery_at', '2026-10-21T05:30:00Z')
             ->assertJsonPath('data.items.0.quantity', 100)->assertJsonPath('data.items.0.name', 'Trabajo')
             ->assertJsonPath('data.commercial.totals.total', 650)->assertJsonPath('data.snapshot.articles.0.materials.0.name', 'Vaso')
-            ->assertJsonPath('data.confirmation.available', true)->assertJsonPath('data.operations.payment', null)->json('data');
+            ->assertJsonPath('data.confirmation.available', true)->assertJsonPath('data.operations.payment.pending', 650)->json('data');
         $this->request('POST', 'quotes/'.$quote['id'].'/convert', $data)->assertCreated()->assertJsonPath('data.id', $order['id']);
         $this->assertDatabaseCount('custom_job_orders', 1);
         $this->assertDatabaseCount('custom_job_order_items', 1);
@@ -1272,4 +1274,119 @@ class CustomJobCalculationTest extends TestCase
         $this->assertSame(4800,collect($view['materials'])->firstWhere('id',$a['id'])['used']);
     }
 
+
+    private function paymentPayload(int $version,float $amount=500,string $currency='NIO'): array
+    {
+        return ['version'=>$version,'request_id'=>(string)Str::uuid(),'amount'=>$amount,'currency'=>$currency,'cash_session_id'=>null,'reason'=>'Anticipo acordado','payment_method'=>'CASH','payment_metadata'=>[]];
+    }
+    public function test_payments_mixed_metadata_cash_totals_retry_and_no_sale_or_stock_effects(): void
+    {
+        [$user,$org,$role,$store,$order,$cup,$vinyl]=$this->materialOrder(); $role->givePermissionTo('custom_job.payment');
+        $this->request('POST','orders/'.$order['id'].'/confirm',['version'=>1])->assertOk();
+        $box=\App\Models\CashSession::create(['store_id'=>$store->id,'user_id'=>$user->id,'status'=>'open','cash_register_name'=>'Caja pruebas','opened_at'=>now()]);
+        $p=$this->paymentPayload(2); $p['cash_session_id']=$box->id; $p['payment_method']='MULTIPLE';
+        $p['payment_metadata']=['payments'=>[['method'=>'CASH','amount'=>200,'paid_in_usd'=>10,'paid_in_nio'=>0],['method'=>'TRANSFER','amount'=>200,'bank'=>'Banco','reference'=>'T1'],['method'=>'CARD','amount'=>100,'card_last_four'=>'1234','reference'=>'C1']]];
+        $this->request('POST','orders/'.$order['id'].'/payments',$p)->assertOk()->assertJsonPath('payments.summary.paid',500)->assertJsonPath('data.version',3)->assertJsonPath('payments.events.0.payment_metadata.payments.0.change_nio',165);
+        $this->request('POST','orders/'.$order['id'].'/payments',$p)->assertOk(); $p['amount']=501;
+        $this->request('POST','orders/'.$order['id'].'/payments',$p)->assertStatus(409);
+        $this->assertDatabaseCount('custom_job_payments',1); $this->assertDatabaseCount('invoices',1); $this->assertDatabaseCount('inventory_movements',2);
+        $this->assertSame(900.0,InventoryDetail::find($cup)->quantity);
+        $totals=\App\Services\CustomJobPayments::sessionTotals($box->id);
+        $this->assertSame(['cash_nio'=>-165.0,'cash_usd'=>10.0,'transfer'=>200.0,'card'=>100.0],$totals);
+        Schema::table('cash_sessions',function(Blueprint $t){
+            foreach(['opening_balance','expected_balance','actual_cash','actual_usd','expected_usd','usd_exchange_rate','difference'] as $column) $t->decimal($column,20,2)->default(0);
+            $t->timestamp('closed_at')->nullable();$t->text('notes')->nullable();
+        });
+        $box->update(['opening_balance'=>200]);
+        Schema::create('credit_details',function(Blueprint $t){$t->uuid('id')->primary();$t->uuid('organization_id');$t->uuid('cash_session_id')->nullable();$t->timestamp('voided_at')->nullable();});
+        Schema::create('cash_transactions',function(Blueprint $t){$t->uuid('id')->primary();$t->uuid('organization_id');$t->uuid('cash_session_id');$t->string('type');$t->string('currency');$t->decimal('amount',20,2);});
+        $box->opening_balance=200;
+        $method=new \ReflectionMethod(\App\Http\Controllers\Api\V1\CashSessionController::class,'computeSessionTotals');
+        $actual=$method->invoke(new \App\Http\Controllers\Api\V1\CashSessionController,$box);
+        $this->assertSame(35.0,(float)$actual['expected_cash_nio']); $this->assertSame(10.0,(float)$actual['expected_cash_usd']);
+        $this->assertSame(200.0,(float)$actual['total_transfer']);$this->assertSame(100.0,(float)$actual['total_card']);
+        $this->request('POST','orders/'.$order['id'].'/payments',$this->paymentPayload(2,10))->assertStatus(409);
+        $rest=CustomJobOrder::find($order['id'])->commercial['totals']['total']-500;
+        $this->request('POST','orders/'.$order['id'].'/payments',$this->paymentPayload(3,$rest))->assertOk()->assertJsonPath('payments.summary.pending',0)->assertJsonPath('data.status','confirmed');
+        $this->assertDatabaseCount('custom_job_work_orders',0);
+        $this->request('POST','orders/'.$order['id'].'/payments',$this->paymentPayload(4,1))->assertStatus(422);
+        $this->postJson('/api/v1/cash-sessions/close',['cash_session_id'=>$box->id,'actual_cash'=>35,'actual_usd'=>10,'usd_exchange_rate'=>36.5])->assertOk()->assertJsonPath('session.status','closed')->assertJsonPath('totals.expected_cash_nio',35)->assertJsonPath('session.difference',0);
+        $this->assertDatabaseCount('custom_job_payments',2);
+
+    }
+    public function test_payment_reduction_real_credit_refund_partial_retries_and_limits(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->materialOrder(); $role->givePermissionTo('custom_job.payment');
+        $id=$order['id']; $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        $saved=$this->request('POST','orders/'.$id.'/payments',$this->paymentPayload(2))->assertOk()->json(); $source=$saved['payments']['events'][0]['id'];
+        $p=$this->revisionPayload($order,3,50); $v=$this->previewRevision($order,$p); $this->assertGreaterThan(0,$v['financial']['payments']['credit']);
+        $this->applyRevision($order,$p,$v); $version=CustomJobOrder::find($id)->version;
+        $view=$this->request('GET','orders/'.$id.'/payments')->assertOk()->json('data'); $credit=$view['summary']['credit'];
+        $refund=[...$this->paymentPayload($version,50),'source_payment_id'=>$source,'reason'=>'Devolver exceso por reducción'];
+        $this->request('POST','orders/'.$id.'/payments/refund',$refund)->assertOk()->assertJsonPath('payments.summary.refunded',50)->assertJsonPath('payments.events.0.refundable_amount',450);
+        $this->request('POST','orders/'.$id.'/payments/refund',$refund)->assertOk();
+        $this->request('POST','orders/'.$id.'/payments/refund',[...$refund,'request_id'=>(string)Str::uuid(),'version'=>$version+1,'amount'=>$credit])->assertStatus(422);
+        $this->request('POST','orders/'.$id.'/payments/refund',[...$refund,'request_id'=>(string)Str::uuid(),'version'=>$version+1,'amount'=>$credit-50])->assertOk()->assertJsonPath('payments.summary.credit',0);
+        $this->assertDatabaseCount('custom_job_payments',3);
+        $this->assertDatabaseCount('custom_job_order_revisions',1);
+        $this->assertDatabaseCount('invoices',1);
+    }
+    public function test_payments_session_policy_currency_snapshot_and_authorization(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->materialOrder(); $id=$order['id']; $role->givePermissionTo('custom_job.payment');
+        $this->request('POST','orders/'.$id.'/payments',$this->paymentPayload(1))->assertStatus(409);
+        $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        Setting::create(['key'=>'cash_control_mode','type'=>'global','value'=>'STRICT']);
+        $this->request('POST','orders/'.$id.'/payments',$this->paymentPayload(2))->assertStatus(422);
+        $closed=\App\Models\CashSession::create(['store_id'=>$store->id,'user_id'=>$user->id,'status'=>'closed']);
+        $this->request('POST','orders/'.$id.'/payments',[...$this->paymentPayload(2),'cash_session_id'=>$closed->id])->assertStatus(422);
+        $closed->update(['status'=>'open']);
+        $p=[...$this->paymentPayload(2,10,'USD'),'cash_session_id'=>$closed->id];
+        $this->request('POST','orders/'.$id.'/payments',$p)->assertOk()->assertJsonPath('payments.summary.paid_nio',365)->assertJsonPath('payments.events.0.amount','10.00');
+        Setting::create(['key'=>'usd_exchange_rate','type'=>'global','value'=>'40']);
+        $this->request('GET','orders/'.$id.'/payments')->assertOk()->assertJsonPath('data.summary.paid_nio',365)->assertJsonPath('data.current_exchange_rate',40);
+        $role->revokePermissionTo('custom_job.payment'); $this->authenticate($user);
+        $this->request('POST','orders/'.$id.'/payments',[...$p,'version'=>3,'request_id'=>(string)Str::uuid()])->assertForbidden();
+        $this->request('GET','orders/'.$id.'/payments')->assertOk();
+        $role->givePermissionTo('custom_job.payment'); $role->revokePermissionTo('custom_job.return'); $this->authenticate($user);
+        $source=\App\Models\CustomJobPayment::first()->id;
+        $this->request('POST','orders/'.$id.'/payments/refund',[...$this->paymentPayload(3,1,'USD'),'source_payment_id'=>$source,'cash_session_id'=>$closed->id])->assertForbidden();
+        $this->request('POST','orders/'.$id.'/payments/annul',['version'=>3])->assertNotFound();
+        $this->assertDatabaseCount('custom_job_payments',1);
+    }
+    public function test_payments_invalid_metadata_is_atomic_and_other_tenants_are_inaccessible(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->materialOrder(); $id=$order['id']; $role->givePermissionTo('custom_job.payment');
+        $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        foreach([['payment_method'=>'TRANSFER'],['payment_method'=>'CARD','payment_metadata'=>['card_last_four'=>'1234']],['payment_method'=>'MULTIPLE','payment_metadata'=>['payments'=>[['method'=>'CREDIT','amount'=>500]]]],['amount'=>0.001],['payment_metadata'=>['amount'=>1]],['payment_metadata'=>['paid_in_nio'=>1]]] as $bad) {
+            $this->request('POST','orders/'.$id.'/payments',[...$this->paymentPayload(2),...$bad])->assertStatus(422);
+        }
+        $this->assertDatabaseCount('custom_job_payments',0); $this->assertSame(2,CustomJobOrder::find($id)->version);
+        [$other,$otherOrg]=$this->startAccount(['custom_job.index','custom_job.payment']);
+        $this->request('GET','orders/'.$id.'/payments')->assertNotFound();
+        $this->request('POST','orders/'.$id.'/payments',$this->paymentPayload(2))->assertNotFound();
+    }
+
+    public function test_refunds_keep_original_rate_and_settle_rounding_after_cancellation_without_reopening_old_cash(): void
+    {
+        [$user,$org,$role,$store,$order]=$this->materialOrder(); $id=$order['id']; $role->givePermissionTo('custom_job.payment');
+        $this->request('POST','orders/'.$id.'/confirm',['version'=>1])->assertOk();
+        $box=\App\Models\CashSession::create(['store_id'=>$store->id,'user_id'=>$user->id,'status'=>'open']);
+        $saved=$this->request('POST','orders/'.$id.'/payments',[...$this->paymentPayload(2,0.02,'USD'),'cash_session_id'=>$box->id])->assertOk()->json();
+        $source=$saved['payments']['events'][0]['id'];
+        $raw=\App\Models\CustomJobPayment::find($source)->getRawOriginal('occurred_at');
+        $this->assertSame(str_replace(' ','T',$raw).'Z',$saved['payments']['events'][0]['occurred_at']);
+        $box->update(['status'=>'closed']);
+        // Simulate the terminal state owned by plan 13; no cancellation endpoint is added here.
+        CustomJobOrder::find($id)->update(['status'=>'canceled']);
+        Setting::create(['key'=>'usd_exchange_rate','type'=>'global','value'=>'40']);
+        Setting::create(['key'=>'accepted_currencies','type'=>'global','value'=>'["NIO"]']);
+        $p=[...$this->paymentPayload(3,0.01,'USD'),'source_payment_id'=>$source];
+        $this->request('POST','orders/'.$id.'/payments/refund',[...$p,'cash_session_id'=>$box->id])->assertStatus(422);
+        $this->request('POST','orders/'.$id.'/payments/refund',$p)->assertOk()->assertJsonPath('payments.events.1.exchange_rate','36.50000000');
+        $this->request('POST','orders/'.$id.'/payments/refund',[...$p,'version'=>4,'request_id'=>(string)Str::uuid()])->assertOk()->assertJsonPath('payments.summary.net_paid',0)->assertJsonPath('payments.events.0.refundable_amount',0);
+        $this->assertSame(0.73,(float)\App\Models\CustomJobPayment::where('kind','refund')->sum('amount_nio'));
+        $this->request('POST','orders/'.$id.'/payments',[...$this->paymentPayload(5,1)])->assertStatus(409);
+        $this->assertSame(0.02,\App\Services\CustomJobPayments::sessionTotals($box->id)['cash_usd']);
+    }
 }

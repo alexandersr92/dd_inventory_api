@@ -78,6 +78,9 @@ Route::prefix('v1')->group(function () {
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
+            Route::get('/orders/{id}/payments', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'show']);
+            Route::post('/orders/{id}/payments', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'record'])->defaults('kind', 'payment')->middleware('custom_jobs:custom_job.payment');
+            Route::post('/orders/{id}/payments/refund', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'record'])->defaults('kind', 'refund')->middleware('custom_jobs:custom_job.payment,custom_job.return');
             Route::get('/orders/{id}/revisions', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'history']);
             Route::post('/orders/{id}/revisions/preview', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'preview'])->middleware('custom_jobs:custom_job.order,products,inventories');
             Route::post('/orders/{id}/revisions', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'apply'])->middleware('custom_jobs:custom_job.order,products,inventories');

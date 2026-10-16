@@ -184,53 +184,55 @@ class CashSessionController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $session = CashSession::findOrFail($request->cash_session_id);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($request) {
+            $session = CashSession::lockForUpdate()->findOrFail($request->cash_session_id);
 
-        // SEGURIDAD: solo el dueño de la sesión (o el owner de la org) puede
-        // cerrarla. Sin esto, cualquiera cerraba la caja de otro cajero con un
-        // actual_cash falso, generando descuadres/incriminaciones.
-        if (!$this->userOwnsSessionOrIsOwner($session)) {
+            // SEGURIDAD: solo el dueño de la sesión (o el owner de la org) puede
+            // cerrarla. Sin esto, cualquiera cerraba la caja de otro cajero con un
+            // actual_cash falso, generando descuadres/incriminaciones.
+            if (!$this->userOwnsSessionOrIsOwner($session)) {
+                return response()->json([
+                    'message' => 'No autorizado sobre esta sesión de caja.'
+                ], Response::HTTP_FORBIDDEN);
+            }
+
+            if ($session->status !== 'open') {
+                return response()->json([
+                    'message' => 'La sesión de caja ya se encuentra cerrada.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            $totals = $this->computeSessionTotals($session);
+            $expected = $totals['expected_cash_nio'];
+            $expected_usd = $totals['expected_cash_usd'];
+            $actual_nio = $request->actual_cash;
+            $actual_usd = $request->actual_usd ?? 0;
+            // Si no se envía la tasa, usar la tasa oficial (setting) en vez de 0.
+            // Con 0, todo el USD esperado se valoraba en 0 y descuadraba el arqueo.
+            $rate = $request->usd_exchange_rate ?? $this->officialExchangeRate();
+
+            $actual_total_nio = $actual_nio + ($actual_usd * $rate);
+            $expected_total_nio = $expected + ($expected_usd * $rate);
+            $diff = $actual_total_nio - $expected_total_nio;
+
+            $session->update([
+                'status' => 'closed',
+                'expected_balance' => $expected,
+                'expected_usd' => $expected_usd,
+                'actual_cash' => $actual_nio,
+                'actual_usd' => $actual_usd,
+                'usd_exchange_rate' => $rate,
+                'difference' => $diff,
+                'closed_at' => now(),
+                'notes' => $request->notes,
+            ]);
+
             return response()->json([
-                'message' => 'No autorizado sobre esta sesión de caja.'
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        if ($session->status !== 'open') {
-            return response()->json([
-                'message' => 'La sesión de caja ya se encuentra cerrada.'
-            ], Response::HTTP_BAD_REQUEST);
-        }
-
-        $totals = $this->computeSessionTotals($session);
-        $expected = $totals['expected_cash_nio'];
-        $expected_usd = $totals['expected_cash_usd'];
-        $actual_nio = $request->actual_cash;
-        $actual_usd = $request->actual_usd ?? 0;
-        // Si no se envía la tasa, usar la tasa oficial (setting) en vez de 0.
-        // Con 0, todo el USD esperado se valoraba en 0 y descuadraba el arqueo.
-        $rate = $request->usd_exchange_rate ?? $this->officialExchangeRate();
-
-        $actual_total_nio = $actual_nio + ($actual_usd * $rate);
-        $expected_total_nio = $expected + ($expected_usd * $rate);
-        $diff = $actual_total_nio - $expected_total_nio;
-
-        $session->update([
-            'status' => 'closed',
-            'expected_balance' => $expected,
-            'expected_usd' => $expected_usd,
-            'actual_cash' => $actual_nio,
-            'actual_usd' => $actual_usd,
-            'usd_exchange_rate' => $rate,
-            'difference' => $diff,
-            'closed_at' => now(),
-            'notes' => $request->notes,
-        ]);
-
-        return response()->json([
-            'message' => 'Caja cerrada y turnos auditados correctamente.',
-            'session' => $session,
-            'totals' => $totals
-        ], Response::HTTP_OK);
+                'message' => 'Caja cerrada y turnos auditados correctamente.',
+                'session' => $session,
+                'totals' => $totals
+            ], Response::HTTP_OK);
+        });
     }
 
     /**
@@ -568,8 +570,9 @@ class CashSessionController extends Controller
         $manualInUsd = $session->cashTransactions()->where('type', 'in')->where('currency', 'USD')->sum('amount');
         $manualOutUsd = $session->cashTransactions()->where('type', 'out')->where('currency', 'USD')->sum('amount');
 
-        $expectedCashNio = $session->opening_balance + $invoiceCashNio + $creditCashNio + $manualInNio - $manualOutNio;
-        $expectedCashUsd = $invoiceCashUsd + $creditCashUsd + $manualInUsd - $manualOutUsd;
+        $job = \App\Services\CustomJobPayments::sessionTotals($session->id);
+        $expectedCashNio = $session->opening_balance + $invoiceCashNio + $creditCashNio + $manualInNio - $manualOutNio + $job['cash_nio'];
+        $expectedCashUsd = $invoiceCashUsd + $creditCashUsd + $manualInUsd - $manualOutUsd + $job['cash_usd'];
 
         return [
             'invoice_cash' => $invoiceCashNio,
@@ -591,8 +594,9 @@ class CashSessionController extends Controller
             'expected_cash' => $expectedCashNio,
             'expected_cash_nio' => $expectedCashNio,
             'expected_cash_usd' => $expectedCashUsd,
-            'total_transfer' => $invoiceTransfer + $creditTransfer,
-            'total_card' => $invoiceCard + $creditCard,
+            'custom_jobs' => $job,
+            'total_transfer' => $invoiceTransfer + $creditTransfer + $job['transfer'],
+            'total_card' => $invoiceCard + $creditCard + $job['card'],
         ];
     }
 }

@@ -12,6 +12,7 @@ class AppServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(\App\Contracts\CustomJobReservation::class, \App\Services\CustomJobMaterials::class);
+        $this->app->bind(\App\Contracts\CustomJobOrderRevisionFinancial::class, \App\Services\CustomJobPaymentRevisionFinancial::class);
     }
 
     /**
