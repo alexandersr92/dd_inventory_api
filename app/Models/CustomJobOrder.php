@@ -12,7 +12,7 @@ class CustomJobOrder extends Model
 
     protected $guarded = ['id', 'organization_id'];
 
-    protected $casts = ['version' => 'integer', 'snapshot' => 'array', 'commercial' => 'array'];
+    protected $casts = ['version' => 'integer', 'snapshot' => 'array', 'commercial' => 'array', 'confirmed_at' => 'datetime', 'cancelled_at' => 'datetime'];
 
     public function items()
     {

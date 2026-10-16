@@ -86,7 +86,7 @@ final class CustomJobPayments
         }
         $context = ['accepted_currencies' => array_values(array_intersect(['NIO', 'USD'], $accepted)), 'usd_exchange_rate' => (float) $this->setting('usd_exchange_rate', '36.5')];
 
-        return ['summary' => $this->summary($order), 'events' => $events, 'cash' => ['mode' => $this->setting('cash_control_mode', 'NONE'), 'sessions' => $this->sessions($user, $order)->get(['id', 'cash_register_name', 'user_id', 'opened_at'])->toArray()], 'accepted_currencies' => $context['accepted_currencies'], 'current_exchange_rate' => $context['usd_exchange_rate'], 'annulment_available' => false];
+        return ['summary' => $this->summary($order), 'events' => $events, 'cash' => ['mode' => $this->setting('cash_control_mode', 'NONE'), 'sessions' => $this->sessions($user, $order)->get(['id', 'cash_register_name', 'user_id', 'opened_at'])->toArray()], 'accepted_currencies' => $context['accepted_currencies'], 'current_exchange_rate' => $context['usd_exchange_rate'], 'annulment_available' => $order->status === 'confirmed' && $rows->contains(fn ($row) => $row->kind === 'payment' && $row->status === 'active')];
     }
 
     /** Normalize existing billing metadata: component amounts are NIO; cash received minus NIO change. */

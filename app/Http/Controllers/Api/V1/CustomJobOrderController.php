@@ -18,7 +18,7 @@ class CustomJobOrderController extends Controller
 
     public function index(Request $request, CustomJobCalculationContext $context, CustomJobOrders $service)
     {
-        $data = $request->validate(['store_id' => ['required', 'uuid'], 'status' => ['nullable', Rule::in(['all', 'draft', 'confirmed'])],
+        $data = $request->validate(['store_id' => ['required', 'uuid'], 'status' => ['nullable', Rule::in(['all', 'draft', 'confirmed', 'cancelled'])],
             'search' => ['nullable', 'string', 'max:120'], 'page' => ['nullable', 'integer', 'min:1'],
             'delivery_from' => ['nullable', 'date_format:Y-m-d'], 'delivery_to' => ['nullable', 'date_format:Y-m-d', ...($request->filled('delivery_from') ? ['after_or_equal:delivery_from'] : [])]]);
         $store = $context->store($request->user(), $data['store_id']);

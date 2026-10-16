@@ -1,47 +1,64 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\V1\ClientController;
-use App\Http\Controllers\Api\V1\UserController;
-use App\Http\Controllers\Api\V1\MemberController;
-use App\Http\Controllers\Api\V1\ModuleController;
-use App\Http\Controllers\Api\V1\OrganizationController;
-use App\Http\Controllers\Api\V1\RoleController;
-use App\Http\Controllers\Api\V1\LoginController;
-use App\Http\Controllers\Api\V1\StoreController;
-use App\Http\Controllers\Api\V1\SupplierController;
-use App\Http\Controllers\Api\V1\TagController;
+use App\Http\Controllers\Api\V1\CashSessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
-use App\Http\Controllers\Api\V1\ProductController;
+use App\Http\Controllers\Api\V1\ClientController;
+use App\Http\Controllers\Api\V1\CreditController;
+use App\Http\Controllers\Api\V1\CustomJobCalculationController;
+use App\Http\Controllers\Api\V1\CustomJobCancellationController;
+use App\Http\Controllers\Api\V1\CustomJobDeliveryController;
+use App\Http\Controllers\Api\V1\CustomJobMaterialController;
+use App\Http\Controllers\Api\V1\CustomJobOrderController;
+use App\Http\Controllers\Api\V1\CustomJobOrderRevisionController;
+use App\Http\Controllers\Api\V1\CustomJobPaymentController;
+use App\Http\Controllers\Api\V1\CustomJobProductionController;
+use App\Http\Controllers\Api\V1\CustomJobQuoteController;
+use App\Http\Controllers\Api\V1\CustomJobResourceController;
+use App\Http\Controllers\Api\V1\CustomJobResourcePreviewController;
+use App\Http\Controllers\Api\V1\CustomJobsAccessController;
+use App\Http\Controllers\Api\V1\CustomJobTemplateController;
+use App\Http\Controllers\Api\V1\DashboardController;
+use App\Http\Controllers\Api\V1\ErrorReportController;
+use App\Http\Controllers\Api\V1\ExpenseCategoryController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InvoiceController;
-use App\Http\Controllers\Api\V1\CreditController;
+use App\Http\Controllers\Api\V1\LandingPublicController;
+use App\Http\Controllers\Api\V1\LoginController;
+use App\Http\Controllers\Api\V1\MovementController;
+use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\OrganizationController;
+use App\Http\Controllers\Api\V1\PasswordResetController;
+use App\Http\Controllers\Api\V1\PaymentController;
+use App\Http\Controllers\Api\V1\PlanController;
+use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\PurchasesController;
-use App\Http\Controllers\Api\V1\CashSessionController;
+use App\Http\Controllers\Api\V1\ReportController;
+use App\Http\Controllers\Api\V1\RoleController;
 use App\Http\Controllers\Api\V1\SellerController;
 use App\Http\Controllers\Api\V1\SettingController;
-use App\Http\Controllers\Api\V1\ReportController;
-use App\Http\Controllers\Api\V1\MovementController;
-use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
-use App\Http\Controllers\Api\V1\NotificationController;
-use App\Http\Controllers\Api\V1\DashboardController;
-use App\Http\Controllers\Api\V1\LandingPublicController;
-use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\SocialAuthController;
+use App\Http\Controllers\Api\V1\StoreController;
+use App\Http\Controllers\Api\V1\SubscriptionInvoiceController;
+use App\Http\Controllers\Api\V1\SupplierController;
+use App\Http\Controllers\Api\V1\TagController;
+use App\Http\Controllers\Api\V1\TenantNotificationSettingsController;
 use App\Http\Controllers\Api\V1\TerminalActivationController;
+use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\WooCommerceIntegrationController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
     // Route::post('/upload/{type}', [FileUploadController::class, 'upload']);
-    
+
     Route::get('/test',
         function (Request $request) {
             return response()->json([
                 'message' => 'Its working good',
                 'url' => $request->url(),
                 'env' => config('app.env'),
-                'time' => date('Y-m-d H:i:s')
+                'time' => date('Y-m-d H:i:s'),
             ]);
         }
     );
@@ -74,70 +91,73 @@ Route::prefix('v1')->group(function () {
     Route::get('/landing/plans', [LandingPublicController::class, 'getPublicPlans']);
 
     Route::middleware(['auth:sanctum', 'tenant.switch'])->group(function () {
-        Route::get('/custom-jobs/access', \App\Http\Controllers\Api\V1\CustomJobsAccessController::class)
+        Route::get('/custom-jobs/access', CustomJobsAccessController::class)
             ->middleware('module:custom_jobs');
 
         Route::prefix('custom-jobs')->middleware('custom_jobs:custom_job.index')->group(function () {
-            Route::get('/orders/{id}/payments', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'show']);
-            Route::post('/orders/{id}/payments', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'record'])->defaults('kind', 'payment')->middleware('custom_jobs:custom_job.payment');
-            Route::post('/orders/{id}/payments/refund', [\App\Http\Controllers\Api\V1\CustomJobPaymentController::class, 'record'])->defaults('kind', 'refund')->middleware('custom_jobs:custom_job.payment,custom_job.return');
-            Route::get('/orders/{id}/revisions', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'history']);
-            Route::post('/orders/{id}/revisions/preview', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'preview'])->middleware('custom_jobs:custom_job.order,products,inventories');
-            Route::post('/orders/{id}/revisions', [\App\Http\Controllers\Api\V1\CustomJobOrderRevisionController::class, 'apply'])->middleware('custom_jobs:custom_job.order,products,inventories');
-            Route::get('/orders/{id}/deliveries', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'show']);
-            Route::post('/orders/{id}/deliveries', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'delivery')->middleware('custom_jobs:custom_job.delivery');
-            Route::post('/orders/{id}/deliveries/return', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return');
-            Route::post('/orders/{id}/deliveries/correct', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_delivery')->middleware('custom_jobs:custom_job.delivery');
-            Route::post('/orders/{id}/deliveries/correct-return', [\App\Http\Controllers\Api\V1\CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_return')->middleware('custom_jobs:custom_job.return');
-            Route::get('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'show']);
-            Route::post('/orders/{id}/production', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'generate'])->middleware('custom_jobs:custom_job.production,products,inventories');
-            Route::post('/orders/{id}/production/events', [\App\Http\Controllers\Api\V1\CustomJobProductionController::class, 'record'])->middleware('custom_jobs:custom_job.production,products,inventories');
-            Route::get('/orders/{id}/materials', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'show'])->middleware('custom_jobs:custom_job.index,products,inventories');
-            Route::post('/orders/{id}/materials/additional', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'additional')->middleware('custom_jobs:custom_job.order,products,inventories');
-            Route::post('/orders/{id}/materials/return', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return,products,inventories');
-            Route::post('/orders/{id}/materials/recover', [\App\Http\Controllers\Api\V1\CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'recover')->middleware('custom_jobs:custom_job.return,products,inventories');
-            Route::get('/orders', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'index']);
-            Route::get('/orders/{id}', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'show']);
+            Route::get('/orders/{id}/payments', [CustomJobPaymentController::class, 'show']);
+            Route::post('/orders/{id}/payments', [CustomJobPaymentController::class, 'record'])->defaults('kind', 'payment')->middleware('custom_jobs:custom_job.payment');
+            Route::post('/orders/{id}/payments/refund', [CustomJobPaymentController::class, 'record'])->defaults('kind', 'refund')->middleware('custom_jobs:custom_job.payment,custom_job.return');
+            Route::get('/orders/{id}/cancellations', [CustomJobCancellationController::class, 'history'])->middleware('custom_jobs:custom_job.cancel');
+            Route::post('/orders/{id}/cancellations/preview', [CustomJobCancellationController::class, 'preview'])->middleware('custom_jobs:custom_job.cancel');
+            Route::post('/orders/{id}/cancellations', [CustomJobCancellationController::class, 'apply'])->middleware('custom_jobs:custom_job.cancel');
+            Route::post('/orders/{id}/payments/annul', [CustomJobCancellationController::class, 'apply'])->defaults('operation', 'annul_payment')->middleware('custom_jobs:custom_job.annul_payment');
+            Route::get('/orders/{id}/revisions', [CustomJobOrderRevisionController::class, 'history']);
+            Route::post('/orders/{id}/revisions/preview', [CustomJobOrderRevisionController::class, 'preview'])->middleware('custom_jobs:custom_job.order,products,inventories');
+            Route::post('/orders/{id}/revisions', [CustomJobOrderRevisionController::class, 'apply'])->middleware('custom_jobs:custom_job.order,products,inventories');
+            Route::get('/orders/{id}/deliveries', [CustomJobDeliveryController::class, 'show']);
+            Route::post('/orders/{id}/deliveries', [CustomJobDeliveryController::class, 'record'])->defaults('kind', 'delivery')->middleware('custom_jobs:custom_job.delivery');
+            Route::post('/orders/{id}/deliveries/return', [CustomJobDeliveryController::class, 'record'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return');
+            Route::post('/orders/{id}/deliveries/correct', [CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_delivery')->middleware('custom_jobs:custom_job.delivery');
+            Route::post('/orders/{id}/deliveries/correct-return', [CustomJobDeliveryController::class, 'record'])->defaults('kind', 'correct_return')->middleware('custom_jobs:custom_job.return');
+            Route::get('/orders/{id}/production', [CustomJobProductionController::class, 'show']);
+            Route::post('/orders/{id}/production', [CustomJobProductionController::class, 'generate'])->middleware('custom_jobs:custom_job.production,products,inventories');
+            Route::post('/orders/{id}/production/events', [CustomJobProductionController::class, 'record'])->middleware('custom_jobs:custom_job.production,products,inventories');
+            Route::get('/orders/{id}/materials', [CustomJobMaterialController::class, 'show'])->middleware('custom_jobs:custom_job.index,products,inventories');
+            Route::post('/orders/{id}/materials/additional', [CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'additional')->middleware('custom_jobs:custom_job.order,products,inventories');
+            Route::post('/orders/{id}/materials/return', [CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'return')->middleware('custom_jobs:custom_job.return,products,inventories');
+            Route::post('/orders/{id}/materials/recover', [CustomJobMaterialController::class, 'mutate'])->defaults('kind', 'recover')->middleware('custom_jobs:custom_job.return,products,inventories');
+            Route::get('/orders', [CustomJobOrderController::class, 'index']);
+            Route::get('/orders/{id}', [CustomJobOrderController::class, 'show']);
             Route::middleware('custom_jobs:custom_job.order')->group(function () {
-                Route::post('/quotes/{id}/convert', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'convert']);
-                Route::patch('/orders/{id}/commitment', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'commitment']);
-                Route::post('/orders/{id}/confirm', [\App\Http\Controllers\Api\V1\CustomJobOrderController::class, 'confirm'])->middleware('custom_jobs:custom_job.order,products,inventories');
+                Route::post('/quotes/{id}/convert', [CustomJobOrderController::class, 'convert']);
+                Route::patch('/orders/{id}/commitment', [CustomJobOrderController::class, 'commitment']);
+                Route::post('/orders/{id}/confirm', [CustomJobOrderController::class, 'confirm'])->middleware('custom_jobs:custom_job.order,products,inventories');
             });
-            Route::get('/quotes', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'index']);
-            Route::get('/quote-clients', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'clients'])->middleware(['module:clients', 'custom_jobs:custom_job.quote']);
-            Route::get('/quotes/{id}', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'show']);
+            Route::get('/quotes', [CustomJobQuoteController::class, 'index']);
+            Route::get('/quote-clients', [CustomJobQuoteController::class, 'clients'])->middleware(['module:clients', 'custom_jobs:custom_job.quote']);
+            Route::get('/quotes/{id}', [CustomJobQuoteController::class, 'show']);
             Route::middleware('custom_jobs:custom_job.quote,custom_job.costs,products,inventories')->group(function () {
-                Route::post('/quotes', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'store']);
-                Route::put('/quotes/{id}', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'update']);
-                Route::post('/quotes/{id}/duplicate', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'duplicate']);
-                Route::post('/quotes/{id}/issue', [\App\Http\Controllers\Api\V1\CustomJobQuoteController::class, 'issue'])->middleware('module:invoices');
+                Route::post('/quotes', [CustomJobQuoteController::class, 'store']);
+                Route::put('/quotes/{id}', [CustomJobQuoteController::class, 'update']);
+                Route::post('/quotes/{id}/duplicate', [CustomJobQuoteController::class, 'duplicate']);
+                Route::post('/quotes/{id}/issue', [CustomJobQuoteController::class, 'issue'])->middleware('module:invoices');
             });
-            Route::get('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'index']);
+            Route::get('/resources/{kind}', [CustomJobResourceController::class, 'index']);
             Route::middleware('custom_jobs:custom_job.costs')->group(function () {
-                Route::post('/resource-preview', \App\Http\Controllers\Api\V1\CustomJobResourcePreviewController::class);
+                Route::post('/resource-preview', CustomJobResourcePreviewController::class);
                 Route::middleware('custom_jobs:custom_job.costs,products,inventories')->group(function () {
-                    Route::get('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'index']);
-                    Route::post('/templates/{id}/instantiate', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'instantiate']);
+                    Route::get('/templates', [CustomJobTemplateController::class, 'index']);
+                    Route::post('/templates/{id}/instantiate', [CustomJobTemplateController::class, 'instantiate']);
                     Route::middleware('custom_jobs:custom_job.configure,custom_job.costs,products,inventories')->group(function () {
-                        Route::post('/templates', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'store']);
-                        Route::put('/templates/{id}', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'update']);
-                        Route::post('/templates/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobTemplateController::class, 'archive']);
+                        Route::post('/templates', [CustomJobTemplateController::class, 'store']);
+                        Route::put('/templates/{id}', [CustomJobTemplateController::class, 'update']);
+                        Route::post('/templates/{id}/archive', [CustomJobTemplateController::class, 'archive']);
                     });
-                    Route::get('/calculation-materials', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'materials']);
-                    Route::post('/calculation-preview', [\App\Http\Controllers\Api\V1\CustomJobCalculationController::class, 'preview']);
+                    Route::get('/calculation-materials', [CustomJobCalculationController::class, 'materials']);
+                    Route::post('/calculation-preview', [CustomJobCalculationController::class, 'preview']);
                 });
                 Route::middleware('custom_jobs:custom_job.configure,custom_job.costs')->group(function () {
-                    Route::post('/resources/{kind}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'store']);
-                    Route::put('/resources/{kind}/{id}', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'update']);
-                    Route::post('/resources/{kind}/{id}/archive', [\App\Http\Controllers\Api\V1\CustomJobResourceController::class, 'archive']);
+                    Route::post('/resources/{kind}', [CustomJobResourceController::class, 'store']);
+                    Route::put('/resources/{kind}/{id}', [CustomJobResourceController::class, 'update']);
+                    Route::post('/resources/{kind}/{id}/archive', [CustomJobResourceController::class, 'archive']);
                 });
             });
         });
 
-            //Excel Reports
-            Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
-            Route::get('inventories/export', [InventoryController::class, 'exportInventory']);
-
+        // Excel Reports
+        Route::get('invoices/export', [InvoiceController::class, 'exportInvoices']);
+        Route::get('inventories/export', [InventoryController::class, 'exportInventory']);
 
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
@@ -147,7 +167,6 @@ Route::prefix('v1')->group(function () {
         Route::put('/user/password', [LoginController::class, 'updatePassword']);
         Route::post('/user/google/link', [SocialAuthController::class, 'linkGoogle']);
         Route::post('/user/google/unlink', [SocialAuthController::class, 'unlinkGoogle']);
-
 
         Route::apiResource('organizations', OrganizationController::class, ['except' => ['destroy']]);
         Route::apiResource('users', UserController::class);
@@ -172,12 +191,11 @@ Route::prefix('v1')->group(function () {
             Route::delete('suppliers/{supplier}/contacts/{contact}', [SupplierController::class, 'contactDestroy']);
 
             Route::apiResource('settings', SettingController::class)->only(['index', 'store', 'update', 'destroy']);
-            
-            // Notification Settings
-            Route::get('notifications/settings', [\App\Http\Controllers\Api\V1\TenantNotificationSettingsController::class, 'index']);
-            Route::put('notifications/settings/{key}', [\App\Http\Controllers\Api\V1\TenantNotificationSettingsController::class, 'update']);
-        });
 
+            // Notification Settings
+            Route::get('notifications/settings', [TenantNotificationSettingsController::class, 'index']);
+            Route::put('notifications/settings/{key}', [TenantNotificationSettingsController::class, 'update']);
+        });
 
         // Module: products
         Route::middleware('module:products')->group(function () {
@@ -216,26 +234,26 @@ Route::prefix('v1')->group(function () {
         Route::delete('cash-sessions/transactions/{id}', [CashSessionController::class, 'destroyTransaction']);
 
         // Expense Categories
-        Route::apiResource('expense-categories', \App\Http\Controllers\Api\V1\ExpenseCategoryController::class)->except(['show']);
+        Route::apiResource('expense-categories', ExpenseCategoryController::class)->except(['show']);
 
         // Planes y uso (sin módulo: disponible para toda organización autenticada)
-        Route::get('plans', [\App\Http\Controllers\Api\V1\PlanController::class, 'index']);
-        Route::get('plans/current', [\App\Http\Controllers\Api\V1\PlanController::class, 'current']);
+        Route::get('plans', [PlanController::class, 'index']);
+        Route::get('plans/current', [PlanController::class, 'current']);
 
         // Pagos: métodos activos + comprobantes de renovación
-        Route::get('payments/providers', [\App\Http\Controllers\Api\V1\PaymentController::class, 'providers']);
+        Route::get('payments/providers', [PaymentController::class, 'providers']);
         // Throttle contra spam de archivos de 5MB y de correos a root (6/min).
-        Route::post('payments/submit', [\App\Http\Controllers\Api\V1\PaymentController::class, 'submit'])
+        Route::post('payments/submit', [PaymentController::class, 'submit'])
             ->middleware('throttle:6,1');
-        Route::get('payments/my-submissions', [\App\Http\Controllers\Api\V1\PaymentController::class, 'mySubmissions']);
-        Route::get('payments/{id}/receipt', [\App\Http\Controllers\Api\V1\PaymentController::class, 'downloadReceipt']);
+        Route::get('payments/my-submissions', [PaymentController::class, 'mySubmissions']);
+        Route::get('payments/{id}/receipt', [PaymentController::class, 'downloadReceipt']);
 
         // Facturas de suscripción emitidas por DipleBill al cliente (descargables).
-        Route::get('subscription-invoices', [\App\Http\Controllers\Api\V1\SubscriptionInvoiceController::class, 'index']);
-        Route::get('subscription-invoices/{id}/download', [\App\Http\Controllers\Api\V1\SubscriptionInvoiceController::class, 'download']);
+        Route::get('subscription-invoices', [SubscriptionInvoiceController::class, 'index']);
+        Route::get('subscription-invoices/{id}/download', [SubscriptionInvoiceController::class, 'download']);
 
         // Reporte de errores desde la app del negocio (llega al panel root).
-        Route::post('error-reports', [\App\Http\Controllers\Api\V1\ErrorReportController::class, 'store']);
+        Route::post('error-reports', [ErrorReportController::class, 'store']);
 
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {

@@ -11,4 +11,6 @@ class CustomJobWorkOrder extends Model
     use Multitenantable, Uuids;
 
     protected $guarded = ['id', 'organization_id'];
+
+    protected $casts = ['cancelled_at' => 'datetime'];
 }
