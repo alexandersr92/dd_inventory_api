@@ -56,11 +56,104 @@ final class CustomJobReports
         ];
     }
 
+    public function csv(User $user, array $filters): string
+    {
+        $store = $this->context->store($user, $filters['store_id']);
+        $costs = $this->canSeeCosts($user);
+        $query = CustomJobOrder::where('store_id', $store->id)
+            ->when(($filters['status'] ?? 'all') !== 'all', fn ($q) => $q->where('status', $filters['status']))
+            ->when($filters['search'] ?? null, fn ($q, $search) => $q->where(fn ($q) => $q
+                ->where('number', 'like', '%'.$search.'%')
+                ->orWhere('client_name', 'like', '%'.$search.'%')))
+            ->when($filters['delivery_from'] ?? null, fn ($q, $date) => $q->where('delivery_local', '>=', $date.'T00:00'))
+            ->when($filters['delivery_to'] ?? null, fn ($q, $date) => $q->where('delivery_local', '<=', $date.'T23:59'))
+            ->with('items')
+            ->orderBy('delivery_at')
+            ->orderBy('id');
+
+        $rows = $query->get()->map(fn (CustomJobOrder $order) => $this->row($user, $order, $costs));
+        $rows = $this->dueFilter($rows, $filters['due_state'] ?? 'all');
+
+        $handle = fopen('php://temp', 'r+');
+        fwrite($handle, "\xEF\xBB\xBF");
+
+        $headers = [
+            'Pedido',
+            'Cliente',
+            'Estado',
+            'Fecha Entrega',
+            'Zona Horaria',
+            'Vencido',
+            'Pendiente Producción',
+            'Pendiente Entrega',
+            'Material Usado',
+            'Material Restante',
+            'Sucursales Material',
+            'Moneda Saldo',
+            'Saldo Pendiente',
+            'Pagado Neto (NIO)',
+            'Factura',
+        ];
+
+        if ($costs) {
+            $headers[] = 'Costo Presupuestado (NIO)';
+            $headers[] = 'Costo Material Real (NIO)';
+            $headers[] = 'Ingreso Estimado (NIO)';
+            $headers[] = 'Margen Estimado (NIO)';
+        }
+
+        fputcsv($handle, $headers);
+
+        $statusLabels = [
+            'draft' => 'Borrador',
+            'confirmed' => 'Confirmado',
+            'cancelled' => 'Cancelado',
+        ];
+
+        foreach ($rows as $row) {
+            $sources = implode(', ', array_map(fn ($s) => $s['name'], $row['materials']['source_stores'] ?? []));
+            $line = [
+                $row['number'],
+                $row['client_name'],
+                $statusLabels[$row['status']] ?? $row['status'],
+                str_replace('T', ' ', $row['delivery_local']),
+                $row['delivery_timezone'],
+                $row['overdue'] ? 'Sí' : 'No',
+                $row['pending_production'],
+                $row['pending_delivery'],
+                $row['materials']['used'],
+                $row['materials']['remaining'],
+                $sources ?: 'Sin asignar',
+                $row['payments']['currency'],
+                number_format($row['payments']['pending'], 2, '.', ''),
+                number_format($row['payments']['net_paid_nio'], 2, '.', ''),
+                $row['invoice'] ? $row['invoice']['invoice_number'] : 'Sin factura',
+            ];
+
+            if ($costs) {
+                $fin = $row['financial'] ?? [];
+                $line[] = number_format($fin['budget_cost_nio'] ?? 0, 2, '.', '');
+                $line[] = number_format($fin['actual_material_cost_nio'] ?? 0, 2, '.', '');
+                $line[] = number_format($fin['revenue_nio'] ?? 0, 2, '.', '');
+                $line[] = number_format($fin['estimated_margin_nio'] ?? 0, 2, '.', '');
+            }
+
+            fputcsv($handle, $line);
+        }
+
+        rewind($handle);
+        $csv = stream_get_contents($handle);
+        fclose($handle);
+
+        return $csv;
+    }
+
     private function row(User $user, CustomJobOrder $order, bool $costs): array
     {
         $delivery = $this->deliveries->view($order);
         $production = $this->production->view($user, $order);
-        $items = collect($delivery['items'])->map(function (array $item) use ($production) {
+        $isCancelled = $order->status === 'cancelled';
+        $items = collect($delivery['items'])->map(function (array $item) use ($production, $isCancelled) {
             $produced = collect($production['items'] ?? [])->firstWhere('id', $item['id']);
 
             return [
@@ -71,13 +164,13 @@ final class CustomJobReports
                 'produced' => (float) ($produced['produced'] ?? 0),
                 'discarded' => (float) ($produced['discarded'] ?? 0),
                 'delivered_net' => $item['delivered_net'],
-                'pending_production' => max(0, (float) $item['ordered'] - (float) ($produced['produced'] ?? 0)),
-                'pending_delivery' => max(0, (float) $item['pending']),
+                'pending_production' => $isCancelled ? 0 : max(0, (float) $item['ordered'] - (float) ($produced['produced'] ?? 0)),
+                'pending_delivery' => $isCancelled ? 0 : max(0, (float) $item['pending']),
             ];
         })->values();
-        $pendingDelivery = $items->sum('pending_delivery');
-        $pendingProduction = $items->sum('pending_production');
-        $overdue = $order->status !== 'cancelled' && $pendingDelivery > 0 && CarbonImmutable::parse($order->delivery_at, 'UTC')->isPast();
+        $pendingDelivery = $isCancelled ? 0 : $items->sum('pending_delivery');
+        $pendingProduction = $isCancelled ? 0 : $items->sum('pending_production');
+        $overdue = ! $isCancelled && $pendingDelivery > 0 && CarbonImmutable::parse($order->delivery_at, 'UTC')->isPast();
         $material = $this->materials($order);
         $payments = $this->payments->summary($order);
         $invoice = Invoice::where('custom_job_order_id', $order->id)

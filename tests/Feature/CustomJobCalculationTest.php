@@ -1732,6 +1732,114 @@ class CustomJobCalculationTest extends TestCase
             ->assertJsonPath('data.0.materials.source_stores.0.id', $store->id);
     }
 
+    public function test_operational_report_csv_export_redacts_costs_and_filters_consistently(): void
+    {
+        [$user, $org, $role, $store, $order] = $this->deliveryOrder();
+        $role->revokePermissionTo('custom_job.costs');
+
+        // CSV export without costs
+        $response = $this->request('GET', 'reports/export?store_id='.$store->id.'&due_state=all')->assertOk();
+        $this->assertStringContainsString('text/csv', $response->headers->get('content-type'));
+        $content = $response->getContent();
+        $this->assertStringContainsString('Pedido,Cliente,Estado', $content);
+        $this->assertStringContainsString($order['number'], $content);
+        $this->assertStringNotContainsString('Costo Presupuestado (NIO)', $content);
+        $this->assertStringNotContainsString('Margen Estimado (NIO)', $content);
+
+        // format=csv shortcut on summary endpoint
+        $shortcut = $this->request('GET', 'reports/summary?store_id='.$store->id.'&format=csv')->assertOk();
+        $this->assertStringContainsString('text/csv', $shortcut->headers->get('content-type'));
+
+        // CSV export with costs permission
+        $role->givePermissionTo('custom_job.costs');
+        $withCosts = $this->request('GET', 'reports/export?store_id='.$store->id.'&due_state=all')->assertOk();
+        $csvWithCosts = $withCosts->getContent();
+        $this->assertStringContainsString('Costo Presupuestado (NIO)', $csvWithCosts);
+        $this->assertStringContainsString('Margen Estimado (NIO)', $csvWithCosts);
+    }
+
+    public function test_operational_report_e2e_joint_with_reduction_cancellation_and_billing(): void
+    {
+        [$user, $org, $role, $store, $order, $cup, $vinyl] = $this->deliveryOrder();
+        $role->givePermissionTo(['custom_job.payment', 'custom_job.cancel', 'custom_job.costs', 'custom_job.order', 'custom_job.return', 'custom_job.production']);
+        $id = $order['id'];
+        $item = $order['items'][0]['id'];
+
+        // 1. Deliver 20 units (out of 40 produced and 100 ordered)
+        $this->request('POST', 'orders/'.$id.'/deliveries', $this->deliveryPayload(4, [['item_id' => $item, 'quantity' => 20]]))->assertOk();
+
+        // 2. Pay 200 NIO
+        $this->request('POST', 'orders/'.$id.'/payments', $this->paymentPayload(5, 200))->assertOk();
+
+        // 3. Operational report reflects initial delivery and payment
+        $midReport = $this->request('GET', 'reports/summary?store_id='.$store->id)->assertOk()->json();
+        $this->assertSame(1, $midReport['summary']['orders']);
+        $this->assertEquals(20, $midReport['data'][0]['items'][0]['delivered_net']);
+        $this->assertEquals(80, $midReport['data'][0]['pending_delivery']);
+        $this->assertEquals(200, $midReport['data'][0]['payments']['paid']);
+
+        // 4. Reduce order from 100 to 50
+        $orderModel = CustomJobOrder::find($id);
+        $revPayload = $this->revisionPayload($order, $orderModel->version, 50);
+        $preview = $this->previewRevision($order, $revPayload);
+        $revPayload['returns'] = collect($preview['materials'])->map(fn ($m) => ['allocation_id' => $m['id'], 'quantity' => $m['proposed_return']])->all();
+        $preview = $this->previewRevision($order, $revPayload);
+        $this->applyRevision($order, $revPayload, $preview);
+
+        // 5. Check report after reduction: ordered units is now 50, pending is 30 (50 - 20)
+        $reducedReport = $this->request('GET', 'reports/summary?store_id='.$store->id)->assertOk()->json();
+        $this->assertEquals(50, $reducedReport['summary']['ordered_units']);
+        $this->assertEquals(30, $reducedReport['data'][0]['pending_delivery']);
+
+        // 6. Produce remaining 10 units (reaching 50 produced) and deliver 30 units (completes delivery)
+        $orderModel = CustomJobOrder::find($id);
+        $this->request('POST', 'orders/'.$id.'/production/events', $this->progressPayload($order, $orderModel->version, 10))->assertOk();
+        $orderModel = CustomJobOrder::find($id);
+        $this->request('POST', 'orders/'.$id.'/deliveries', $this->deliveryPayload($orderModel->version, [['item_id' => $item, 'quantity' => 30]]))
+            ->assertOk()->assertJsonPath('delivery.can_invoice', true);
+
+        // 7. Pay the remaining balance
+        $orderModel = CustomJobOrder::find($id);
+        $pending = (float) $this->request('GET', 'orders/'.$id.'/payments')->assertOk()->json('data.summary.pending');
+        if ($pending > 0) {
+            $this->request('POST', 'orders/'.$id.'/payments', $this->paymentPayload($orderModel->version, $pending))->assertOk();
+        }
+
+        // 8. Issue final invoice
+        $orderModel = CustomJobOrder::find($id);
+        $invoice = $this->request('POST', 'orders/'.$id.'/billing', ['version' => $orderModel->version, 'request_id' => (string) Str::uuid()])
+            ->assertOk()->assertJsonPath('invoice.invoice_status', 'completed')->json('invoice');
+
+        // 9. Verify operational report summary on completed and billed order
+        $finalReport = $this->request('GET', 'reports/summary?store_id='.$store->id)->assertOk()->json();
+        $this->assertSame(1, $finalReport['summary']['completed']);
+        $this->assertSame(0, $finalReport['summary']['open']);
+        $this->assertEquals(50, $finalReport['summary']['delivered_units']);
+        $this->assertEquals(0, $finalReport['summary']['pending_units']);
+        $this->assertNotNull($finalReport['data'][0]['invoice']);
+        $this->assertSame($invoice['invoice_number'], $finalReport['data'][0]['invoice']['invoice_number']);
+
+        // 10. Check cancelled order behavior in operational report
+        [$user2, $org2, $role2, $store2, $cancelOrder] = $this->materialOrder();
+        $role2->givePermissionTo('custom_job.cancel');
+        $this->request('POST', 'orders/'.$cancelOrder['id'].'/confirm', ['version' => 1])->assertOk();
+        $cancelModel = CustomJobOrder::find($cancelOrder['id']);
+        $cancelPrev = $this->request('POST', 'orders/'.$cancelOrder['id'].'/cancellations/preview', ['version' => $cancelModel->version, 'reason' => 'Cancelación'])->assertOk()->json('data');
+        $cancelReturns = collect($cancelPrev['materials'])->map(fn ($m) => ['allocation_id' => $m['allocation_id'], 'quantity' => $m['max_return']])->all();
+        $this->request('POST', 'orders/'.$cancelOrder['id'].'/cancellations', [
+            'version' => $cancelModel->version,
+            'reason' => 'Cancelación',
+            'digest' => $cancelPrev['digest'],
+            'request_id' => (string) Str::uuid(),
+            'returns' => $cancelReturns,
+        ])->assertOk();
+
+        $cancelReport = $this->request('GET', 'reports/summary?store_id='.$store2->id)->assertOk()->json();
+        $this->assertSame(1, $cancelReport['summary']['cancelled']);
+        $this->assertSame(0, $cancelReport['summary']['open']);
+        $this->assertEquals(0, $cancelReport['data'][0]['pending_production']);
+    }
+
     public function test_cancellation_preview_returns_selective_materials_and_stops_the_order_atomically(): void
     {
         [$user, $org, $role, $store, $order] = $this->materialOrder();
