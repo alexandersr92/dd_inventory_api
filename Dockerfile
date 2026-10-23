@@ -1,5 +1,5 @@
 # Usa una imagen oficial de PHP con FPM
-FROM php:8.2-fpm
+FROM php:8.5-fpm
 
 # Instalar dependencias del sistema y extensiones de PHP requeridas por Laravel
 # default-mysql-client provee mysqldump, requerido por spatie/laravel-backup.
