@@ -15,7 +15,11 @@ class SettingPolicy
             'closing_count_type',
             'cash_assignment_mode',
             'carry_over_balance',
-            'seller_login_mode'
+            'seller_login_mode',
+            'seller_session_mode',
+            'allow_free_invoice_items',
+            'allow_proformas',
+            'allow_invoice_drafts'
         ];
         if (in_array($key, $publicKeys)) {
             return true;

@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\Invoice;
 use App\Models\User;
 
 class InvoicePolicy
@@ -11,7 +12,7 @@ class InvoicePolicy
         return $user->hasPermissionTo('invoice.index');
     }
 
-    public function view(User $user): bool
+    public function view(User $user, ?Invoice $invoice = null): bool
     {
         return $user->hasPermissionTo('invoice.show');
     }
@@ -21,8 +22,13 @@ class InvoicePolicy
         return $user->hasPermissionTo('invoice.store');
     }
 
-    public function delete(User $user): bool
+    public function update(User $user, ?Invoice $invoice = null): bool
     {
-        return $user->hasPermissionTo('invoice.delete');
+        return $user->hasPermissionTo('invoice.store') || $user->hasPermissionTo('invoice.update');
+    }
+
+    public function delete(User $user, ?Invoice $invoice = null): bool
+    {
+        return $user->hasPermissionTo('invoice.delete') || $user->hasPermissionTo('invoice.store');
     }
 }

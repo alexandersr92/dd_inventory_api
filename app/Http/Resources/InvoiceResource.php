@@ -21,6 +21,8 @@ class InvoiceResource extends JsonResource
             'invoice_number' => $this->invoice_number,
             'invoice_date' => $this->invoice_date,
             'invoice_status' => $this->invoice_status,
+            'is_draft' => $this->invoice_status === 'draft',
+            'converted_at' => $this->converted_at,
             'client_id' => $this->client_id,
             'client_name' => $this->client_name,
             'client_cedula_ruc' => $this->client->cedula_ruc ?? null,
@@ -37,10 +39,12 @@ class InvoiceResource extends JsonResource
             'invoice_details' => $this->invoiceDetails->map(function($invoiceDetail) {
                 return [
                     'id' => $invoiceDetail->id,
+                    'item_type' => $invoiceDetail->item_type ?? 'product',
+                    'description' => $invoiceDetail->description,
                     'product_id' => $invoiceDetail->product_id,
                     'sku' => $invoiceDetail->product->sku ?? null,
                     'barcode' => $invoiceDetail->product->barcode ?? null,
-                    'product_name' => $invoiceDetail->product->name ?? null,
+                    'product_name' => $invoiceDetail->item_type === 'free' ? ($invoiceDetail->description ?? 'Concepto libre') : ($invoiceDetail->product->name ?? null),
                     'inventory_id' => $invoiceDetail->inventory_id,
                     'quantity' => $invoiceDetail->quantity,
                     'price' => $invoiceDetail->price,

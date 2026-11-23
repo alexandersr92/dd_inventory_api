@@ -25,7 +25,7 @@ class SalesReportStrategy extends BaseReportStrategy
     protected function fetchData(string $organizationId, array $filters): array
     {
         $query = Invoice::where('organization_id', $organizationId)
-                        ->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+                        ->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
 
         if (!empty($filters['date_from'])) {
             $query->where('created_at', '>=', $filters['date_from'] . ' 00:00:00');
@@ -74,15 +74,24 @@ class SalesReportStrategy extends BaseReportStrategy
             foreach ($invoice->invoiceDetails as $detail) {
                 $qty = $detail->quantity ?? 0;
                 $product = $detail->product;
-                if ($product) {
-                    $unitCost = $detail->cost ?? $product->cost ?? 0;
-                    $costoTotal += ($unitCost * $qty);
+                $unitCost = $detail->cost ?? ($product ? $product->cost : 0) ?? 0;
+                $costoTotal += ($unitCost * $qty);
 
+                if ($product) {
                     if (!isset($productosVendidos[$product->id])) {
                         $productosVendidos[$product->id] = ['name' => $product->name, 'total_vendido' => 0, 'ingresos' => 0];
                     }
                     $productosVendidos[$product->id]['total_vendido'] += $qty;
                     $productosVendidos[$product->id]['ingresos'] += ($detail->price * $qty);
+                } else {
+                    $desc = $detail->description ?: 'general';
+                    $freeKey = 'free_' . $desc;
+                    $freeName = $detail->description ? "Concepto libre: {$detail->description}" : "Concepto libre";
+                    if (!isset($productosVendidos[$freeKey])) {
+                        $productosVendidos[$freeKey] = ['name' => $freeName, 'total_vendido' => 0, 'ingresos' => 0];
+                    }
+                    $productosVendidos[$freeKey]['total_vendido'] += $qty;
+                    $productosVendidos[$freeKey]['ingresos'] += ($detail->price * $qty);
                 }
             }
         }

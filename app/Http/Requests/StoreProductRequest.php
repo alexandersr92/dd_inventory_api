@@ -22,7 +22,7 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'sku' => ['string', 'max:255'],
+            'sku' => ['nullable', 'string', 'max:255'],
             'barcode' => ['string', 'max:255', 'unique:products,barcode', 'nullable'],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -33,6 +33,8 @@ class StoreProductRequest extends FormRequest
             'min_stock' => ['numeric'],
             'unit_of_measure' => ['required', 'string', 'max:255'],
             'inventory_id' => ['uuid', 'exists:inventories,id'],
+            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
+            'brand_id' => ['nullable', 'uuid', 'exists:brands,id'],
         ];
     }
 }

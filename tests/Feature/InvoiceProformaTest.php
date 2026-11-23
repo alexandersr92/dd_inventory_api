@@ -26,6 +26,14 @@ class InvoiceProformaTest extends TestCase
 
         $this->setupTenantUser($user, $org);
 
+        \App\Models\Setting::create([
+            'organization_id' => $org->id,
+            'type' => 'global',
+            'key' => 'allow_proformas',
+            'value' => 'true',
+            'options' => '[]',
+        ]);
+
         $store = Store::factory()->create(['organization_id' => $org->id]);
         $inventory = Inventory::factory()->create([
             'organization_id' => $org->id,

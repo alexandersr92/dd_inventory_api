@@ -84,13 +84,27 @@ class ProductController extends Controller
 
         $orgId = Auth::user()->organization_id;
 
+        $sku = trim((string)($request->sku ?? ''));
+        if ($sku === '') {
+            $generatedSku = \App\Services\SkuGeneratorService::generateForProduct(
+                $orgId,
+                $request->category_id,
+                $request->brand_id
+            );
+            if ($generatedSku) {
+                $sku = $generatedSku;
+                $request->merge(['sku' => $sku]);
+            }
+        }
+
         $request->merge(['organization_id' => $orgId]);
 
-        //sku debe ser unico dentro de la organizacion
-        $request->validate([
-            'sku' => 'unique:products,sku,NULL,id,organization_id,' . $orgId,
-         
-        ]);
+        //sku debe ser unico dentro de la organizacion si viene informado
+        if ($sku !== '') {
+            $request->validate([
+                'sku' => 'unique:products,sku,NULL,id,organization_id,' . $orgId,
+            ]);
+        }
 
         //validate barcode unique if exists
         if ($request->has('barcode')) {
@@ -99,7 +113,14 @@ class ProductController extends Controller
             ]);
         }
 
-        $product = Product::create($request->all());
+        $product = Product::create(array_merge($request->all(), [
+            'sku' => $sku !== '' ? $sku : null,
+            'organization_id' => $orgId,
+        ]));
+
+        if ($product->category_id) {
+            $product->categories()->sync([$product->category_id]);
+        }
 
         if ($request->has('categories')) {
             $categories = explode(',', $request->categories);
@@ -213,6 +234,14 @@ class ProductController extends Controller
 
         // Actualizar producto
         $product->update($data);
+
+        if ($request->has('category_id')) {
+            if ($request->category_id) {
+                $product->categories()->sync([$request->category_id]);
+            } else {
+                $product->categories()->sync([]);
+            }
+        }
 
         // Lógica condicional de actualización de precios en sucursales
         if ($request->has('price')) {

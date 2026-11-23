@@ -12,7 +12,13 @@
 name: Deploy
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      publish_release_notes:
+        description: 'Publicar notas de versión (ejecuta ProductReleasesSeeder tras migraciones)'
+        required: false
+        type: boolean
+        default: false
   # push:
   #   branches: [main]
 
@@ -33,6 +39,9 @@ jobs:
             git pull origin main
             composer install --no-dev --optimize-autoloader --no-interaction
             php artisan tenants:migrate
+            if [ "${{ inputs.publish_release_notes }}" = "true" ]; then
+              php artisan db:seed --class=ProductReleasesSeeder --force
+            fi
             php artisan config:cache
             php artisan route:cache
             php artisan up

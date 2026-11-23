@@ -23,7 +23,14 @@ trait Multitenantable
         static::addGlobalScope('organization', function (Builder $builder) {
             $tenantId = TenantManager::getTenantId();
             if ($tenantId) {
-                $builder->where($builder->getQuery()->from . '.organization_id', $tenantId);
+                $from = $builder->getQuery()->from;
+                if (is_string($from) && stripos($from, ' as ') !== false) {
+                    $parts = preg_split('/\s+as\s+/i', $from);
+                    $tableOrAlias = trim(end($parts));
+                } else {
+                    $tableOrAlias = is_string($from) ? $from : $builder->getModel()->getTable();
+                }
+                $builder->where($tableOrAlias . '.organization_id', $tenantId);
             }
         });
     }
