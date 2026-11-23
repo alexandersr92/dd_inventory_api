@@ -28,7 +28,7 @@ class InventoryMarginsReportStrategy extends BaseReportStrategy
         $salesQuery = DB::table('invoice_details')
             ->join('invoices', 'invoices.id', '=', 'invoice_details.invoice_id')
             ->where('invoices.organization_id', $organizationId)
-            ->whereNotIn('invoices.invoice_status', ['canceled', 'cancelled', 'proforma']);
+            ->whereNotIn('invoices.invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
 
         if (!empty($filters['store_id'])) {
             $salesQuery->where('invoices.store_id', $filters['store_id']);

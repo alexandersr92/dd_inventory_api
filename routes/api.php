@@ -13,6 +13,10 @@ use App\Http\Controllers\Api\V1\StoreController;
 use App\Http\Controllers\Api\V1\SupplierController;
 use App\Http\Controllers\Api\V1\TagController;
 use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\BrandController;
+use App\Http\Controllers\Api\V1\ProductBulkController;
+use App\Http\Controllers\Api\V1\ProductSkuSettingController;
+use App\Http\Controllers\Api\V1\ProductSkuRegenerationController;
 use App\Http\Controllers\Api\V1\ProductController;
 use App\Http\Controllers\Api\V1\InventoryController;
 use App\Http\Controllers\Api\V1\InvoiceController;
@@ -30,6 +34,7 @@ use App\Http\Controllers\Api\V1\LandingPublicController;
 use App\Http\Controllers\Api\V1\PasswordResetController;
 use App\Http\Controllers\Api\V1\SocialAuthController;
 use App\Http\Controllers\Api\V1\TerminalActivationController;
+use App\Http\Controllers\Api\V1\ProductReleaseController;
 
 Route::prefix('v1')->group(function () {
     // TODO: Crear endpoint dedicado para upload de archivos
@@ -77,6 +82,7 @@ Route::prefix('v1')->group(function () {
 
         Route::post('/logout', [LoginController::class, 'logout']);
         Route::get('/validateToken', [LoginController::class, 'validationToken']);
+        Route::get('/releases', [ProductReleaseController::class, 'index']);
         Route::get('/dashboard/metrics', [DashboardController::class, 'metrics']);
         Route::get('/dashboard/chart', [DashboardController::class, 'chart']);
         Route::get('/sellerValidateToken', [LoginController::class, 'sellerValidateToken']);
@@ -118,7 +124,17 @@ Route::prefix('v1')->group(function () {
         // Module: products
         Route::middleware('module:products')->group(function () {
             Route::apiResource('tags', TagController::class)->except(['show']);
-            Route::apiResource('categories', CategoryController::class)->except(['show']);
+            Route::get('categories/tree', [CategoryController::class, 'tree']);
+            Route::apiResource('categories', CategoryController::class);
+            Route::apiResource('brands', BrandController::class);
+            Route::get('products/bulk/template', [ProductBulkController::class, 'template']);
+            Route::post('products/bulk/preview', [ProductBulkController::class, 'preview']);
+            Route::post('products/bulk/update', [ProductBulkController::class, 'update']);
+            Route::get('settings/sku', [ProductSkuSettingController::class, 'show']);
+            Route::post('settings/sku', [ProductSkuSettingController::class, 'update']);
+            Route::post('products/sku/preview-regeneration', [ProductSkuRegenerationController::class, 'preview']);
+            Route::post('products/sku/regenerate', [ProductSkuRegenerationController::class, 'confirm']);
+            Route::get('products/sku/regeneration-log/{id}/download', [ProductSkuRegenerationController::class, 'exportLog']);
             Route::apiResource('products', ProductController::class);
             Route::delete('products/{product}/removeImage', [ProductController::class, 'removeImage']);
             Route::post('products/{product}/addImageToProduct', [ProductController::class, 'addImageToProduct']);
@@ -175,6 +191,18 @@ Route::prefix('v1')->group(function () {
 
         // Module: invoices
         Route::middleware('module:invoices')->group(function () {
+            // Invoice Drafts (Borradores de facturas)
+            Route::get('invoices/drafts', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'index']);
+            Route::post('invoices/drafts', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'store']);
+            Route::get('invoices/drafts/{id}', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'show']);
+            Route::put('invoices/drafts/{id}', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'update']);
+            Route::delete('invoices/drafts/{id}', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'destroy']);
+            Route::post('invoices/drafts/{id}/convert', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'convert']);
+
+            // Alias endpoints: invoice-drafts
+            Route::apiResource('invoice-drafts', \App\Http\Controllers\Api\V1\InvoiceDraftController::class);
+            Route::post('invoice-drafts/{id}/convert', [\App\Http\Controllers\Api\V1\InvoiceDraftController::class, 'convert']);
+
             Route::apiResource('invoices', InvoiceController::class)->except(['destroy', 'update']);
             Route::delete('invoices/{invoice}', [InvoiceController::class, 'cancel']);
             Route::post('invoices/{invoice}/replace', [InvoiceController::class, 'replace']);
@@ -192,8 +220,9 @@ Route::prefix('v1')->group(function () {
 
         // Module: purchases
         Route::middleware('module:purchases')->group(function () {
-            Route::apiResource('purchases', PurchasesController::class);
+            Route::get('purchases/template', [PurchasesController::class, 'template']);
             Route::post('purchases/upload', [PurchasesController::class, 'upload']);
+            Route::apiResource('purchases', PurchasesController::class);
         });
 
         // Module: sellers

@@ -32,6 +32,8 @@ class UpdateProductRequest extends FormRequest
             'unit_of_measure' => ['string', 'max:255'],
             'inventory' => ['nullable', 'string'],
             'update_all_inventories' => ['nullable', 'boolean'],
+            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
+            'brand_id' => ['nullable', 'uuid', 'exists:brands,id'],
             'suppliers' => ['nullable'],
             'categories' => ['nullable'],
             'tags' => ['nullable'],

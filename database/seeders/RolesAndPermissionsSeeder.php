@@ -119,6 +119,14 @@ class RolesAndPermissionsSeeder extends Seeder
             ['name' => 'category.store', 'display_name' => 'Crear Categoría', 'guard_name' => 'web'],
             ['name' => 'category.update', 'display_name' => 'Editar Categoría', 'guard_name' => 'web'],
             ['name' => 'category.delete', 'display_name' => 'Eliminar Categoría', 'guard_name' => 'web'],
+
+            // Marcas
+            ['name' => 'brand.index', 'display_name' => 'Listar Marcas', 'guard_name' => 'web'],
+            ['name' => 'brand.show', 'display_name' => 'Ver Marca', 'guard_name' => 'web'],
+            ['name' => 'brand.store', 'display_name' => 'Crear Marca', 'guard_name' => 'web'],
+            ['name' => 'brand.update', 'display_name' => 'Editar Marca', 'guard_name' => 'web'],
+            ['name' => 'brand.delete', 'display_name' => 'Eliminar Marca', 'guard_name' => 'web'],
+
             ['name' => 'tag.index', 'display_name' => 'Listar Etiquetas', 'guard_name' => 'web'],
             ['name' => 'tag.store', 'display_name' => 'Crear Etiqueta', 'guard_name' => 'web'],
             ['name' => 'tag.update', 'display_name' => 'Editar Etiqueta', 'guard_name' => 'web'],
@@ -211,6 +219,8 @@ class RolesAndPermissionsSeeder extends Seeder
 
         $managerPermissions = array_merge($sellerPermissions, [
             'product.store', 'product.update',
+            'category.store', 'category.update',
+            'brand.index', 'brand.show', 'brand.store', 'brand.update',
             'inventory.store', 'inventory.update',
             'supplier.index', 'supplier.show', 'supplier.store', 'supplier.update',
             'purchase.index', 'purchase.show', 'purchase.store',

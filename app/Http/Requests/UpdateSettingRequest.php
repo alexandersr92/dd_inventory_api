@@ -21,9 +21,21 @@ class UpdateSettingRequest extends FormRequest
      */
     public function rules(): array
     {
-       return [
+        $rules = [
             'value' => 'nullable|string',
             'options' => 'string'
         ];
+
+        $setting = $this->route('setting');
+        $key = $this->input('key') ?? ($setting instanceof \App\Models\Setting ? $setting->key : null);
+        if ($key === 'seller_session_mode') {
+            $rules['value'] = 'required|string|in:AFTER_EACH_SALE,PERSISTENT';
+        }
+
+        if (in_array($key, ['allow_proformas', 'allow_invoice_drafts'], true)) {
+            $rules['value'] = 'required|string|in:true,false';
+        }
+
+        return $rules;
     }
 }

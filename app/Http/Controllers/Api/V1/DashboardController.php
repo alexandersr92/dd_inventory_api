@@ -57,8 +57,8 @@ class DashboardController extends Controller
             }
             
             // --- 1. KPI Ventas ---
-            $salesTodayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
-            $salesYesterdayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+            $salesTodayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
+            $salesYesterdayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
             
             if ($storeId) {
                 $salesTodayQuery->where('store_id', $storeId);
@@ -69,8 +69,8 @@ class DashboardController extends Controller
             $salesYesterday = $salesYesterdayQuery->whereBetween('invoice_date', [$prevStart, $prevEnd])->count();
             
             // --- 2. KPI Ingresos ---
-            $revenueTodayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
-            $revenueYesterdayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+            $revenueTodayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
+            $revenueYesterdayQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
             
             if ($storeId) {
                 $revenueTodayQuery->where('store_id', $storeId);
@@ -128,7 +128,7 @@ class DashboardController extends Controller
             });
             
             // --- 7. Métodos de Pago ---
-            $paymentsQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+            $paymentsQuery = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
             if ($storeId) {
                 $paymentsQuery->where('store_id', $storeId);
             }
@@ -189,7 +189,7 @@ class DashboardController extends Controller
             // --- 10. Históricos para Gráfico Configurable ---
             // Ventas e Ingresos últimos 12 meses
             $salesHistoryQuery = Invoice::where('organization_id', $orgId)
-                ->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma'])
+                ->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft'])
                 ->where('created_at', '>=', Carbon::now()->subMonths(12));
             if ($storeId) {
                 $salesHistoryQuery->where('store_id', $storeId);
@@ -320,12 +320,12 @@ class DashboardController extends Controller
     {
         switch ($metric) {
             case 'revenue':
-                $query = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+                $query = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
                 $selectVal = 'SUM(grand_total)';
                 $dateCol = 'invoice_date';
                 break;
             case 'sales':
-                $query = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma']);
+                $query = Invoice::where('organization_id', $orgId)->whereNotIn('invoice_status', ['canceled', 'cancelled', 'proforma', 'draft']);
                 $selectVal = 'COUNT(*)';
                 $dateCol = 'invoice_date';
                 break;

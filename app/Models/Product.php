@@ -27,7 +27,19 @@ class Product extends Model
         'min_stock',
         'status',
         'organization_id',
+        'category_id',
+        'brand_id',
     ];
+
+    public function category()
+    {
+        return $this->belongsTo(Category::class, 'category_id');
+    }
+
+    public function brand()
+    {
+        return $this->belongsTo(Brand::class, 'brand_id');
+    }
 
     public function tags()
     {

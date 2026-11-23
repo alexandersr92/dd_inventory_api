@@ -40,6 +40,7 @@ class Invoice extends Model
         'offline_reference',
         'is_offline',
         'offline_number',
+        'converted_at',
     ];
 
     protected $casts = [
@@ -47,6 +48,7 @@ class Invoice extends Model
         'paid_in_usd' => 'float',
         'paid_in_nio' => 'float',
         'exchange_rate' => 'float',
+        'converted_at' => 'datetime',
     ];
 
     public function cashSession()

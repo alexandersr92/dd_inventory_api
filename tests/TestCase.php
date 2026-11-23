@@ -12,6 +12,14 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
         TenantManager::clear();
+
+        try {
+            \Illuminate\Support\Facades\DB::connection('central')->setPdo(
+                \Illuminate\Support\Facades\DB::connection('mysql')->getPdo()
+            );
+        } catch (\Throwable $e) {
+            // ignore if not configured
+        }
     }
 
     protected function setupTenantUser(\App\Models\User $user, \App\Models\Organization $org): void

@@ -8,7 +8,12 @@ use App\Models\PurchaseDetail;
 use App\Models\Inventory;
 use App\Models\InventoryDetail;
 use App\Models\Product;
+use App\Models\Category;
+use App\Models\Brand;
+use App\Models\Supplier;
 use App\Services\InventoryMovementService;
+use App\Services\ExcelProductParser;
+use App\Exports\PurchasesTemplateExport;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -112,15 +117,31 @@ class PurchasesController extends Controller
             if($product['product_id'] === null){
                 $newProduct = new Product();
                 $newProduct->organization_id = $orgId;
-                $newProduct->sku = $product['sku'];
-                $newProduct->name = $product['product_name'];
+                if (empty($product['sku']) || str_starts_with($product['sku'], '[Auto')) {
+                    $autoSku = \App\Services\SkuGeneratorService::generateForProduct(
+                        $orgId,
+                        $product['category_id'] ?? null,
+                        $product['brand_id'] ?? null
+                    );
+                    $newProduct->sku = $autoSku ?: ($product['sku'] ?? '');
+                } else {
+                    $newProduct->sku = $product['sku'];
+                }
+                $newProduct->name = $product['product_name'] ?? ($product['name'] ?? '');
                 $newProduct->barcode = $product['barcode'] ?? '';
                 $newProduct->price = $product['price'];
                 $newProduct->cost = $product['cost'];
                 $newProduct->min_stock = 0;
                 $newProduct->unit_of_measure = 'unit';
                 $newProduct->status = 'active';
+                $newProduct->category_id = $product['category_id'] ?? null;
+                $newProduct->brand_id = $product['brand_id'] ?? null;
                 $newProduct->save();
+
+                if ($newProduct->category_id) {
+                    $newProduct->categories()->sync([$newProduct->category_id]);
+                }
+
                 $product['product_id'] = $newProduct->id;
             }
             
@@ -233,7 +254,16 @@ class PurchasesController extends Controller
             if($product['product_id'] == null){
                 $newProduct = new Product();
                 $newProduct->organization_id = $orgId;
-                $newProduct->sku = $product['sku'];
+                if (empty($product['sku']) || str_starts_with($product['sku'], '[Auto')) {
+                    $autoSku = \App\Services\SkuGeneratorService::generateForProduct(
+                        $orgId,
+                        $product['category_id'] ?? null,
+                        $product['brand_id'] ?? null
+                    );
+                    $newProduct->sku = $autoSku ?: ($product['sku'] ?? '');
+                } else {
+                    $newProduct->sku = $product['sku'];
+                }
                 $newProduct->name = $product['product_name'];
                 $newProduct->barcode = $product['barcode'] ?? '';
                 $newProduct->price = $product['price'];
@@ -342,6 +372,17 @@ class PurchasesController extends Controller
         return response()->json(['message' => 'Purchase deleted successfully.']);
     }
     
+    public function template()
+    {
+        $this->authorize('create', Purchases::class);
+        $orgId = Auth::user()->organization_id;
+
+        return Excel::download(
+            new PurchasesTemplateExport($orgId),
+            'plantilla_productos_compras.xlsx'
+        );
+    }
+
     public function upload(Request $request)
     {
         $this->authorize('create', Purchases::class);
@@ -353,104 +394,166 @@ class PurchasesController extends Controller
         $file = $request->file('file');
         $orgId = Auth::user()->organization_id;
 
-        // Arrays para los resultados
+        $parsed = ExcelProductParser::parseRows($file);
+        $rows = $parsed['rows'];
+
         $validExisting = [];
         $validNew = [];
         $invalid = [];
 
-        // Leer archivo en chunks para evitar problemas de memoria
-        Excel::import(new class($validExisting, $validNew, $invalid, $orgId) implements \Maatwebsite\Excel\Concerns\ToCollection {
-            private $validExisting;
-            private $validNew;
-            private $invalid;
-            private $orgId;
+        $suppliers = Supplier::where('organization_id', $orgId)->get();
 
-            public function __construct(&$validExisting, &$validNew, &$invalid, $orgId)
-            {
-                $this->validExisting = &$validExisting;
-                $this->validNew = &$validNew;
-                $this->invalid = &$invalid;
-                $this->orgId = $orgId;
-            }
+        foreach ($rows as $item) {
+            $rowIndex = $item['row_index'];
+            $data = $item['data'];
 
-            public function collection(Collection $rows)
-            {
-                foreach ($rows->skip(1) as $index => $row) { // Saltar encabezados
-                    $sku = trim((string) ($row[0] ?? ''));
-                    $price = trim((string) ($row[5] ?? ''));
-                    $quantity = trim((string) ($row[6] ?? ''));
-                    $cost = trim((string) ($row[7] ?? ''));
+            $sku = trim((string)($data['sku'] ?? ''));
+            $rawCategory = trim((string)($data['category'] ?? ''));
+            $rawBrand = trim((string)($data['brand'] ?? ''));
+            $name = trim((string)($data['name'] ?? ''));
+            $barcode = trim((string)($data['barcode'] ?? ''));
+            $rawPrice = $data['price'] ?? '';
+            $rawQuantity = $data['quantity'] ?? '';
+            $rawCost = $data['cost'] ?? '';
+            $rawTotal = $data['total'] ?? '';
+            $rawSupplier = trim((string)($data['supplier'] ?? ''));
 
-                    $errors = [];
+            $errors = [];
+            $fieldErrors = [];
 
-                    //if all fields are empty, skip
-                    if (empty($sku) && empty($price) && empty($quantity) && empty($cost)) {
-                        continue;
-                    }
-
-                    // Validaciones
-                    if (empty($sku)) {
-                        $errors[] = 'El SKU está vacío';
-                    }
-
-                    $cleanPrice = str_replace(['C$', '$', ' '], '', $price);
-                    if ($cleanPrice === '' || !is_numeric($cleanPrice)) {
-                        $errors[] = 'El precio no es válido';
-                    }
-
-                    if ($quantity === '' || !is_numeric($quantity)) {
-                        $errors[] = 'La cantidad no es válida';
-                    }
-
-                    $cleanCost = str_replace(['C$', '$', ' '], '', $cost);
-                    if ($cleanCost === '' || !is_numeric($cleanCost)) {
-                        $errors[] = 'El costo no es válido';
-                    }
-
-                    // Verificar si existe el SKU en la base de datos para esta organización
-                    $product = Product::where('organization_id', $this->orgId)->where('sku', $sku)->first();
-
-                    if (empty($errors)) {
-                        // Datos válidos
-                        if ($product) {
-                            $this->validExisting[] = [
-                                'product_id' => $product->id,
-                                'sku' => $sku,
-                                'product_name' => trim((string) ($row[3] ?? '')),
-                                'barcode' => trim((string) ($row[4] ?? '')),
-                                'quantity' => (float)$quantity,
-                                'price' => (float)$cleanPrice,
-                                'cost' => (float)$cleanCost,
-                            ];
-                        } else {
-                            $this->validNew[] = [
-                                'product_id' => null,
-                                'sku' => $sku,
-                                'product_name' => trim((string) ($row[3] ?? '')),
-                                'barcode' => trim((string) ($row[4] ?? '')),
-                                'price' => (float)$cleanPrice,
-                                'quantity' => (float)$quantity,
-                                'cost' => (float)$cleanCost,
-                            ];
-                        }
-                    } else {
-                        // Datos inválidos
-                        $this->invalid[] = [
-                            'row' => $index + 2, // Fila actual (sumar 2 porque se salta encabezado)
-                            'errors' => $errors,
-                            'data' => [
-                                'sku' => $sku,
-                                'product_name' => trim((string) ($row[3] ?? '')),
-                                'barcode' => trim((string) ($row[4] ?? '')),
-                                'price' => $price,
-                                'quantity' => $quantity,
-                                'cost' => $cost,
-                            ],
-                        ];
-                    }
+            // 1. Validar SKU
+            if ($sku === '') {
+                $skuConfig = \App\Services\SkuGeneratorService::getOrCreateConfig($orgId);
+                if ($skuConfig->enabled) {
+                    $sku = '[Auto]';
+                } else {
+                    $errors[] = "Columna 'Código' es obligatoria.";
+                    $fieldErrors['sku'] = "Código (SKU) requerido.";
                 }
             }
-        }, $file);
+
+            // Check if product exists in org
+            $product = ($sku !== '' && $sku !== '[Auto]')
+                ? Product::where('organization_id', $orgId)->where('sku', $sku)->first()
+                : null;
+
+            // 2. Validar Nombre (obligatorio para productos nuevos)
+            if (!$product && $name === '') {
+                $errors[] = "Columna 'Nombre' es requerida para productos nuevos.";
+                $fieldErrors['name'] = "Nombre requerido para nuevos productos.";
+            }
+
+            // 3. Validar Precio
+            $cleanPrice = ExcelProductParser::cleanNumeric($rawPrice);
+            if ($cleanPrice === null || $cleanPrice < 0) {
+                $errors[] = "Columna 'Precio' debe ser un número válido.";
+                $fieldErrors['price'] = "Precio inválido.";
+            }
+
+            // 4. Validar Cantidad
+            $cleanQuantity = ExcelProductParser::cleanNumeric($rawQuantity);
+            if ($cleanQuantity === null || $cleanQuantity <= 0) {
+                $errors[] = "Columna 'Cantidad' debe ser un número mayor a 0.";
+                $fieldErrors['quantity'] = "Cantidad inválida.";
+            }
+
+            // 5. Validar Costo
+            $cleanCost = ExcelProductParser::cleanNumeric($rawCost);
+            if ($cleanCost === null || $cleanCost < 0) {
+                $errors[] = "Columna 'Costo' debe ser un número válido.";
+                $fieldErrors['cost'] = "Costo inválido.";
+            }
+
+            // 6. Validar Total si viene informado
+            $expectedTotal = ($cleanQuantity !== null && $cleanCost !== null) ? round($cleanQuantity * $cleanCost, 2) : 0;
+            if ($rawTotal !== '' && $rawTotal !== null) {
+                $cleanTotal = ExcelProductParser::cleanNumeric($rawTotal);
+                if ($cleanTotal === null) {
+                    $errors[] = "Columna 'Total' no tiene un formato numérico válido.";
+                    $fieldErrors['total'] = "Total no numérico.";
+                } elseif (abs($cleanTotal - $expectedTotal) > 0.05) {
+                    $errors[] = "Columna 'Total' ({$cleanTotal}) no coincide con Cantidad × Costo ({$expectedTotal}).";
+                    $fieldErrors['total'] = "No coincide con Cantidad × Costo.";
+                }
+            }
+
+            // 7. Resolver Categoría
+            $resolvedCategory = null;
+            if ($rawCategory !== '') {
+                $resolvedCategory = Category::resolveByPathOrName($rawCategory, $orgId);
+                if (!$resolvedCategory) {
+                    $errors[] = "Columna 'categoria' ('{$rawCategory}') no existe en la organización.";
+                    $fieldErrors['category'] = "Categoría no encontrada.";
+                }
+            }
+
+            // 8. Resolver Marca
+            $resolvedBrand = null;
+            if ($rawBrand !== '') {
+                $resolvedBrand = Brand::resolveByName($rawBrand, $orgId);
+                if (!$resolvedBrand) {
+                    $errors[] = "Columna 'Marca' ('{$rawBrand}') no existe en la organización.";
+                    $fieldErrors['brand'] = "Marca no encontrada.";
+                }
+            }
+
+            // 9. Resolver Proveedor
+            $resolvedSupplier = null;
+            if ($rawSupplier !== '') {
+                $resolvedSupplier = $suppliers->first(function ($s) use ($rawSupplier) {
+                    return mb_strtolower(trim($s->name)) === mb_strtolower($rawSupplier);
+                });
+                if (!$resolvedSupplier) {
+                    $errors[] = "Columna 'Proveedor' ('{$rawSupplier}') no existe en la organización.";
+                    $fieldErrors['supplier'] = "Proveedor no encontrado.";
+                }
+            }
+
+            $rawRowData = [
+                'sku' => $sku,
+                'category' => $rawCategory,
+                'brand' => $rawBrand,
+                'name' => $name ?: ($product ? $product->name : ''),
+                'barcode' => $barcode,
+                'price' => $rawPrice,
+                'quantity' => $rawQuantity,
+                'cost' => $rawCost,
+                'total' => $rawTotal,
+                'supplier' => $rawSupplier,
+            ];
+
+            if (!empty($errors)) {
+                $invalid[] = [
+                    'row' => $rowIndex,
+                    'errors' => $errors,
+                    'field_errors' => $fieldErrors,
+                    'data' => $rawRowData,
+                ];
+            } else {
+                $productItem = [
+                    'product_id' => $product ? $product->id : null,
+                    'sku' => $sku,
+                    'product_name' => $product ? $product->name : $name,
+                    'barcode' => $barcode ?: ($product ? $product->barcode : ''),
+                    'category_id' => $resolvedCategory ? $resolvedCategory->id : ($product ? $product->category_id : null),
+                    'category_name' => $resolvedCategory ? $resolvedCategory->full_path : ($product && $product->category ? $product->category->full_path : null),
+                    'brand_id' => $resolvedBrand ? $resolvedBrand->id : ($product ? $product->brand_id : null),
+                    'brand_name' => $resolvedBrand ? $resolvedBrand->name : ($product && $product->brand ? $product->brand->name : null),
+                    'supplier_id' => $resolvedSupplier ? $resolvedSupplier->id : null,
+                    'supplier_name' => $resolvedSupplier ? $resolvedSupplier->name : null,
+                    'price' => (float)$cleanPrice,
+                    'quantity' => (float)$cleanQuantity,
+                    'cost' => (float)$cleanCost,
+                    'total' => (float)$expectedTotal,
+                ];
+
+                if ($product) {
+                    $validExisting[] = $productItem;
+                } else {
+                    $validNew[] = $productItem;
+                }
+            }
+        }
 
         return response()->json([
             'valid_existing' => $validExisting,

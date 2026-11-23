@@ -27,23 +27,46 @@ class TenantsMigrateCommand extends Command
      */
     public function handle(): int
     {
-        // 1. Run migrations on central database (which is also our shared database)
+        $migrateCmd = $this->option('fresh') ? 'migrate:fresh' : 'migrate';
+
+        // 1. Run migrations on central/shared database explicitly
         $this->info('Running migrations on central/shared database...');
         
-        $options = [
+        $centralOptions = [
+            '--database' => 'central',
             '--force' => true,
         ];
 
-        if ($this->option('fresh')) {
-            $this->call('migrate:fresh', $options);
-        } else {
-            $this->call('migrate', $options);
+        $exitCode = $this->call($migrateCmd, $centralOptions);
+        if ($exitCode !== Command::SUCCESS) {
+            $this->error('Failed to migrate central database.');
+            return $exitCode;
+        }
+
+        $centralDb = config('database.connections.central.database');
+        $sharedDb = config('database.connections.mysql.database');
+
+        if ($centralDb !== $sharedDb) {
+            $sharedOptions = [
+                '--database' => 'mysql',
+                '--force' => true,
+            ];
+
+            $exitCode = $this->call($migrateCmd, $sharedOptions);
+            if ($exitCode !== Command::SUCCESS) {
+                $this->error('Failed to migrate shared database.');
+                return $exitCode;
+            }
         }
 
         if ($this->option('seed')) {
-            $this->call('db:seed', [
+            $exitCode = $this->call('db:seed', [
                 '--force' => true,
             ]);
+            if ($exitCode !== Command::SUCCESS) {
+                $this->error('Failed to seed central/shared database.');
+                return $exitCode;
+            }
         }
 
         // 2. Run migrations on all dedicated databases
@@ -56,6 +79,8 @@ class TenantsMigrateCommand extends Command
         }
 
         $this->info('Running migrations for dedicated tenants...');
+
+        $originalDb = config('database.connections.mysql.database');
 
         foreach ($organizations as $org) {
             $dbName = $org->db_database;
@@ -72,7 +97,6 @@ class TenantsMigrateCommand extends Command
                 DB::connection('central')->statement("CREATE DATABASE IF NOT EXISTS `{$dbName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
 
                 // Switch connection configuration temporarily
-                $originalDb = config('database.connections.mysql.database');
                 config(['database.connections.mysql.database' => $dbName]);
                 DB::purge('mysql');
 
@@ -81,26 +105,31 @@ class TenantsMigrateCommand extends Command
                     '--force' => true,
                 ];
 
-                if ($this->option('fresh')) {
-                    $this->call('migrate:fresh', $tenantOptions);
-                } else {
-                    $this->call('migrate', $tenantOptions);
+                $exitCode = $this->call($migrateCmd, $tenantOptions);
+                if ($exitCode !== Command::SUCCESS) {
+                    $this->error("Failed to migrate database {$dbName}.");
+                    return $exitCode;
                 }
 
                 if ($this->option('seed')) {
-                    $this->call('db:seed', [
+                    $exitCode = $this->call('db:seed', [
                         '--database' => 'mysql',
                         '--force' => true,
                     ]);
+                    if ($exitCode !== Command::SUCCESS) {
+                        $this->error("Failed to seed database {$dbName}.");
+                        return $exitCode;
+                    }
                 }
 
+                $this->info("Database {$dbName} migrated successfully.");
+            } catch (\Throwable $e) {
+                $this->error("Failed to migrate database {$dbName}: " . $e->getMessage());
+                return Command::FAILURE;
+            } finally {
                 // Restore database connection
                 config(['database.connections.mysql.database' => $originalDb]);
                 DB::purge('mysql');
-
-                $this->info("Database {$dbName} migrated successfully.");
-            } catch (\Exception $e) {
-                $this->error("Failed to migrate database {$dbName}: " . $e->getMessage());
             }
         }
 

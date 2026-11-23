@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminPlanController;
 use App\Http\Controllers\Admin\AdminPaymentController;
 use App\Http\Controllers\Admin\AdminNotificationController;
 use App\Http\Controllers\Admin\AdminErrorReportController;
+use App\Http\Controllers\Admin\AdminReleaseController;
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Http\Request;
@@ -85,6 +86,13 @@ Route::prefix('admin')->group(function () {
 
         // Historial de auditoría
         Route::get('/audit', [AdminDashboardController::class, 'auditLog'])->name('admin.audit.index');
+
+        // Versiones y novedades de la plataforma
+        Route::get('/releases', [AdminReleaseController::class, 'index'])->name('admin.releases.index');
+        Route::post('/releases', [AdminReleaseController::class, 'store'])->name('admin.releases.store');
+        Route::post('/releases/{id}/update', [AdminReleaseController::class, 'update'])->name('admin.releases.update');
+        Route::post('/releases/{id}/toggle-publish', [AdminReleaseController::class, 'togglePublish'])->name('admin.releases.toggle');
+        Route::post('/releases/{id}/delete', [AdminReleaseController::class, 'destroy'])->name('admin.releases.destroy');
 
         Route::get('/settings', [AdminDashboardController::class, 'globalSettings'])->name('admin.settings.index');
         Route::post('/settings', [AdminDashboardController::class, 'updateGlobalSettings'])->name('admin.settings.update');

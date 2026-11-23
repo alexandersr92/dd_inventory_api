@@ -21,13 +21,22 @@ class StoreSettingRequest extends FormRequest
      */
     public function rules(): array
     {
-      
-        return [
+        $rules = [
             'type'      => 'required|string|max:100',
             'entity_id' => 'nullable|uuid',
             'key'       => 'required|string|max:255',
             'value'     => 'nullable|string',
             'options'   => 'string'
         ];
+
+        if ($this->input('key') === 'seller_session_mode') {
+            $rules['value'] = 'required|string|in:AFTER_EACH_SALE,PERSISTENT';
+        }
+
+        if (in_array($this->input('key'), ['allow_proformas', 'allow_invoice_drafts'], true)) {
+            $rules['value'] = 'required|string|in:true,false';
+        }
+
+        return $rules;
     }
 }

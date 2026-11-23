@@ -8,6 +8,7 @@ use App\Models\InventoryDetail;
 use App\Models\CreditDetail;
 use App\Models\Invoice;
 use App\Models\Store;
+use App\Models\Setting;
 use Illuminate\Http\Request;
 use App\Http\Resources\InvoiceCollection;
 use App\Http\Resources\InvoiceResource;
@@ -115,7 +116,7 @@ class InvoiceController extends Controller
         if($invoice_status) {
             $query->where('invoice_status', $invoice_status);
         } else {
-            $query->where('invoice_status', '!=', 'proforma');
+            $query->whereNotIn('invoice_status', ['proforma', 'draft']);
         }
 
      
@@ -277,6 +278,34 @@ class InvoiceController extends Controller
 
         $orgId = Auth::user()->organization_id;
         $userID = Auth::id();
+
+        $isProforma = filter_var($request->is_proforma, FILTER_VALIDATE_BOOLEAN) || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
+        $isDraft = filter_var($request->is_draft, FILTER_VALIDATE_BOOLEAN) || $request->invoice_status === 'draft';
+
+        if ($isProforma) {
+            $allowProformas = filter_var(
+                Setting::where('organization_id', $orgId)->where('key', 'allow_proformas')->value('value'),
+                FILTER_VALIDATE_BOOLEAN
+            );
+            if (!$allowProformas) {
+                return response()->json([
+                    'message' => 'La organización no tiene habilitada la creación de proformas.'
+                ], 422);
+            }
+        }
+
+        if ($isDraft) {
+            $allowDrafts = filter_var(
+                Setting::where('organization_id', $orgId)->where('key', 'allow_invoice_drafts')->value('value'),
+                FILTER_VALIDATE_BOOLEAN
+            );
+            if (!$allowDrafts) {
+                return response()->json([
+                    'message' => 'La organización no tiene habilitada la creación de borradores.'
+                ], 422);
+            }
+        }
+
         $store = Store::where('id', $request->store_id)->lockForUpdate()->firstOrFail();
         $allowNegativeStock = true;
 
@@ -313,11 +342,64 @@ class InvoiceController extends Controller
             ? $request->products
             : json_decode($request->products, true, 512, JSON_THROW_ON_ERROR);
 
+        $hasFreeItems = false;
+        foreach ($productArray as $p) {
+            if (($p['item_type'] ?? '') === 'free') {
+                $hasFreeItems = true;
+                break;
+            }
+        }
+
+        if ($hasFreeItems) {
+            $allowFree = filter_var(
+                Setting::where('organization_id', $orgId)->where('key', 'allow_free_invoice_items')->value('value'),
+                FILTER_VALIDATE_BOOLEAN
+            );
+            if (!$allowFree) {
+                return response()->json([
+                    'message' => 'La organización no tiene habilitada la facturación de conceptos libres.'
+                ], 422);
+            }
+        }
+
         $processedProducts = [];
         foreach ($productArray as $product) {
             $qty = $product['quantity'];
             $price = $product['price'] ?? 0;
-            
+            $itemType = $product['item_type'] ?? 'product';
+
+            if ($itemType === 'free') {
+                $description = trim($product['description'] ?? $product['name'] ?? '');
+                if ($description === '') {
+                    return response()->json(['message' => 'La descripción es obligatoria para conceptos libres.'], 422);
+                }
+                if (!is_numeric($qty) || $qty <= 0) {
+                    return response()->json(['message' => 'La cantidad para conceptos libres debe ser mayor a 0.'], 422);
+                }
+                if (!is_numeric($price) || $price < 0) {
+                    return response()->json(['message' => 'El precio para conceptos libres no puede ser negativo.'], 422);
+                }
+                $cost = isset($product['cost']) && is_numeric($product['cost']) ? (float)$product['cost'] : 0.0;
+                if ($cost < 0) {
+                    return response()->json(['message' => 'El costo para conceptos libres no puede ser negativo.'], 422);
+                }
+
+                $processedProducts[] = [
+                    'item_type' => 'free',
+                    'description' => $description,
+                    'product_id' => null,
+                    'inventory_id' => null,
+                    'quantity' => (float)$qty,
+                    'price' => (float)$price,
+                    'cost' => $cost,
+                    'total' => $product['total'] ?? ($price * $qty),
+                    'discount' => $product['discount'] ?? 0,
+                    'tax' => $product['tax'] ?? 0,
+                    'grand_total' => $product['grand_total'] ?? ($price * $qty),
+                ];
+                continue;
+            }
+
             $prodId = $product['product_id'] ?? null;
             $invId = $product['inventory_id'] ?? $defaultInventoryId;
 
@@ -357,6 +439,8 @@ class InvoiceController extends Controller
             }
 
             $processedProducts[] = [
+                'item_type' => 'product',
+                'description' => null,
                 'product_id' => $prodId,
                 'inventory_id' => $invId,
                 'quantity' => $qty,
@@ -374,6 +458,10 @@ class InvoiceController extends Controller
         foreach ($processedProducts as $product) {
             $quantity = $product['quantity'];
             $totalItems += abs($quantity); // total de unidades
+
+            if (($product['item_type'] ?? 'product') === 'free') {
+                continue;
+            }
 
             $productObj = InventoryDetail::with('product')
                 ->where('product_id', $product['product_id'])
@@ -437,18 +525,24 @@ class InvoiceController extends Controller
         $invoiceData['invoice_number'] = $invoiceNumber;
         $invoiceData['total'] = $totalItems;
 
-        $isProforma = $request->is_proforma || $request->invoice_status === 'proforma' || $request->payment_method === 'PROFORMA';
-        if ($isProforma) {
+        if ($isDraft) {
+            $invoiceData['invoice_status'] = 'draft';
+            $invoiceData['invoice_type'] = 'draft';
+            $draftPrefix = 'DFT-' . ($store->invoice_prefix ? $store->invoice_prefix . '-' : '');
+            $invoiceData['invoice_number'] = $draftPrefix . date('ymd') . '-' . strtoupper(\Illuminate\Support\Str::random(5));
+        } elseif ($isProforma) {
             $invoiceData['invoice_status'] = 'proforma';
             $invoiceData['invoice_type'] = 'proforma';
+            $invoiceData['invoice_number'] = $invoiceNumber;
         } else {
             $invoiceData['invoice_status'] = $isCredit ? 'credit' : 'completed';
             $invoiceData['invoice_type'] = $isCredit ? 'credit' : 'cash';
+            $invoiceData['invoice_number'] = $invoiceNumber;
         }
 
         $invoiceData['user_id'] = $userID;
         $invoiceData['organization_id'] = $orgId;
-        $invoiceData['cash_session_id'] = $isProforma ? null : $request->cash_session_id;
+        $invoiceData['cash_session_id'] = ($isProforma || $isDraft) ? null : $request->cash_session_id;
 
         // Metadatos de venta offline (sincronización desde el POS sin conexión)
         $isOffline = filter_var($request->is_offline, FILTER_VALIDATE_BOOLEAN);
@@ -490,15 +584,19 @@ class InvoiceController extends Controller
             return response()->json(['message' => 'No se pudo crear la factura.'], 400);
         }
 
-        // Actualizar número de factura al consecutivo utilizado
-        $store->invoice_number = $nextInvoiceNumber;
-        $store->save();
+        if (!$isDraft) {
+            // Actualizar número de factura al consecutivo utilizado
+            $store->invoice_number = $nextInvoiceNumber;
+            $store->save();
+        }
 
         $movementService = app(InventoryMovementService::class);
 
         // Detalles y actualización de inventario
         foreach ($processedProducts as $index => $product) {
             $invoice->invoiceDetails()->create([
+                'item_type' => $product['item_type'] ?? 'product',
+                'description' => $product['description'] ?? null,
                 'product_id' => $product['product_id'],
                 'inventory_id' => $product['inventory_id'],
                 'quantity' => $product['quantity'],
@@ -511,8 +609,8 @@ class InvoiceController extends Controller
                 'sort_order' => $index
             ]);
 
-            // Si es proforma, no alteramos el inventario (es una cotización)
-            if ($invoiceData['invoice_status'] === 'proforma') {
+            // Si es proforma, borrador o concepto libre, no alteramos el inventario
+            if (in_array($invoiceData['invoice_status'], ['proforma', 'draft']) || ($product['item_type'] ?? 'product') === 'free') {
                 continue;
             }
 
@@ -537,8 +635,8 @@ class InvoiceController extends Controller
             }
         }
 
-        // Si es crédito y no es proforma
-        if ($invoiceData['invoice_status'] !== 'proforma' && $isCredit && $request->client_id) {
+        // Si es crédito y no es proforma ni borrador
+        if (!in_array($invoiceData['invoice_status'], ['proforma', 'draft']) && $isCredit && $request->client_id) {
             $credit = $invoice->credit()->create([
                 'user_id' => $userID,
                 'organization_id' => $orgId,
@@ -619,6 +717,10 @@ class InvoiceController extends Controller
             $movementService = app(InventoryMovementService::class);
 
             foreach($invoiceDetails as $invoiceDetail){
+                if (($invoiceDetail->item_type ?? 'product') === 'free' || empty($invoiceDetail->product_id)) {
+                    continue;
+                }
+
                 $detail = InventoryDetail::where('product_id', $invoiceDetail->product_id)
                     ->where('inventory_id', $invoiceDetail->inventory_id)
                     ->lockForUpdate()
